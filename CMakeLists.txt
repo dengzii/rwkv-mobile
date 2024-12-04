@@ -6,8 +6,8 @@ set(CMAKE_CXX_STANDARD 17)
 
 include(FetchContent)
 
-option(ENABLE_RWKVCPP_BACKEND "Enable RWKV.cpp backend" ON)
-option(ENABLE_WEBRWKV_BACKEND "Enable WebRWKV backend" ON)
+option(ENABLE_NCNN_BACKEND "Enable NCNN backend" ON)
+option(ENABLE_WEBRWKV_BACKEND "Enable WebRWKV backend" OFF)
 
 option(RWKV_MOBILE_BUILD_EXAMPLES "Build examples" ON)
 
@@ -32,6 +32,17 @@ if (ENABLE_WEBRWKV_BACKEND)
     corrosion_import_crate(MANIFEST_PATH backends/web-rwkv/Cargo.toml)
 endif()
 
+if (ENABLE_NCNN_BACKEND)
+    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/ncnn/src/ncnn_rwkv_backend.cpp)
+
+    FetchContent_Declare(
+        ncnn
+        GIT_REPOSITORY https://github.com/Tencent/ncnn
+        GIT_TAG 20240820
+    )
+    FetchContent_MakeAvailable(ncnn)
+endif()
+
 add_library(rwkv_mobile_internal ${RWKV_MOBILE_SRCS})
 target_include_directories(rwkv_mobile_internal PUBLIC src)
 
@@ -44,6 +55,12 @@ if (ENABLE_WEBRWKV_BACKEND)
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_WEBRWKV)
     target_include_directories(rwkv_mobile_internal PUBLIC backends/web-rwkv)
     target_link_libraries(rwkv_mobile_internal PUBLIC web_rwkv_ffi ${WEBRWKV_EXTRA_LIBS})
+endif()
+
+if (ENABLE_NCNN_BACKEND)
+    target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_NCNN)
+    target_include_directories(rwkv_mobile_internal PUBLIC backends/ncnn)
+    target_link_libraries(rwkv_mobile_internal PUBLIC ncnn)
 endif()
 
 if (RWKV_MOBILE_BUILD_EXAMPLES)

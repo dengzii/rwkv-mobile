@@ -1,6 +1,8 @@
 #include "runtime.h"
 #include "backend.h"
+#ifdef ENABLE_WEBRWKV
 #include "web_rwkv_backend.h"
+#endif
 
 namespace rwkvmobile {
 
@@ -39,7 +41,11 @@ int runtime::init(int backend_id) {
     }
 
     if (backend_id == RWKV_BACKEND_WEBRWKV) {
+#ifdef ENABLE_WEBRWKV
         _backend = std::unique_ptr<execution_provider>(new web_rwkv_backend);
+#else
+        return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+#endif
     } else {
         return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
     }

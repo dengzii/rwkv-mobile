@@ -12,7 +12,6 @@ An inference runtime with multiple backends supported.
 ## Supported or planned backends:
 
 - [x] WebRWKV (WebGPU): Compatible with most PC graphics cards, as well as macOS Metal. Doesn't work on Qualcomm's proprietary Adreno GPU driver though.
-- [ ] RWKV.cpp (TODO): Based on ggml, focusing on CPU inference.
 - [ ] Qualcomm Hexagon NPU (TODO: move code from the experimental repo [rwkv-qualcomm](github.com/MollySophia/rwkv-qualcomm)): Based on Qualcomm's QNN SDK.
 - [ ] To be continued...
 
