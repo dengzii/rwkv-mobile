@@ -2,8 +2,7 @@ import ncnn
 import numpy as np
 
 from rwkv.rwkv_tokenizer import TRIE_TOKENIZER
-
-tokenizer = TRIE_TOKENIZER('../assets/rwkv_vocab_v20230424.txt')
+from tokenizers import Tokenizer
 
 def sample_logits(out, temperature=1.0, top_p=0.8, top_k=128):
     out = out.flatten()
@@ -29,9 +28,19 @@ net.load_param('test.param')
 net.load_model('test.bin')
 
 n_layer, n_head, head_size, vocab_size = 24, 32, 64, 65536
+# n_layer, n_head, head_size, vocab_size = 12, 12, 64, 50304
 
-prompt = 'User: Hello, how are you?\n\nAssistant:'
-prompt_ids = tokenizer.encode(prompt)
+if vocab_size == 65536:
+    tokenizer = TRIE_TOKENIZER('../assets/rwkv_vocab_v20230424.txt')
+elif vocab_size == 50304:
+    tokenizer = Tokenizer.from_file('../assets/20B_tokenizer.json')
+
+# prompt = 'User: Hello, how are you?\n\nAssistant:'
+prompt = 'The Eiffel tower is in the city of'
+if vocab_size == 65536:
+    prompt_ids = tokenizer.encode(prompt)
+elif vocab_size == 50304:
+    prompt_ids = tokenizer.encode(prompt).ids
 print(prompt, end='', flush=True)
 
 states = []
@@ -55,8 +64,8 @@ for id in prompt_ids:
         states[3 * i + 1] = np.array(ex.extract(f'state_{3 * i + 1}_out')[1])
         states[3 * i + 2] = np.array(ex.extract(f'state_{3 * i + 2}_out')[1])
 
-for i in range(50):
-    id = sample_logits(logits)
+for i in range(100):
+    id = sample_logits(logits, top_k=0)
     print(tokenizer.decode([id]), end='', flush=True)
     ex = net.create_extractor()
     input = ncnn.Mat(np.array([id], dtype=np.int32))
