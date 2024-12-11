@@ -42,6 +42,15 @@ def write_weightdata(fp, dtype, tensor):
     else:
         assert 0, f'unsupported dtype {dtype}'
 
+def build_info(param_lines, fp, version, n_layer, n_head, head_size, vocab_size, layer_count, blob_count):
+    line = f"MemoryData model_info 0 1 model_info 0=5 21=1\n"
+    param_lines.append(line)
+    tensor = torch.tensor([version, n_layer, n_head, head_size, vocab_size], dtype=torch.float32)
+    write_weightdata(fp, torch.float32, tensor)
+    layer_count += 1
+    blob_count += 1
+    return layer_count, blob_count
+
 reshape_count = 0
 def build_reshape(param_lines, input, output, shape, layer_count, blob_count):
     global reshape_count

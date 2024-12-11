@@ -1,7 +1,7 @@
 #include "runtime.h"
 #include "commondef.h"
 #include "c_api.h"
-
+#include <cstring>
 
 namespace rwkvmobile {
 

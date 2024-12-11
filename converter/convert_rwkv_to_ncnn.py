@@ -23,6 +23,8 @@ ncnn_weights_file = open(args.output_name + '.bin', 'wb')
 layer_count = 0
 blob_count = 0
 ncnn_param_lines = ['7767517\n', '[layer_count] [blob_count]\n']
+layer_count, blob_count = build_info(ncnn_param_lines, ncnn_weights_file, version, n_layer, n_head, head_size, vocab_size, layer_count, blob_count)
+
 layer_count, blob_count = build_inp_emb(ncnn_param_lines, ncnn_weights_file, weights, n_head, head_size, vocab_size, n_layer, layer_count, blob_count)
 
 layer_input = 'emb'
