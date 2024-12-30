@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 include(FetchContent)
 
 option(ENABLE_NCNN_BACKEND "Enable NCNN backend" ON)
-option(ENABLE_WEBRWKV_BACKEND "Enable WebRWKV backend" OFF)
+option(ENABLE_WEBRWKV_BACKEND "Enable WebRWKV backend" ON)
 
 option(RWKV_MOBILE_BUILD_EXAMPLES "Build examples" ON)
 

@@ -18,7 +18,7 @@ An inference runtime with multiple backends supported.
 ## How to build:
 
 - Install [rust](https://www.rust-lang.org/tools/install) and [cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) (for building the web-rwkv backend)
-- `git clone https://github.com/MollySophia/rwkv-mobile`
+- `git clone --recursive https://github.com/MollySophia/rwkv-mobile`
 - `cd rwkv-mobile && mkdir build && cd build`
 - `cmake ..`
 - `cmake --build . -j $(nproc)`
