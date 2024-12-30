@@ -10,7 +10,7 @@ namespace rwkvmobile {
 
 #ifdef ENABLE_WEBRWKV
 int web_rwkv_backend::init(void * extra) {
-    web_rwkv_init((uint64_t)time(NULL));
+    ::init((uint64_t)time(NULL));
     return RWKV_SUCCESS;
 }
 
@@ -23,34 +23,45 @@ int web_rwkv_backend::load_model(std::string model_path) {
         || model_path.find("abc") != std::string::npos
         || model_path.find("MIDI") != std::string::npos
         || model_path.find("midi") != std::string::npos) {
-        ret = web_rwkv_load_with_rescale(model_path.c_str(), 999, 999, 999);
+        try {
+            load_with_rescale(model_path.c_str(), 999, 999, 999);
+        } catch (...) {
+            return RWKV_ERROR_MODEL;
+        }
     } else {
-        ret = web_rwkv_load(model_path.c_str(), 999, 999);
-    }
-    if (ret) {
-        return RWKV_ERROR_MODEL;
+        try {
+            load(model_path.c_str(), 999, 999);
+        } catch (...) {
+            return RWKV_ERROR_MODEL;
+        }
     }
     return RWKV_SUCCESS;
 }
 
 int web_rwkv_backend::eval(int id, std::vector<float> &logits) {
     std::vector<uint16_t> ids = {(uint16_t)id};
-    int ret = web_rwkv_infer_logits(ids.data(), ids.size(), logits.data(), logits.size());
-    if (!ret) {
-        return RWKV_SUCCESS;
-    } else {
+    auto ret = infer_raw_last(ids.data(), ids.size());
+    if (!ret.len || !ret.logits) {
         return RWKV_ERROR_EVAL;
     }
+    if (logits.size() != ret.len) {
+        logits.resize(ret.len);
+    }
+    logits.assign(ret.logits, ret.logits + ret.len);
+    return RWKV_SUCCESS;
 }
 
 int web_rwkv_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
     std::vector<uint16_t> ids_u16(ids.begin(), ids.end());
-    int ret = web_rwkv_infer_logits(ids_u16.data(), ids_u16.size(), logits.data(), logits.size());
-    if (!ret) {
-        return RWKV_SUCCESS;
-    } else {
+    auto ret = infer_raw_last(ids_u16.data(), ids_u16.size());
+    if (!ret.len || !ret.logits) {
         return RWKV_ERROR_EVAL;
     }
+    if (logits.size() != ret.len) {
+        logits.resize(ret.len);
+    }
+    logits.assign(ret.logits, ret.logits + ret.len);
+    return RWKV_SUCCESS;
 }
 
 bool web_rwkv_backend::is_available() {

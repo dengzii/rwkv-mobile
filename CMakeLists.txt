@@ -20,16 +20,16 @@ set(RWKV_MOBILE_SRCS
 )
 
 if (ENABLE_WEBRWKV_BACKEND)
-    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/web-rwkv/src/web_rwkv_backend.cpp)
+    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/web_rwkv/web_rwkv_backend.cpp)
 
     FetchContent_Declare(
         Corrosion
         GIT_REPOSITORY https://github.com/corrosion-rs/corrosion.git
-        GIT_TAG v0.5 # Optionally specify a commit hash, version tag or branch here
+        GIT_TAG v0.5
     )
     FetchContent_MakeAvailable(Corrosion)
 
-    corrosion_import_crate(MANIFEST_PATH backends/web-rwkv/Cargo.toml)
+    corrosion_import_crate(MANIFEST_PATH backends/web_rwkv/web_rwkv_ffi/Cargo.toml)
 endif()
 
 if (ENABLE_NCNN_BACKEND)
@@ -48,12 +48,12 @@ target_include_directories(rwkv_mobile_internal PUBLIC src)
 
 if (ENABLE_WEBRWKV_BACKEND)
     if (APPLE)
-        set(WEBRWKV_EXTRA_LIBS "-framework QuartzCore -framework Metal -lSystem -framework CoreGraphics -framework CoreFoundation -lobjc -liconv")
+        set(WEBRWKV_EXTRA_LIBS "-framework QuartzCore -framework Metal -framework CoreGraphics -framework CoreFoundation -lobjc -liconv")
     elseif (WIN32)
         set(WEBRWKV_EXTRA_LIBS ws2_32 opengl32 d3d12 d3dcompiler userenv kernel32 user32 ntdll bcrypt)
     endif()
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_WEBRWKV)
-    target_include_directories(rwkv_mobile_internal PUBLIC backends/web-rwkv)
+    target_include_directories(rwkv_mobile_internal PUBLIC backends/web_rwkv)
     target_link_libraries(rwkv_mobile_internal PUBLIC web_rwkv_ffi ${WEBRWKV_EXTRA_LIBS})
 endif()
 
