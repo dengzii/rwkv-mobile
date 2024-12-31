@@ -19,7 +19,7 @@ jobs:
       run: echo "VERSION=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
 
   openmp-ios:
-    runs-on: macos-12
+    runs-on: macos-14
     env:
       DEVELOPER_DIR: /Applications/Xcode_13.4.1.app/Contents/Developer
       IOS_DEPLOYMENT_TARGET: '13.0'
@@ -90,7 +90,7 @@ jobs:
 
   build-ios:
     needs: [setup, openmp-ios]
-    runs-on: macos-12
+    runs-on: macos-14
     env:
       PACKAGENAME: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static
       DEVELOPER_DIR: /Applications/Xcode_13.4.1.app/Contents/Developer
