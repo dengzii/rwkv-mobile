@@ -23,17 +23,9 @@ int web_rwkv_backend::load_model(std::string model_path) {
         || model_path.find("abc") != std::string::npos
         || model_path.find("MIDI") != std::string::npos
         || model_path.find("midi") != std::string::npos) {
-        try {
-            load_with_rescale(model_path.c_str(), 999, 999, 999);
-        } catch (...) {
-            return RWKV_ERROR_MODEL;
-        }
+        load_with_rescale(model_path.c_str(), 999, 999, 999);
     } else {
-        try {
-            load(model_path.c_str(), 999, 999);
-        } catch (...) {
-            return RWKV_ERROR_MODEL;
-        }
+        load(model_path.c_str(), 999, 999);
     }
     return RWKV_SUCCESS;
 }
