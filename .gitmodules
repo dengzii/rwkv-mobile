@@ -1,3 +1,0 @@
-[submodule "backends/web_rwkv/web_rwkv_ffi"]
-	path = backends/web_rwkv/web_rwkv_ffi
-	url = https://github.com/MollySophia/web-rwkv-ffi

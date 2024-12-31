@@ -11,12 +11,13 @@ option(ENABLE_WEBRWKV_BACKEND "Enable WebRWKV backend" ON)
 
 option(RWKV_MOBILE_BUILD_EXAMPLES "Build examples" ON)
 
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+
 set(RWKV_MOBILE_SRCS
     src/runtime.cpp
     src/sampler.cpp
     src/tokenizer.cpp
     src/logger.cpp
-    src/c_api.cpp
 )
 
 if (ENABLE_WEBRWKV_BACKEND)
@@ -29,7 +30,15 @@ if (ENABLE_WEBRWKV_BACKEND)
     )
     FetchContent_MakeAvailable(Corrosion)
 
-    corrosion_import_crate(MANIFEST_PATH backends/web_rwkv/web_rwkv_ffi/Cargo.toml)
+    FetchContent_Declare(
+        web_rwkv_ffi
+        GIT_REPOSITORY https://github.com/cryscan/web-rwkv-ffi.git
+        GIT_TAG main
+    )
+    FetchContent_MakeAvailable(web_rwkv_ffi)
+
+    corrosion_import_crate(MANIFEST_PATH ${web_rwkv_ffi_SOURCE_DIR}/Cargo.toml)
+
 endif()
 
 if (ENABLE_NCNN_BACKEND)
@@ -40,6 +49,11 @@ if (ENABLE_NCNN_BACKEND)
         GIT_REPOSITORY https://github.com/Tencent/ncnn
         GIT_TAG 20240820
     )
+    include(disable_unused_ncnn_layers)
+    option(NCNN_BUILD_TOOLS "" OFF)
+    option(NCNN_BUILD_EXAMPLES "" OFF)
+    option(NCNN_BUILD_TESTS "" OFF)
+    option(NCNN_BUILD_BENCHMARK "" OFF)
     FetchContent_MakeAvailable(ncnn)
 endif()
 
@@ -53,7 +67,7 @@ if (ENABLE_WEBRWKV_BACKEND)
         set(WEBRWKV_EXTRA_LIBS ws2_32 opengl32 d3d12 d3dcompiler userenv kernel32 user32 ntdll bcrypt)
     endif()
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_WEBRWKV)
-    target_include_directories(rwkv_mobile_internal PUBLIC backends/web_rwkv)
+    target_include_directories(rwkv_mobile_internal PUBLIC backends/web_rwkv ${web_rwkv_ffi_SOURCE_DIR}/include)
     target_link_libraries(rwkv_mobile_internal PUBLIC web_rwkv_ffi ${WEBRWKV_EXTRA_LIBS})
 endif()
 
@@ -66,4 +80,20 @@ endif()
 if (RWKV_MOBILE_BUILD_EXAMPLES)
     add_executable(gen examples/gen.cpp)
     target_link_libraries(gen PUBLIC rwkv_mobile_internal)
+endif()
+
+if (NOT WIN32)
+    set(CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE "LINKER:--whole-archive" "<LINK_ITEM>" "LINKER:--no-whole-archive")
+    set(CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE_SUPPORTED TRUE)
+endif()
+
+# create a shared library based on rwkv_mobile_internal and web_rwkv_ffi
+add_library(rwkv_mobile SHARED src/c_api.cpp)
+target_link_libraries(rwkv_mobile PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,rwkv_mobile_internal>")
+if (ENABLE_WEBRWKV_BACKEND)
+    target_link_libraries(rwkv_mobile PRIVATE web_rwkv_ffi ${WEBRWKV_EXTRA_LIBS})
+endif()
+
+if (ENABLE_NCNN_BACKEND)
+    target_link_libraries(rwkv_mobile PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,ncnn>")
 endif()
