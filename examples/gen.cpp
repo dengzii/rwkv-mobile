@@ -1,4 +1,5 @@
 #include <iostream>
+#include <chrono>
 
 #include "commondef.h"
 #include "runtime.h"
@@ -25,11 +26,15 @@ int main(int argc, char **argv) {
     std::cout << prompt;
     ENSURE_SUCCESS_OR_LOG_EXIT(runtime.gen_completion(prompt, result, 1), "Failed to generate chat message");
     std::cout << result;
+    auto start = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < 200; i++ ) {
         std::string input(result);
         ENSURE_SUCCESS_OR_LOG_EXIT(runtime.gen_completion(input, result, 1), "Failed to generate chat message");
         std::cout << result;
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << "\n\nTokens per second: " << 200 / (duration.count() / 1e6) << std::endl;
 
     std::cout << std::endl;
 
