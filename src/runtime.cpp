@@ -128,11 +128,11 @@ int runtime::eval_logits(std::vector<int> ids, std::vector<float> &logits) {
     return _backend->eval(ids, logits);
 }
 
-int runtime::chat(std::string user_role, std::string response_role, std::string user_input, std::string &response, const int max_length) {
+int runtime::chat(std::string input, std::string &response, bool input_history, const int max_length, void (*callback)(const char *)) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
-    std::string prompt = user_role + ": " + user_input + "\n\n" + response_role + ":";
+    std::string prompt = user_role + ": " + input + "\n\n" + response_role + ":";
     std::vector<int> ids = _tokenizer->encode(prompt);
     std::vector<float> logits(_vocab_size);
     response = "";
@@ -155,6 +155,9 @@ int runtime::chat(std::string user_role, std::string response_role, std::string 
         _occurences[idx]++;
 
         response += _tokenizer->decode(idx);
+        if (callback) {
+            callback(response.c_str());
+        }
         ret = eval_logits(idx, logits);
         if (response.c_str()[response.size() - 1] == '\n' && response.c_str()[response.size() - 2] == '\n') {
             break;

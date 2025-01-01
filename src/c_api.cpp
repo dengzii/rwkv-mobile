@@ -44,23 +44,23 @@ int rwkvmobile_runtime_eval_logits(rwkvmobile_runtime_t handle, const int * ids,
 
 int rwkvmobile_runtime_eval_chat(
     rwkvmobile_runtime_t handle,
-    const char * user_role,
-    const char * response_role,
-    const char * user_input,
+    const char * input,
     char * response,
-    const int max_length) {
-    if (handle == nullptr || user_role == nullptr || response_role == nullptr || user_input == nullptr || response == nullptr || max_length <= 0) {
+    bool input_history,
+    const int max_length,
+    void (*callback)(const char *)) {
+    if (handle == nullptr || input == nullptr || response == nullptr || max_length <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
 
     auto rt = static_cast<class runtime *>(handle);
     std::string response_str;
     int ret = rt->chat(
-        std::string(user_role),
-        std::string(response_role),
-        std::string(user_input),
+        std::string(input),
         response_str,
-        max_length);
+        input_history,
+        max_length,
+        callback);
     if (ret != RWKV_SUCCESS) {
         return ret;
     }

@@ -46,7 +46,7 @@ int rwkvmobile_runtime_eval_logits(rwkvmobile_runtime_t runtime, const int *ids,
 // 3. the response length reaches the limit
 // ============================
 // returns: Error codes
-int rwkvmobile_runtime_eval_chat(rwkvmobile_runtime_t runtime, const char * user_role, const char * response_role, const char * user_input, char * response, const int max_length);
+int rwkvmobile_runtime_eval_chat(rwkvmobile_runtime_t runtime, const char * input, char * response, bool input_history, const int max_length, void (*callback)(const char *));
 
 // ============================
 // generate completion from prompt

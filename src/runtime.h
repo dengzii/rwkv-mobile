@@ -20,7 +20,7 @@ public:
     int load_tokenizer(std::string vocab_file);
     int eval_logits(int id, std::vector<float> &logits);
     int eval_logits(std::vector<int> ids, std::vector<float> &logits);
-    int chat(std::string user_role, std::string response_role, std::string user_input, std::string &response, const int max_length);
+    int chat(std::string user_input, std::string &response, bool with_history, const int max_length, void (*callback)(const char *) = nullptr);
     int gen_completion(std::string prompt, std::string &completion, int length);
 
     int get_state(std::vector<float> &state);
@@ -54,6 +54,11 @@ public:
     }
 
     inline int64_t get_seed() { return _seed; }
+
+    inline void set_user_role(std::string role) { user_role = role; }
+    inline void set_response_role(std::string role) { response_role = role; }
+    std::string get_user_role() { return user_role; }
+    std::string get_response_role() { return response_role; }
 
     inline void set_sampler_params(float temperature, int top_k, float top_p) {
         _temperature = temperature;
@@ -125,6 +130,8 @@ private:
     float _frequency_penalty = 1.0;
     float _penalty_decay = 0.996;
     int64_t _seed = 0;
+    std::string user_role = "User";
+    std::string response_role = "Assistant";
 
     std::map<int, float> _occurences;
 };
