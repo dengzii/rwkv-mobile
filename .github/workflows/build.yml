@@ -46,6 +46,30 @@ jobs:
       with:
         name: ${{ env.PACKAGENAME }}
         path: ${{ env.PACKAGENAME }}.zip
+  
+  build-macos-library:
+    needs: [setup]
+    runs-on: macos-13
+    env:
+      PACKAGENAME: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos
+    steps:
+    - uses: actions/checkout@v4
+    - name: build-arm64
+      run: |
+        mkdir build-arm64 && cd build-arm64
+        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+        cmake --build . -j 8
+    - name: package
+      run: |
+        rm -f ${{ env.PACKAGENAME }}.zip
+        pushd build-arm64
+        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.dylib
+        popd
+    - name: upload-zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.PACKAGENAME }}
+        path: ${{ env.PACKAGENAME }}.zip
 
   build-android-library:
     needs: [setup]
@@ -83,15 +107,20 @@ jobs:
       with:
         name: ${{ env.PACKAGENAME }}
         path: ${{ env.PACKAGENAME }}.zip
-  
+
   upload-dev-release:
-    needs: [setup, build-ios-library, build-android-library]
+    needs: [setup, build-ios-library, build-android-library, build-macos-library]
     runs-on: ubuntu-latest
     steps:
       - name: download-ios
         uses: actions/download-artifact@v4
         with:
           name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static
+
+      - name: download-macos
+        uses: actions/download-artifact@v4
+        with:
+          name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos
 
       - name: download-android
         uses: actions/download-artifact@v4
@@ -107,6 +136,7 @@ jobs:
           title: "Development Build"
           files: |
             librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static.zip
+            librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos.zip
             librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c.zip
       - uses: "marvinpinto/action-automatic-releases@latest"
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
@@ -115,4 +145,5 @@ jobs:
           prerelease: false
           files: |
             librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static.zip
+            librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos.zip
             librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c.zip
