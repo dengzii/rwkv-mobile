@@ -99,7 +99,7 @@ jobs:
     - name: package
       run: |
         rm -f ${{ env.PACKAGENAME }}.zip
-        pushd build-arm64
+        pushd build
         zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.so
         popd
     - name: upload-zip
