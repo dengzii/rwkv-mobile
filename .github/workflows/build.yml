@@ -35,6 +35,17 @@ jobs:
         mkdir build-arm64 && cd build-arm64
         cmake .. -DENABLE_NCNN_BACKEND=OFF -DENABLE_WEBRWKV_BACKEND=ON -DBUILD_STATIC_LIB=ON -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
         cmake --build . -j 8
+    - name: package
+      run: |
+        rm -f ${{ env.PACKAGENAME }}.zip
+        pushd build-arm64
+        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.a
+        popd
+    - name: upload-zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.PACKAGENAME }}
+        path: ${{ env.PACKAGENAME }}.zip
 
   build-android-library:
     needs: [setup]
@@ -61,3 +72,47 @@ jobs:
           -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/android-ndk-r25c/build/cmake/android.toolchain.cmake -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
           -G Ninja
         ninja
+    - name: package
+      run: |
+        rm -f ${{ env.PACKAGENAME }}.zip
+        pushd build-arm64
+        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.so
+        popd
+    - name: upload-zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.PACKAGENAME }}
+        path: ${{ env.PACKAGENAME }}.zip
+  
+  upload-dev-release:
+    needs: [setup, build-ios-library, build-android-library]
+    runs-on: ubuntu-latest
+    steps:
+      - name: download-ios
+        uses: actions/download-artifact@v4
+        with:
+          name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static
+
+      - name: download-android
+        uses: actions/download-artifact@v4
+        with:
+          name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c
+
+      - uses: "marvinpinto/action-automatic-releases@latest"
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "latest"
+          prerelease: true
+          title: "Development Build"
+          files: |
+            librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static.zip
+            librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c.zip
+      - uses: "marvinpinto/action-automatic-releases@latest"
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: false
+          files: |
+            librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static.zip
+            librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c.zip
