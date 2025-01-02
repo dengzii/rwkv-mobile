@@ -102,40 +102,85 @@ class rwkv_mobile {
 
   int rwkvmobile_runtime_eval_chat(
     rwkvmobile_runtime_t runtime,
-    ffi.Pointer<ffi.Char> user_role,
-    ffi.Pointer<ffi.Char> response_role,
-    ffi.Pointer<ffi.Char> user_input,
+    ffi.Pointer<ffi.Char> input,
     ffi.Pointer<ffi.Char> response,
     int max_length,
+    ffi.Pointer<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Char>)>>
+        callback,
   ) {
     return _rwkvmobile_runtime_eval_chat(
       runtime,
-      user_role,
-      response_role,
-      user_input,
+      input,
       response,
       max_length,
+      callback,
     );
   }
 
   late final _rwkvmobile_runtime_eval_chatPtr = _lookup<
-      ffi.NativeFunction<
-          ffi.Int Function(
-              rwkvmobile_runtime_t,
-              ffi.Pointer<ffi.Char>,
-              ffi.Pointer<ffi.Char>,
-              ffi.Pointer<ffi.Char>,
-              ffi.Pointer<ffi.Char>,
-              ffi.Int)>>('rwkvmobile_runtime_eval_chat');
+          ffi.NativeFunction<
+              ffi.Int Function(
+                  rwkvmobile_runtime_t,
+                  ffi.Pointer<ffi.Char>,
+                  ffi.Pointer<ffi.Char>,
+                  ffi.Int,
+                  ffi.Pointer<
+                      ffi.NativeFunction<
+                          ffi.Void Function(ffi.Pointer<ffi.Char>)>>)>>(
+      'rwkvmobile_runtime_eval_chat');
   late final _rwkvmobile_runtime_eval_chat =
       _rwkvmobile_runtime_eval_chatPtr.asFunction<
           int Function(
               rwkvmobile_runtime_t,
               ffi.Pointer<ffi.Char>,
               ffi.Pointer<ffi.Char>,
+              int,
+              ffi.Pointer<
+                  ffi.NativeFunction<
+                      ffi.Void Function(ffi.Pointer<ffi.Char>)>>)>();
+
+  int rwkvmobile_runtime_eval_chat_with_history(
+    rwkvmobile_runtime_t handle,
+    ffi.Pointer<ffi.Pointer<ffi.Char>> inputs,
+    int num_inputs,
+    ffi.Pointer<ffi.Char> response,
+    int max_length,
+    ffi.Pointer<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Char>)>>
+        callback,
+  ) {
+    return _rwkvmobile_runtime_eval_chat_with_history(
+      handle,
+      inputs,
+      num_inputs,
+      response,
+      max_length,
+      callback,
+    );
+  }
+
+  late final _rwkvmobile_runtime_eval_chat_with_historyPtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Int Function(
+                  rwkvmobile_runtime_t,
+                  ffi.Pointer<ffi.Pointer<ffi.Char>>,
+                  ffi.Int,
+                  ffi.Pointer<ffi.Char>,
+                  ffi.Int,
+                  ffi.Pointer<
+                      ffi.NativeFunction<
+                          ffi.Void Function(ffi.Pointer<ffi.Char>)>>)>>(
+      'rwkvmobile_runtime_eval_chat_with_history');
+  late final _rwkvmobile_runtime_eval_chat_with_history =
+      _rwkvmobile_runtime_eval_chat_with_historyPtr.asFunction<
+          int Function(
+              rwkvmobile_runtime_t,
+              ffi.Pointer<ffi.Pointer<ffi.Char>>,
+              int,
               ffi.Pointer<ffi.Char>,
-              ffi.Pointer<ffi.Char>,
-              int)>();
+              int,
+              ffi.Pointer<
+                  ffi.NativeFunction<
+                      ffi.Void Function(ffi.Pointer<ffi.Char>)>>)>();
 
   int rwkvmobile_runtime_gen_completion(
     rwkvmobile_runtime_t runtime,

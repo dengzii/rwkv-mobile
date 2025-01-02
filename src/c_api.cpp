@@ -66,6 +66,35 @@ int rwkvmobile_runtime_eval_chat(
     return RWKV_SUCCESS;
 }
 
+int rwkvmobile_runtime_eval_chat_with_history(
+    rwkvmobile_runtime_t handle,
+    const char ** inputs,
+    const int num_inputs,
+    char * response,
+    const int max_length,
+    void (*callback)(const char *)) {
+    if (handle == nullptr || inputs == nullptr || num_inputs == 0 || response == nullptr || max_length <= 0) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+
+    auto rt = static_cast<class runtime *>(handle);
+    std::vector<std::string> inputs_vec;
+    for (int i = 0; i < num_inputs; i++) {
+        inputs_vec.push_back(std::string(inputs[i]));
+    }
+    std::string response_str;
+    int ret = rt->chat(
+        inputs_vec,
+        response_str,
+        max_length,
+        callback);
+    if (ret != RWKV_SUCCESS) {
+        return ret;
+    }
+    strncpy(response, response_str.c_str(), response_str.size());
+    return RWKV_SUCCESS;
+}
+
 int rwkvmobile_runtime_gen_completion(
     rwkvmobile_runtime_t handle,
     const char * prompt,

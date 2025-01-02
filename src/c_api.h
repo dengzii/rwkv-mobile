@@ -33,6 +33,7 @@ int rwkvmobile_runtime_eval_logits(rwkvmobile_runtime_t runtime, const int *ids,
 
 int rwkvmobile_runtime_eval_chat(rwkvmobile_runtime_t runtime, const char * input, char * response, const int max_length, void (*callback)(const char *));
 
+int rwkvmobile_runtime_eval_chat_with_history(rwkvmobile_runtime_t handle, const char ** inputs, const int num_inputs, char * response, const int max_length, void (*callback)(const char *));
 // ============================
 // generate completion from prompt
 // args: runtime handle, prompt text, char buffer for completion output, completion length
