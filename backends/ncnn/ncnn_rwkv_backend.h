@@ -14,17 +14,14 @@ public:
     int eval(int id, std::vector<float> &logits) override;
     int eval(std::vector<int> ids, std::vector<float> &logits) override;
     bool is_available() override;
-    // int get_state(std::vector<float> &state) override;
-    // int set_state(std::vector<float> state) override;
+    int get_state(std::any &state) override;
+    int set_state(std::any state) override;
+    int free_state(std::any state) override;
+    int clear_state() override;
 
 private:
     ncnn::Net net;
     std::vector<ncnn::Mat> states;
-    int n_layers;
-    int num_heads;
-    int head_size;
-    int version;
-    int vocab_size;
 };
 
 }

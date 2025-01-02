@@ -8,7 +8,8 @@
 
 namespace rwkvmobile {
 
-#ifdef ENABLE_WEBRWKV
+// #ifdef ENABLE_WEBRWKV
+#if 1
 int web_rwkv_backend::init(void * extra) {
     ::init((uint64_t)time(NULL));
     return RWKV_SUCCESS;
@@ -27,6 +28,13 @@ int web_rwkv_backend::load_model(std::string model_path) {
     } else {
         load(model_path.c_str(), 999, 999);
     }
+
+    struct ModelInfoOutput info = get_model_info();
+    version = info.version;
+    n_layers = info.num_layer;
+    num_heads = info.num_head;
+    hidden_size = info.num_emb;
+    vocab_size = info.num_vocab;
     return RWKV_SUCCESS;
 }
 
@@ -61,6 +69,38 @@ bool web_rwkv_backend::is_available() {
     return true;
 }
 
+int web_rwkv_backend::clear_state() {
+    ::clear_state();
+    return RWKV_SUCCESS;
+}
+
+int web_rwkv_backend::get_state(std::any &state) {
+    struct StateRaw raw = ::get_state();
+    if (!raw.len || !raw.state) {
+        return RWKV_ERROR_BACKEND | RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    state = raw;
+    return RWKV_SUCCESS;
+}
+
+int web_rwkv_backend::set_state(std::any state) {
+    struct StateRaw raw = std::any_cast<struct StateRaw>(state);
+    if (!raw.len || !raw.state) {
+        return RWKV_ERROR_BACKEND | RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    ::set_state(raw);
+    return RWKV_SUCCESS;
+}
+
+int web_rwkv_backend::free_state(std::any state) {
+    struct StateRaw raw = std::any_cast<struct StateRaw>(state);
+    if (!raw.len || !raw.state) {
+        return RWKV_ERROR_BACKEND | RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    ::free_state(raw);
+    return RWKV_SUCCESS;
+}
+
 #else
 
 int web_rwkv_backend::init(void * extra) {
@@ -76,6 +116,22 @@ int web_rwkv_backend::eval(int id, std::vector<float> &logits) {
 }
 
 int web_rwkv_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
+    return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+}
+
+int web_rwkv_backend::clear_state() {
+    return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+}
+
+int web_rwkv_backend::get_state(std::any &state) {
+    return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+}
+
+int web_rwkv_backend::set_state(std::any state) {
+    return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+}
+
+int web_rwkv_backend::free_state(std::any state) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 

@@ -15,6 +15,7 @@ enum {
     RWKV_ERROR_SAMPLER = 1 << 7,
     RWKV_ERROR_RUNTIME = 1 << 8,
     RWKV_ERROR_UNSUPPORTED = 1 << 9,
+    RWKV_ERROR_ALLOC = 1 << 10,
 };
 
 } // namespace rwkvmobile

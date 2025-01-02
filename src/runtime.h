@@ -20,16 +20,26 @@ public:
     int load_tokenizer(std::string vocab_file);
     int eval_logits(int id, std::vector<float> &logits);
     int eval_logits(std::vector<int> ids, std::vector<float> &logits);
-    int chat(std::string user_input, std::string &response, bool with_history, const int max_length, void (*callback)(const char *) = nullptr);
+
+    // without history
+    int chat(std::string input, std::string &response, const int max_length, void (*callback)(const char *) = nullptr);
+
+    // with history
+    int chat(std::vector<std::string> inputs, std::string &response, const int max_length, void (*callback)(const char *) = nullptr);
     int gen_completion(std::string prompt, std::string &completion, int length);
 
-    int get_state(std::vector<float> &state);
-    int set_state(std::vector<float> state);
     int clear_state() {
         if (_backend == nullptr) {
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
         }
         _occurences.clear();
+        auto ptr = _state_head->next;
+        while (ptr) {
+            auto tmp = ptr;
+            ptr = ptr->next;
+            _backend->free_state(tmp->state);
+            delete tmp;
+        }
         return _backend->clear_state();
     }
 
@@ -37,6 +47,7 @@ public:
         if (_backend == nullptr) {
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
         }
+        clear_state();
         int ret = _backend->release_model();
         if (ret != RWKV_SUCCESS) {
             return ret;
@@ -59,6 +70,9 @@ public:
     inline void set_response_role(std::string role) { response_role = role; }
     std::string get_user_role() { return user_role; }
     std::string get_response_role() { return response_role; }
+
+    inline std::vector<std::string> get_stop_codes() { return _stop_codes; }
+    inline void set_stop_codes(std::vector<std::string> stop_codes) { _stop_codes = stop_codes; }
 
     inline void set_sampler_params(float temperature, int top_k, float top_p) {
         _temperature = temperature;
@@ -116,6 +130,12 @@ public:
         return _sampler->sample(logits.data(), logits.size(), _temperature, _top_k, _top_p);
     }
 
+    struct state_node {
+        std::any state;
+        unsigned long long hash = 0;
+        struct state_node * next = nullptr;
+    } * _state_head = nullptr;
+
 private:
     std::unique_ptr<execution_provider> _backend;
     std::unique_ptr<tokenizer_base> _tokenizer;
@@ -133,7 +153,17 @@ private:
     std::string user_role = "User";
     std::string response_role = "Assistant";
 
+    std::vector<std::string> _stop_codes = {"\n\n"};
+
     std::map<int, float> _occurences;
+
+    unsigned long long hash_string(std::string str) {
+        unsigned long long hash = 0, p = 13131;
+        for (auto c : str) {
+            hash = hash * p + c;
+        }
+        return hash;
+    }
 };
 
 }

@@ -46,7 +46,6 @@ int rwkvmobile_runtime_eval_chat(
     rwkvmobile_runtime_t handle,
     const char * input,
     char * response,
-    bool input_history,
     const int max_length,
     void (*callback)(const char *)) {
     if (handle == nullptr || input == nullptr || response == nullptr || max_length <= 0) {
@@ -58,7 +57,6 @@ int rwkvmobile_runtime_eval_chat(
     int ret = rt->chat(
         std::string(input),
         response_str,
-        input_history,
         max_length,
         callback);
     if (ret != RWKV_SUCCESS) {

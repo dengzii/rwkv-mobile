@@ -31,22 +31,7 @@ int rwkvmobile_runtime_load_tokenizer(rwkvmobile_runtime_t runtime, const char *
 // returns: Error codes
 int rwkvmobile_runtime_eval_logits(rwkvmobile_runtime_t runtime, const int *ids, int ids_len, float * logits, int logits_len);
 
-// ============================
-// get chat response message
-// args: runtime handle, user role, response role, user input, char buffer for response output, response length limit
-// note: response buffer should be allocated by the caller, and should be large enough to hold the response
-// ============================
-// example: rwkvmobile_runtime_eval_chat(runtime, "User", "Assistant", "hello", response, 1024);
-// the text being passed to the model would be:
-// "User: hello\n\nAssistant:"
-// ============================
-// response will stop when these conditions are met:
-// 1. the model generates an end-of-sequence token (id = 0)
-// 2. the model generates double-newline ("\n\n")
-// 3. the response length reaches the limit
-// ============================
-// returns: Error codes
-int rwkvmobile_runtime_eval_chat(rwkvmobile_runtime_t runtime, const char * input, char * response, bool input_history, const int max_length, void (*callback)(const char *));
+int rwkvmobile_runtime_eval_chat(rwkvmobile_runtime_t runtime, const char * input, char * response, const int max_length, void (*callback)(const char *));
 
 // ============================
 // generate completion from prompt

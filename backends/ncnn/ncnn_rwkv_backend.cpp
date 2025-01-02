@@ -44,13 +44,14 @@ int ncnn_rwkv_backend::load_model(std::string model_path) {
     version = model_info[0];
     n_layers = model_info[1];
     num_heads = model_info[2];
-    head_size = model_info[3];
+    int head_size = model_info[3];
+    hidden_size = num_heads * head_size;
     vocab_size = model_info[4];
 
     for (int i = 0; i < n_layers; i++) {
-        states.push_back(ncnn::Mat(num_heads * head_size));
+        states.push_back(ncnn::Mat(hidden_size));
         states.push_back(ncnn::Mat(head_size, head_size, num_heads));
-        states.push_back(ncnn::Mat(num_heads * head_size));
+        states.push_back(ncnn::Mat(hidden_size));
     }
 
     for (auto &state : states) {
@@ -113,6 +114,41 @@ int ncnn_rwkv_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
     return RWKV_SUCCESS;
 }
 
+int ncnn_rwkv_backend::get_state(std::any &state) {
+    auto new_state = std::vector<ncnn::Mat>(states.size());
+    for (int i = 0; i < states.size(); i++) {
+        new_state[i] = states[i].clone();
+    }
+    state = new_state;
+    return RWKV_SUCCESS;
+}
+
+int ncnn_rwkv_backend::set_state(std::any state) {
+    auto new_state = std::any_cast<std::vector<ncnn::Mat>>(state);
+    if (new_state.size() != states.size()) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    for (int i = 0; i < states.size(); i++) {
+        states[i].clone_from(new_state[i]);
+    }
+    return RWKV_SUCCESS;
+}
+
+int ncnn_rwkv_backend::free_state(std::any state) {
+    auto new_state = std::any_cast<std::vector<ncnn::Mat>>(state);
+    for (auto &mat : new_state) {
+        mat.release();
+    }
+    return RWKV_SUCCESS;
+}
+
+int ncnn_rwkv_backend::clear_state() {
+    for (auto &state : states) {
+        state.fill(0.0f);
+    }
+    return RWKV_SUCCESS;
+}
+
 bool ncnn_rwkv_backend::is_available() {
     // always available
     return true;
@@ -133,6 +169,22 @@ int ncnn_rwkv_backend::eval(int id, std::vector<float> &logits) {
 }
 
 int ncnn_rwkv_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
+    return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+}
+
+int ncnn_rwkv_backend::clear_state() {
+    return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+}
+
+int ncnn_rwkv_backend::get_state(std::any &state) {
+    return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+}
+
+int ncnn_rwkv_backend::set_state(std::any state) {
+    return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+}
+
+int ncnn_rwkv_backend::free_state(std::any state) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 

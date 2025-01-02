@@ -3,3 +3,8 @@ build*/
 .vscode/
 pubspec.lock
 .dart_tool/
+*.cpython-*
+*.st
+*.param
+*.bin
+*.pth

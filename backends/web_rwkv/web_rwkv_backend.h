@@ -12,8 +12,10 @@ public:
     int eval(int id, std::vector<float> &logits) override;
     int eval(std::vector<int> ids, std::vector<float> &logits) override;
     bool is_available() override;
-    // int get_state(std::vector<float> &state) override;
-    // int set_state(std::vector<float> state) override;
+    int clear_state() override;
+    int get_state(std::any &state) override;
+    int set_state(std::any state) override;
+    int free_state(std::any state) override;
 };
 
 }

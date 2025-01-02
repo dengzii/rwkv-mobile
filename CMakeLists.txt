@@ -33,8 +33,8 @@ if (ENABLE_WEBRWKV_BACKEND)
 
     FetchContent_Declare(
         web_rwkv_ffi
-        GIT_REPOSITORY https://github.com/cryscan/web-rwkv-ffi.git
-        GIT_TAG main
+        GIT_REPOSITORY https://github.com/MollySophia/web-rwkv-ffi.git
+        GIT_TAG molly
     )
     FetchContent_MakeAvailable(web_rwkv_ffi)
 
@@ -43,7 +43,7 @@ if (ENABLE_WEBRWKV_BACKEND)
 endif()
 
 if (ENABLE_NCNN_BACKEND)
-    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/ncnn/src/ncnn_rwkv_backend.cpp)
+    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/ncnn/ncnn_rwkv_backend.cpp)
 
     FetchContent_Declare(
         ncnn
@@ -82,9 +82,12 @@ endif()
 if (RWKV_MOBILE_BUILD_EXAMPLES)
     add_executable(gen examples/gen.cpp)
     target_link_libraries(gen PUBLIC rwkv_mobile_internal)
+
+    add_executable(test_chat examples/test_chat.cpp)
+    target_link_libraries(test_chat PUBLIC rwkv_mobile_internal)
 endif()
 
-if (NOT WIN32)
+if (NOT WIN32 AND NOT APPLE)
     set(CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE "LINKER:--whole-archive" "<LINK_ITEM>" "LINKER:--no-whole-archive")
     set(CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE_SUPPORTED TRUE)
 endif()
