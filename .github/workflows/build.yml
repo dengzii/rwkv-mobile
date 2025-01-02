@@ -139,7 +139,7 @@ jobs:
             librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos.zip
             librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c.zip
       - uses: "marvinpinto/action-automatic-releases@latest"
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/tags/v' }}
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
