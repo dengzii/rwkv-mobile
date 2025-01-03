@@ -153,7 +153,7 @@ private:
     std::string user_role = "User";
     std::string response_role = "Assistant";
 
-    std::vector<std::string> _stop_codes = {"\n\n", "Assistant:", "User:"};
+    std::vector<std::string> _stop_codes = {"\n\n", "\nUser:", "User:"};
 
     std::map<int, float> _occurences;
 
