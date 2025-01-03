@@ -276,15 +276,11 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
             break;
         }
 
-        response += _tokenizer->decode(idx);
-        if (i == 0 && response[0] == ' ') {
-            response = response.substr(1);
-        }
-
+        std::string tmp = response + _tokenizer->decode(idx);
         bool stopping = false;
         for (auto &stop_code : _stop_codes) {
-            if (response.size() >= stop_code.size() &&
-                response.compare(response.size() - stop_code.size(), stop_code.size(), stop_code) == 0) {
+            if (tmp.size() >= stop_code.size() &&
+                tmp.compare(tmp.size() - stop_code.size(), stop_code.size(), stop_code) == 0) {
                 stopping = true;
                 break;
             }
@@ -292,6 +288,11 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
 
         if (stopping) {
             break;
+        }
+
+        response += _tokenizer->decode(idx);
+        if (i == 0 && response[0] == ' ') {
+            response = response.substr(1);
         }
 
         _occurences[idx]++;
