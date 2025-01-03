@@ -40,7 +40,7 @@ jobs:
       run: |
         rm -f ${{ env.PACKAGENAME }}.zip
         pushd build-arm64
-        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.a
+        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.a libweb_rwkv_ffi.a
         popd
     - name: upload-zip
       uses: actions/upload-artifact@v4
