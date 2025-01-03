@@ -240,7 +240,8 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
             prompt += response_role + ":";
         }
         std::vector<int> ids = _tokenizer->encode(prompt);
-        int ret = eval_logits(ids, logits);
+        ret = eval_logits(ids, logits);
+        if (ret) return ret;
         node->next = new state_node;
         if (node->next == nullptr) {
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
@@ -250,21 +251,10 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
         _backend->get_state(node->state);
     }
 
-    // debugging
-    // {
-    //     struct state_node *ptr = _state_head;
-    //     int idx = 0;
-    //     while (ptr) {
-    //         LOGD("State node %i hash %llu\n", idx-1, ptr->hash);
-    //         ptr = ptr->next;
-    //         idx++;
-    //     }
-    // }
-
-    if (edited) {
+    if (edited || start_idx == 0) {
         _occurences.clear();
         for (int i = 1; i < inputs.size(); i += 2) {
-            std::vector<int> ids = _tokenizer->encode(user_role + ": " + inputs[i]);
+            std::vector<int> ids = _tokenizer->encode(" " + inputs[i]);
             for (auto id: ids) {
                 for (auto &[id, occurence] : _occurences) {
                     occurence *= _penalty_decay;
@@ -285,34 +275,39 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
         if (idx == 0) {
             break;
         }
-        _occurences[idx]++;
 
-        response += _tokenizer->decode(idx);
-        if (callback) {
-            callback(response.c_str());
-        }
-
+        std::string tmp = response + _tokenizer->decode(idx);
         bool stopping = false;
         for (auto &stop_code : _stop_codes) {
-            if (response.size() >= stop_code.size() &&
-                response.compare(response.size() - stop_code.size(), stop_code.size(), stop_code) == 0) {
+            if (tmp.size() >= stop_code.size() &&
+                tmp.compare(tmp.size() - stop_code.size(), stop_code.size(), stop_code) == 0) {
                 stopping = true;
                 break;
             }
         }
 
+        if (stopping) {
+            break;
+        }
+
+        response += _tokenizer->decode(idx);
+
+        _occurences[idx]++;
+
+        if (callback && !(i == 0 && response == " ")) {
+            callback(response.c_str());
+        }
+
         ret = eval_logits(idx, logits);
         if (ret) return ret;
-        if (stopping) break;
     }
+
+    ret = eval_logits(_tokenizer->encode(_stop_codes[0]), logits);
+    if (ret) return ret;
 
     // remove the spaces prefix in response
     while (response.size() > 0 && response[0] == ' ') {
         response = response.substr(1);
-    }
-    // remove "\n\n" suffix in response
-    if (response.size() >= 2 && response.substr(response.size() - 2) == "\n\n") {
-        response = response.substr(0, response.size() - 2);
     }
 
     LOGD("Response: \"%s\"\n", response.c_str());
