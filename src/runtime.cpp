@@ -276,11 +276,15 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
             break;
         }
 
-        std::string tmp = response + _tokenizer->decode(idx);
+        response += _tokenizer->decode(idx);
+        if (i == 0 && response[0] == ' ') {
+            response = response.substr(1);
+        }
+
         bool stopping = false;
         for (auto &stop_code : _stop_codes) {
-            if (tmp.size() >= stop_code.size() &&
-                tmp.compare(tmp.size() - stop_code.size(), stop_code.size(), stop_code) == 0) {
+            if (response.size() >= stop_code.size() &&
+                response.compare(response.size() - stop_code.size(), stop_code.size(), stop_code) == 0) {
                 stopping = true;
                 break;
             }
@@ -290,11 +294,8 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
             break;
         }
 
-        response += _tokenizer->decode(idx);
-
         _occurences[idx]++;
-
-        if (callback && !(i == 0 && response == " ")) {
+        if (callback) {
             callback(response.c_str());
         }
 
@@ -304,11 +305,6 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
 
     ret = eval_logits(_tokenizer->encode(_stop_codes[0]), logits);
     if (ret) return ret;
-
-    // remove the spaces prefix in response
-    while (response.size() > 0 && response[0] == ' ') {
-        response = response.substr(1);
-    }
 
     LOGD("Response: \"%s\"\n", response.c_str());
 
