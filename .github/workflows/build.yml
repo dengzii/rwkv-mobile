@@ -48,11 +48,35 @@ jobs:
         name: ${{ env.PACKAGENAME }}
         path: ${{ env.PACKAGENAME }}.zip
   
-  build-macos-library:
+  build-macos-library-x64:
     needs: [setup]
     runs-on: macos-13
     env:
-      PACKAGENAME: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos
+      PACKAGENAME: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-x64
+    steps:
+    - uses: actions/checkout@v4
+    - name: build-x64
+      run: |
+        rm -rf build-x64
+        mkdir build-x64 && cd build-x64
+        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+        cmake --build . -j 8
+    - name: package
+      run: |
+        rm -f ${{ env.PACKAGENAME }}.zip
+        pushd build-x64
+        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.dylib
+        popd
+    - name: upload-zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.PACKAGENAME }}
+        path: ${{ env.PACKAGENAME }}.zip
+  build-macos-library-aarch64:
+    needs: [setup]
+    runs-on: macos-14
+    env:
+      PACKAGENAME: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64
     steps:
     - uses: actions/checkout@v4
     - name: build-arm64
@@ -65,6 +89,43 @@ jobs:
       run: |
         rm -f ${{ env.PACKAGENAME }}.zip
         pushd build-arm64
+        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.dylib
+        popd
+    - name: upload-zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.PACKAGENAME }}
+        path: ${{ env.PACKAGENAME }}.zip
+
+  pack-macos-library-universal:
+    needs: [setup, build-macos-library-x64, build-macos-library-aarch64]
+    runs-on: macos-14
+    env:
+      PACKAGENAME: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos
+    steps:
+    - name: download-macos-x64
+      uses: actions/download-artifact@v4
+      with:
+        name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-x64
+    - name: download-macos-aarch64
+      uses: actions/download-artifact@v4
+      with:
+        name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64
+    - name: create-universal
+      run: |
+        rm -rf build-universal build-x64 build-arm64
+        mkdir build-x64 && cd build-x64
+        unzip ../librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-x64.zip
+        cd ..
+        mkdir build-arm64 && cd build-arm64
+        unzip ../librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64.zip
+        cd ..
+        mkdir build-universal && cd build-universal
+        lipo -create ../build-x64/librwkv_mobile.dylib ../build-arm64/librwkv_mobile.dylib -output librwkv_mobile.dylib
+    - name: package
+      run: |
+        rm -f ${{ env.PACKAGENAME }}.zip
+        pushd build-universal
         zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.dylib
         popd
     - name: upload-zip
@@ -112,7 +173,7 @@ jobs:
         path: ${{ env.PACKAGENAME }}.zip
 
   upload-dev-release:
-    needs: [setup, build-ios-library, build-android-library, build-macos-library]
+    needs: [setup, build-ios-library, build-android-library, pack-macos-library-universal]
     runs-on: ubuntu-latest
     steps:
       - name: download-ios
