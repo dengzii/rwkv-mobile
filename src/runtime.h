@@ -149,11 +149,11 @@ private:
     float _presence_penalty = 0.0;
     float _frequency_penalty = 1.0;
     float _penalty_decay = 0.996;
-    int64_t _seed = 0;
+    int64_t _seed = 42;
     std::string user_role = "User";
     std::string response_role = "Assistant";
 
-    std::vector<std::string> _stop_codes = {"\n\n"};
+    std::vector<std::string> _stop_codes = {"\n\n", "Assistant:", "User:"};
 
     std::map<int, float> _occurences;
 

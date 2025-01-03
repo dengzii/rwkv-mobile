@@ -8,3 +8,4 @@ pubspec.lock
 *.param
 *.bin
 *.pth
+.DS_Store

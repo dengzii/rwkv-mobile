@@ -24,6 +24,14 @@ int rwkvmobile_runtime_load_model(rwkvmobile_runtime_t handle, const char * mode
     return rt->load_model(model_path);
 }
 
+int rwkvmobile_runtime_release(rwkvmobile_runtime_t handle) {
+    if (handle == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(handle);
+    return rt->release();
+}
+
 int rwkvmobile_runtime_load_tokenizer(rwkvmobile_runtime_t handle, const char * vocab_file) {
     if (handle == nullptr || vocab_file == nullptr) {
         return RWKV_ERROR_INVALID_PARAMETERS;
@@ -123,6 +131,19 @@ int rwkvmobile_runtime_clear_state(rwkvmobile_runtime_t handle) {
     }
     auto rt = static_cast<class runtime *>(handle);
     return rt->clear_state();
+}
+
+int rwkvmobile_runtime_get_available_backend_names(rwkvmobile_runtime_t handle, char * backend_names_buffer, int buffer_size) {
+    if (handle == nullptr || backend_names_buffer == nullptr || buffer_size <= 0) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(handle);
+    auto backend_names = rt->get_available_backends_str();
+    if (backend_names.size() >= buffer_size) {
+        return RWKV_ERROR_ALLOC;
+    }
+    strncpy(backend_names_buffer, backend_names.c_str(), buffer_size);
+    return RWKV_SUCCESS;
 }
 
 } // extern "C"

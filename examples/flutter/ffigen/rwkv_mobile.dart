@@ -36,6 +36,20 @@ class rwkv_mobile {
       _rwkvmobile_runtime_init_with_namePtr
           .asFunction<rwkvmobile_runtime_t Function(ffi.Pointer<ffi.Char>)>();
 
+  int rwkvmobile_runtime_release(
+    rwkvmobile_runtime_t runtime,
+  ) {
+    return _rwkvmobile_runtime_release(
+      runtime,
+    );
+  }
+
+  late final _rwkvmobile_runtime_releasePtr =
+      _lookup<ffi.NativeFunction<ffi.Int Function(rwkvmobile_runtime_t)>>(
+          'rwkvmobile_runtime_release');
+  late final _rwkvmobile_runtime_release = _rwkvmobile_runtime_releasePtr
+      .asFunction<int Function(rwkvmobile_runtime_t)>();
+
   int rwkvmobile_runtime_load_model(
     rwkvmobile_runtime_t runtime,
     ffi.Pointer<ffi.Char> model_path,
@@ -222,6 +236,26 @@ class rwkv_mobile {
   late final _rwkvmobile_runtime_clear_state =
       _rwkvmobile_runtime_clear_statePtr
           .asFunction<int Function(rwkvmobile_runtime_t)>();
+
+  int rwkvmobile_runtime_get_available_backend_names(
+    rwkvmobile_runtime_t handle,
+    ffi.Pointer<ffi.Char> backend_names_buffer,
+    int buffer_size,
+  ) {
+    return _rwkvmobile_runtime_get_available_backend_names(
+      handle,
+      backend_names_buffer,
+      buffer_size,
+    );
+  }
+
+  late final _rwkvmobile_runtime_get_available_backend_namesPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Int Function(rwkvmobile_runtime_t, ffi.Pointer<ffi.Char>,
+              ffi.Int)>>('rwkvmobile_runtime_get_available_backend_names');
+  late final _rwkvmobile_runtime_get_available_backend_names =
+      _rwkvmobile_runtime_get_available_backend_namesPtr.asFunction<
+          int Function(rwkvmobile_runtime_t, ffi.Pointer<ffi.Char>, int)>();
 }
 
 typedef rwkvmobile_runtime_t = ffi.Pointer<ffi.Void>;
