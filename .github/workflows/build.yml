@@ -191,6 +191,12 @@ jobs:
         with:
           name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c
 
+      - name: rename-dev-artifacts
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        run: |
+          mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static.zip librwkv_mobile-dev-latest-ios-static.zip
+          mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos.zip librwkv_mobile-dev-latest-macos.zip
+          mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c.zip librwkv_mobile-dev-latest-aarch64-android-ndk-r25c.zip
       - uses: "marvinpinto/action-automatic-releases@latest"
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         with:
@@ -199,9 +205,9 @@ jobs:
           prerelease: true
           title: "Development Build"
           files: |
-            librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static.zip
-            librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos.zip
-            librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c.zip
+            librwkv_mobile-dev-latest-ios-static.zip
+            librwkv_mobile-dev-latest-macos.zip
+            librwkv_mobile-dev-latest-aarch64-android-ndk-r25c.zip
       - uses: "marvinpinto/action-automatic-releases@latest"
         if: ${{ github.event_name == 'push' && github.ref == 'refs/tags/v' }}
         with:
