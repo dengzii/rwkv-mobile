@@ -29,7 +29,9 @@ int rwkvmobile_runtime_release(rwkvmobile_runtime_t handle) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
     auto rt = static_cast<class runtime *>(handle);
-    return rt->release();
+    int ret = rt->release();
+    delete rt;
+    return ret;
 }
 
 int rwkvmobile_runtime_load_tokenizer(rwkvmobile_runtime_t handle, const char * vocab_file) {
