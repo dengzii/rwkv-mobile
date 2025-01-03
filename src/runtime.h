@@ -143,11 +143,11 @@ private:
 
     int _vocab_size = 65536;
 
-    float _temperature = 1.0;
+    float _temperature = 2.0;
     int _top_k = 128;
-    float _top_p = 0.3;
-    float _presence_penalty = 0.0;
-    float _frequency_penalty = 1.0;
+    float _top_p = 0.5;
+    float _presence_penalty = 0.5;
+    float _frequency_penalty = 0.5;
     float _penalty_decay = 0.996;
     int64_t _seed = 42;
     std::string user_role = "User";
