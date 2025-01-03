@@ -133,16 +133,20 @@ int rwkvmobile_runtime_clear_state(rwkvmobile_runtime_t handle) {
     return rt->clear_state();
 }
 
-int rwkvmobile_runtime_get_available_backend_names(rwkvmobile_runtime_t handle, char * backend_names_buffer, int buffer_size) {
-    if (handle == nullptr || backend_names_buffer == nullptr || buffer_size <= 0) {
+int rwkvmobile_runtime_get_available_backend_names(char * backend_names_buffer, int buffer_size) {
+    if (backend_names_buffer == nullptr || buffer_size <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
-    auto rt = static_cast<class runtime *>(handle);
+    runtime * rt = new runtime();
+    if (rt == nullptr) {
+        return RWKV_ERROR_ALLOC;
+    }
     auto backend_names = rt->get_available_backends_str();
     if (backend_names.size() >= buffer_size) {
         return RWKV_ERROR_ALLOC;
     }
     strncpy(backend_names_buffer, backend_names.c_str(), buffer_size);
+    delete rt;
     return RWKV_SUCCESS;
 }
 
