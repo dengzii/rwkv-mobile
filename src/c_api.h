@@ -3,6 +3,18 @@
 
 typedef void * rwkvmobile_runtime_t;
 
+struct sampler_params {
+    float temperature;
+    int top_k;
+    float top_p;
+};
+
+struct penalty_params {
+    float presence_penalty;
+    float frequency_penalty;
+    float penalty_decay;
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -23,9 +35,19 @@ int rwkvmobile_runtime_eval_chat(rwkvmobile_runtime_t runtime, const char * inpu
 
 int rwkvmobile_runtime_eval_chat_with_history(rwkvmobile_runtime_t handle, const char ** inputs, const int num_inputs, char * response, const int max_length, void (*callback)(const char *));
 
+int rwkvmobile_runtime_set_prompt(rwkvmobile_runtime_t runtime, const char * prompt);
+
 int rwkvmobile_runtime_gen_completion(rwkvmobile_runtime_t runtime, const char * prompt, char * completion, const int length);
 
 int rwkvmobile_runtime_clear_state(rwkvmobile_runtime_t runtime);
+
+struct sampler_params rwkvmobile_runtime_get_sampler_params(rwkvmobile_runtime_t runtime);
+
+void rwkvmobile_runtime_set_sampler_params(rwkvmobile_runtime_t runtime, struct sampler_params params);
+
+struct penalty_params rwkvmobile_runtime_get_penalty_params(rwkvmobile_runtime_t runtime);
+
+void rwkvmobile_runtime_set_penalty_params(rwkvmobile_runtime_t runtime, struct penalty_params params);
 
 #ifdef __cplusplus
 }

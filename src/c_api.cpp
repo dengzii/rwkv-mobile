@@ -152,5 +152,59 @@ int rwkvmobile_runtime_get_available_backend_names(char * backend_names_buffer, 
     return RWKV_SUCCESS;
 }
 
+struct sampler_params rwkvmobile_runtime_get_sampler_params(rwkvmobile_runtime_t runtime) {
+    struct sampler_params params;
+    params.temperature = 0;
+    params.top_k = 0;
+    params.top_p = 0;
+    if (runtime == nullptr) {
+        return params;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    params.temperature = rt->get_temperature();
+    params.top_k = rt->get_top_k();
+    params.top_p = rt->get_top_p();
+    return params;
+}
+
+void rwkvmobile_runtime_set_sampler_params(rwkvmobile_runtime_t runtime, struct sampler_params params) {
+    if (runtime == nullptr) {
+        return;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    rt->set_sampler_params(params.temperature, params.top_k, params.top_p);
+}
+
+struct penalty_params rwkvmobile_runtime_get_penalty_params(rwkvmobile_runtime_t runtime) {
+    struct penalty_params params;
+    params.presence_penalty = 0;
+    params.frequency_penalty = 0;
+    params.penalty_decay = 0;
+    if (runtime == nullptr) {
+        return params;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    params.presence_penalty = rt->get_presence_penalty();
+    params.frequency_penalty = rt->get_frequency_penalty();
+    params.penalty_decay = rt->get_penalty_decay();
+    return params;
+}
+
+void rwkvmobile_runtime_set_penalty_params(rwkvmobile_runtime_t runtime, struct penalty_params params) {
+    if (runtime == nullptr) {
+        return;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    rt->set_penalty_params(params.presence_penalty, params.frequency_penalty, params.penalty_decay);
+}
+
+int rwkvmobile_runtime_set_prompt(rwkvmobile_runtime_t runtime, const char * prompt) {
+    if (runtime == nullptr || prompt == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->set_prompt(prompt);
+}
+
 } // extern "C"
 } // namespace rwkvmobile

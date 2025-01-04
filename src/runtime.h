@@ -28,6 +28,8 @@ public:
     int chat(std::vector<std::string> inputs, std::string &response, const int max_length, void (*callback)(const char *) = nullptr);
     int gen_completion(std::string prompt, std::string &completion, int length);
 
+    int set_prompt(std::string prompt);
+
     int clear_state() {
         if (_backend == nullptr) {
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
@@ -66,10 +68,10 @@ public:
 
     inline int64_t get_seed() { return _seed; }
 
-    inline void set_user_role(std::string role) { user_role = role; }
-    inline void set_response_role(std::string role) { response_role = role; }
-    std::string get_user_role() { return user_role; }
-    std::string get_response_role() { return response_role; }
+    inline void set_user_role(std::string role) { _user_role = role; }
+    inline void set_response_role(std::string role) { _response_role = role; }
+    std::string get_user_role() { return _user_role; }
+    std::string get_response_role() { return _response_role; }
 
     inline std::vector<std::string> get_stop_codes() { return _stop_codes; }
     inline void set_stop_codes(std::vector<std::string> stop_codes) { _stop_codes = stop_codes; }
@@ -150,8 +152,9 @@ private:
     float _frequency_penalty = 0.5;
     float _penalty_decay = 0.996;
     int64_t _seed = 42;
-    std::string user_role = "User";
-    std::string response_role = "Assistant";
+    std::string _user_role = "User";
+    std::string _response_role = "Assistant";
+    std::string _prompt;
 
     std::vector<std::string> _stop_codes = {"\n\n", "\nUser:", "User:"};
 

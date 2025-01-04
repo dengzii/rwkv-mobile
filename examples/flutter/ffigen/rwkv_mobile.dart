@@ -213,6 +213,23 @@ class rwkv_mobile {
                   ffi.NativeFunction<
                       ffi.Void Function(ffi.Pointer<ffi.Char>)>>)>();
 
+  int rwkvmobile_runtime_set_prompt(
+    rwkvmobile_runtime_t runtime,
+    ffi.Pointer<ffi.Char> prompt,
+  ) {
+    return _rwkvmobile_runtime_set_prompt(
+      runtime,
+      prompt,
+    );
+  }
+
+  late final _rwkvmobile_runtime_set_promptPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Int Function(rwkvmobile_runtime_t,
+              ffi.Pointer<ffi.Char>)>>('rwkvmobile_runtime_set_prompt');
+  late final _rwkvmobile_runtime_set_prompt = _rwkvmobile_runtime_set_promptPtr
+      .asFunction<int Function(rwkvmobile_runtime_t, ffi.Pointer<ffi.Char>)>();
+
   int rwkvmobile_runtime_gen_completion(
     rwkvmobile_runtime_t runtime,
     ffi.Pointer<ffi.Char> prompt,
@@ -253,6 +270,94 @@ class rwkv_mobile {
   late final _rwkvmobile_runtime_clear_state =
       _rwkvmobile_runtime_clear_statePtr
           .asFunction<int Function(rwkvmobile_runtime_t)>();
+
+  sampler_params rwkvmobile_runtime_get_sampler_params(
+    rwkvmobile_runtime_t runtime,
+  ) {
+    return _rwkvmobile_runtime_get_sampler_params(
+      runtime,
+    );
+  }
+
+  late final _rwkvmobile_runtime_get_sampler_paramsPtr = _lookup<
+          ffi.NativeFunction<sampler_params Function(rwkvmobile_runtime_t)>>(
+      'rwkvmobile_runtime_get_sampler_params');
+  late final _rwkvmobile_runtime_get_sampler_params =
+      _rwkvmobile_runtime_get_sampler_paramsPtr
+          .asFunction<sampler_params Function(rwkvmobile_runtime_t)>();
+
+  void rwkvmobile_runtime_set_sampler_params(
+    rwkvmobile_runtime_t runtime,
+    sampler_params params,
+  ) {
+    return _rwkvmobile_runtime_set_sampler_params(
+      runtime,
+      params,
+    );
+  }
+
+  late final _rwkvmobile_runtime_set_sampler_paramsPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(rwkvmobile_runtime_t,
+              sampler_params)>>('rwkvmobile_runtime_set_sampler_params');
+  late final _rwkvmobile_runtime_set_sampler_params =
+      _rwkvmobile_runtime_set_sampler_paramsPtr
+          .asFunction<void Function(rwkvmobile_runtime_t, sampler_params)>();
+
+  penalty_params rwkvmobile_runtime_get_penalty_params(
+    rwkvmobile_runtime_t runtime,
+  ) {
+    return _rwkvmobile_runtime_get_penalty_params(
+      runtime,
+    );
+  }
+
+  late final _rwkvmobile_runtime_get_penalty_paramsPtr = _lookup<
+          ffi.NativeFunction<penalty_params Function(rwkvmobile_runtime_t)>>(
+      'rwkvmobile_runtime_get_penalty_params');
+  late final _rwkvmobile_runtime_get_penalty_params =
+      _rwkvmobile_runtime_get_penalty_paramsPtr
+          .asFunction<penalty_params Function(rwkvmobile_runtime_t)>();
+
+  void rwkvmobile_runtime_set_penalty_params(
+    rwkvmobile_runtime_t runtime,
+    penalty_params params,
+  ) {
+    return _rwkvmobile_runtime_set_penalty_params(
+      runtime,
+      params,
+    );
+  }
+
+  late final _rwkvmobile_runtime_set_penalty_paramsPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(rwkvmobile_runtime_t,
+              penalty_params)>>('rwkvmobile_runtime_set_penalty_params');
+  late final _rwkvmobile_runtime_set_penalty_params =
+      _rwkvmobile_runtime_set_penalty_paramsPtr
+          .asFunction<void Function(rwkvmobile_runtime_t, penalty_params)>();
+}
+
+final class sampler_params extends ffi.Struct {
+  @ffi.Float()
+  external double temperature;
+
+  @ffi.Int()
+  external int top_k;
+
+  @ffi.Float()
+  external double top_p;
+}
+
+final class penalty_params extends ffi.Struct {
+  @ffi.Float()
+  external double presence_penalty;
+
+  @ffi.Float()
+  external double frequency_penalty;
+
+  @ffi.Float()
+  external double penalty_decay;
 }
 
 typedef rwkvmobile_runtime_t = ffi.Pointer<ffi.Void>;

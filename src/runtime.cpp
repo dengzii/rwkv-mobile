@@ -146,7 +146,7 @@ int runtime::chat(std::string input, std::string &response, const int max_length
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
-    std::string prompt = user_role + ": " + input + "\n\n" + response_role + ":";
+    std::string prompt = _user_role + ": " + input + "\n\n" + _response_role + ":";
     std::vector<int> ids = _tokenizer->encode(prompt);
     std::vector<float> logits(_vocab_size);
     response = "";
@@ -231,13 +231,13 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
     for (int i = start_idx; i < inputs.size(); i++) {
         std::string prompt;
         if (i % 2 == 0) {
-            prompt = user_role + ": " + inputs[i] + "\n\n";
+            prompt = _user_role + ": " + inputs[i] + "\n\n";
         } else {
-            prompt = response_role + ": " + inputs[i] + "\n\n";
+            prompt = _response_role + ": " + inputs[i] + "\n\n";
         }
         LOGD("Processing history %i: \"%s\"\n", i, prompt.c_str());
         if (i == inputs.size() - 1) {
-            prompt += response_role + ":";
+            prompt += _response_role + ":";
         }
         std::vector<int> ids = _tokenizer->encode(prompt);
         ret = eval_logits(ids, logits);
@@ -317,6 +317,37 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
     node->hash = hash_string(response);
     _backend->get_state(node->state);
 
+    return RWKV_SUCCESS;
+}
+
+int runtime::set_prompt(std::string prompt) {
+    if (_backend == nullptr || _tokenizer == nullptr) {
+        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    unsigned long long hash;
+    if (prompt.empty()) {
+        hash = 0;
+    } else {
+        hash = hash_string(prompt);
+    }
+    if (_state_head->hash == hash) {
+        return RWKV_SUCCESS;
+    }
+    _prompt = prompt;
+    clear_state();
+    _state_head->hash = hash;
+
+    if (prompt.empty()) {
+        return RWKV_SUCCESS;
+    }
+    _backend->free_state(_state_head->state);
+    std::vector<float> logits(_vocab_size);
+    std::vector<int> ids = _tokenizer->encode(prompt);
+    int ret = eval_logits(ids, logits);
+    if (ret) {
+        return ret;
+    }
+    _backend->get_state(_state_head->state);
     return RWKV_SUCCESS;
 }
 
