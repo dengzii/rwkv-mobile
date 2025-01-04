@@ -29,6 +29,7 @@ public:
     int gen_completion(std::string prompt, std::string &completion, int length);
 
     int set_prompt(std::string prompt);
+    std::string get_prompt();
 
     int clear_state() {
         if (_backend == nullptr) {

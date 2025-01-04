@@ -37,6 +37,8 @@ int rwkvmobile_runtime_eval_chat_with_history(rwkvmobile_runtime_t handle, const
 
 int rwkvmobile_runtime_set_prompt(rwkvmobile_runtime_t runtime, const char * prompt);
 
+int rwkvmobile_runtime_get_prompt(rwkvmobile_runtime_t runtime, char * prompt, const int buf_len);
+
 int rwkvmobile_runtime_gen_completion(rwkvmobile_runtime_t runtime, const char * prompt, char * completion, const int length);
 
 int rwkvmobile_runtime_clear_state(rwkvmobile_runtime_t runtime);

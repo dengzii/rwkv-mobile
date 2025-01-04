@@ -206,5 +206,18 @@ int rwkvmobile_runtime_set_prompt(rwkvmobile_runtime_t runtime, const char * pro
     return rt->set_prompt(prompt);
 }
 
+int rwkvmobile_runtime_get_prompt(rwkvmobile_runtime_t runtime, char * prompt, const int buf_len) {
+    if (runtime == nullptr || prompt == nullptr || buf_len <= 0) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    std::string prompt_str = rt->get_prompt();
+    if (prompt_str.size() >= buf_len) {
+        return RWKV_ERROR_ALLOC;
+    }
+    strncpy(prompt, prompt_str.c_str(), buf_len);
+    return RWKV_SUCCESS;
+}
+
 } // extern "C"
 } // namespace rwkvmobile

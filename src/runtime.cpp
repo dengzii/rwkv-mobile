@@ -351,6 +351,10 @@ int runtime::set_prompt(std::string prompt) {
     return RWKV_SUCCESS;
 }
 
+std::string runtime::get_prompt() {
+    return _prompt;
+}
+
 int runtime::gen_completion(std::string prompt, std::string &completion, int length) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
