@@ -230,6 +230,26 @@ class rwkv_mobile {
   late final _rwkvmobile_runtime_set_prompt = _rwkvmobile_runtime_set_promptPtr
       .asFunction<int Function(rwkvmobile_runtime_t, ffi.Pointer<ffi.Char>)>();
 
+  int rwkvmobile_runtime_get_prompt(
+    rwkvmobile_runtime_t runtime,
+    ffi.Pointer<ffi.Char> prompt,
+    int buf_len,
+  ) {
+    return _rwkvmobile_runtime_get_prompt(
+      runtime,
+      prompt,
+      buf_len,
+    );
+  }
+
+  late final _rwkvmobile_runtime_get_promptPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Int Function(rwkvmobile_runtime_t, ffi.Pointer<ffi.Char>,
+              ffi.Int)>>('rwkvmobile_runtime_get_prompt');
+  late final _rwkvmobile_runtime_get_prompt =
+      _rwkvmobile_runtime_get_promptPtr.asFunction<
+          int Function(rwkvmobile_runtime_t, ffi.Pointer<ffi.Char>, int)>();
+
   int rwkvmobile_runtime_gen_completion(
     rwkvmobile_runtime_t runtime,
     ffi.Pointer<ffi.Char> prompt,
