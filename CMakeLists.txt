@@ -9,7 +9,7 @@ include(FetchContent)
 option(ENABLE_NCNN_BACKEND "Enable NCNN backend" ON)
 option(ENABLE_WEBRWKV_BACKEND "Enable WebRWKV backend" ON)
 
-option(RWKV_MOBILE_BUILD_EXAMPLES "Build examples" ON)
+option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_STATIC_LIB "Build static library" OFF)
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
@@ -24,21 +24,24 @@ set(RWKV_MOBILE_SRCS
 if (ENABLE_WEBRWKV_BACKEND)
     set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/web_rwkv/web_rwkv_backend.cpp)
 
-    FetchContent_Declare(
-        Corrosion
-        GIT_REPOSITORY https://github.com/corrosion-rs/corrosion.git
-        GIT_TAG v0.5
-    )
-    FetchContent_MakeAvailable(Corrosion)
+    if (NOT IOS)
+        FetchContent_Declare(
+            Corrosion
+            GIT_REPOSITORY https://github.com/corrosion-rs/corrosion.git
+            GIT_TAG v0.5
+        )
+        FetchContent_MakeAvailable(Corrosion)
 
-    FetchContent_Declare(
-        web_rwkv_ffi
-        GIT_REPOSITORY https://github.com/MollySophia/web-rwkv-ffi.git
-        GIT_TAG molly
-    )
-    FetchContent_MakeAvailable(web_rwkv_ffi)
+        FetchContent_Declare(
+            web_rwkv_ffi
+            GIT_REPOSITORY https://github.com/MollySophia/web-rwkv-ffi.git
+            GIT_TAG molly
+        )
+        FetchContent_MakeAvailable(web_rwkv_ffi)
 
-    corrosion_import_crate(MANIFEST_PATH ${web_rwkv_ffi_SOURCE_DIR}/Cargo.toml)
+        corrosion_import_crate(MANIFEST_PATH ${web_rwkv_ffi_SOURCE_DIR}/Cargo.toml
+            CRATE_TYPES staticlib)
+    endif()
 
 endif()
 
@@ -79,7 +82,7 @@ if (ENABLE_NCNN_BACKEND)
     target_link_libraries(rwkv_mobile_internal PUBLIC ncnn)
 endif()
 
-if (RWKV_MOBILE_BUILD_EXAMPLES)
+if (BUILD_EXAMPLES)
     add_executable(gen examples/gen.cpp)
     target_link_libraries(gen PUBLIC rwkv_mobile_internal)
 
@@ -101,7 +104,7 @@ endif()
 if (BUILD_STATIC_LIB)
     add_library(rwkv_mobile STATIC src/c_api.cpp)
     target_link_libraries(rwkv_mobile PRIVATE rwkv_mobile_internal)
-    if (ENABLE_WEBRWKV_BACKEND)
+    if (ENABLE_WEBRWKV_BACKEND AND NOT IOS)
         target_link_libraries(rwkv_mobile PRIVATE web_rwkv_ffi ${WEBRWKV_EXTRA_LIBS})
     endif()
 
