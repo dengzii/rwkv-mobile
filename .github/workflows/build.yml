@@ -32,17 +32,19 @@ jobs:
     - uses: actions/checkout@v4
     - name: build-arm64
       run: |
-        git clone https://github.com/cryscan/web-rwkv-ffi && cd web-rwkv-ffi
+        git clone https://github.com/MollySophia/web-rwkv-ffi -b molly && cd web-rwkv-ffi
         rustup target add aarch64-apple-ios
         cargo build --release --target aarch64-apple-ios
         cd ..
+        cp web-rwkv-ffi/include/web_rwkv_ffi.h ./backends/web_rwkv
         rm -rf build-arm64
         mkdir build-arm64 && cd build-arm64
-        cmake .. -DENABLE_NCNN_BACKEND=OFF -DENABLE_WEBRWKV_BACKEND=ON -DBUILD_STATIC_LIB=ON -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
+        cmake .. -DENABLE_NCNN_BACKEND=OFF -DENABLE_WEBRWKV_BACKEND=ON -DBUILD_STATIC_LIB=ON -DBUILD_EXAMPLES=OFF -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
           -GXcode -DCMAKE_TOOLCHAIN_FILE=../cmake/ios.toolchain.cmake -DPLATFORM=OS64 -DARCHS="arm64" \
           -DDEPLOYMENT_TARGET=$IOS_DEPLOYMENT_TARGET -DENABLE_BITCODE=$ENABLE_BITCODE -DENABLE_ARC=$ENABLE_ARC -DENABLE_VISIBILITY=$ENABLE_VISIBILITY
-        cmake --build . -j 8
-        cp web-rwkv-ffi/target/aarch64-apple-ios/libweb_rwkv_ffi.a .
+        cmake --build . --config Release -j 8
+        cp ../web-rwkv-ffi/target/aarch64-apple-ios/release/libweb_rwkv_ffi.a .
+        cp ./Release-iphoneos/librwkv_mobile.a .
     - name: package
       run: |
         rm -f ${{ env.PACKAGENAME }}.zip
