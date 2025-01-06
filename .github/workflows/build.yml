@@ -39,17 +39,38 @@ jobs:
         cp web-rwkv-ffi/include/web_rwkv_ffi.h ./backends/web_rwkv
         rm -rf build-arm64
         mkdir build-arm64 && cd build-arm64
+        cp ../web-rwkv-ffi/target/aarch64-apple-ios/release/libweb_rwkv_ffi.a .
         cmake .. -DENABLE_NCNN_BACKEND=OFF -DENABLE_WEBRWKV_BACKEND=ON -DBUILD_STATIC_LIB=ON -DBUILD_EXAMPLES=OFF -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
           -GXcode -DCMAKE_TOOLCHAIN_FILE=../cmake/ios.toolchain.cmake -DPLATFORM=OS64 -DARCHS="arm64" \
           -DDEPLOYMENT_TARGET=$IOS_DEPLOYMENT_TARGET -DENABLE_BITCODE=$ENABLE_BITCODE -DENABLE_ARC=$ENABLE_ARC -DENABLE_VISIBILITY=$ENABLE_VISIBILITY
         cmake --build . --config Release -j 8
-        cp ../web-rwkv-ffi/target/aarch64-apple-ios/release/libweb_rwkv_ffi.a .
         cp ./Release-iphoneos/librwkv_mobile.a .
+        rm -rf web_rwkv_ffi.framework rwkv_mobile.framework
+        mkdir web_rwkv_ffi.framework
+        mkdir -p web_rwkv_ffi.framework/Versions/A/Headers
+        mkdir -p web_rwkv_ffi.framework/Versions/A/Resources
+        ln -s A web_rwkv_ffi.framework/Versions/Current
+        ln -s Versions/Current/Headers web_rwkv_ffi.framework/Headers
+        ln -s Versions/Current/Resources web_rwkv_ffi.framework/Resources
+        ln -s Versions/Current/web_rwkv_ffi web_rwkv_ffi.framework/web_rwkv_ffi
+        cp ../web-rwkv-ffi/include/web_rwkv_ffi.h web_rwkv_ffi.framework/Versions/A/Headers/web_rwkv_ffi.h
+        cp ../web-rwkv-ffi/target/aarch64-apple-ios/release/libweb_rwkv_ffi.a web_rwkv_ffi.framework/Versions/A/web_rwkv_ffi
+        sed -e 's/__NAME__/web_rwkv_ffi/g' -e 's/__IDENTIFIER__/com.cryscan.web_rwkv_ffi/g' -e 's/__VERSION__/1.0/g' ../Info.plist > web_rwkv_ffi.framework/Versions/A/Resources/Info.plist
+        mkdir rwkv_mobile.framework
+        mkdir -p rwkv_mobile.framework/Versions/A/Headers
+        mkdir -p rwkv_mobile.framework/Versions/A/Resources
+        ln -s A rwkv_mobile.framework/Versions/Current
+        ln -s Versions/Current/Headers rwkv_mobile.framework/Headers
+        ln -s Versions/Current/Resources rwkv_mobile.framework/Resources
+        ln -s Versions/Current/rwkv_mobile rwkv_mobile.framework/rwkv_mobile
+        cp librwkv_mobile.a rwkv_mobile.framework/Versions/A/rwkv_mobile
+        sed -e 's/__NAME__/rwkv_mobile/g' -e 's/__IDENTIFIER__/com.molly.rwkv_mobile/g' -e 's/__VERSION__/1.0/g' ../Info.plist > rwkv_mobile.framework/Versions/A/Resources/Info.plist
+
     - name: package
       run: |
         rm -f ${{ env.PACKAGENAME }}.zip
         pushd build-arm64
-        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.a libweb_rwkv_ffi.a
+        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip rwkv_mobile.framework web_rwkv_ffi.framework librwkv_mobile.a libweb_rwkv_ffi.a
         popd
     - name: upload-zip
       uses: actions/upload-artifact@v4
