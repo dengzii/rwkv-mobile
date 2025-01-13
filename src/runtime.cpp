@@ -340,7 +340,9 @@ int runtime::set_prompt(std::string prompt) {
     if (prompt.empty()) {
         return RWKV_SUCCESS;
     }
-    _backend->free_state(_state_head->state);
+    if (_state_head->state.has_value()) {
+        _backend->free_state(_state_head->state);
+    }
     std::vector<float> logits(_vocab_size);
     std::vector<int> ids = _tokenizer->encode(prompt);
     int ret = eval_logits(ids, logits);

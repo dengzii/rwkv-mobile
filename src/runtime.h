@@ -40,7 +40,9 @@ public:
         while (ptr) {
             auto tmp = ptr;
             ptr = ptr->next;
-            _backend->free_state(tmp->state);
+            if (tmp->state.has_value()) {
+                _backend->free_state(tmp->state);
+            }
             delete tmp;
         }
         return _backend->clear_state();
