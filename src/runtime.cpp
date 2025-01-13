@@ -204,7 +204,7 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
     struct state_node *node = _state_head;
     int start_idx = 0;
     bool edited = false;
-    while (node && node->next && start_idx < inputs.size()) {
+    while (node && node->next && (start_idx < (int)inputs.size())) {
         LOGD("Comparing state node %i hash %llu with %llu\n", start_idx, node->next->hash, hash_string(inputs[start_idx]));
         unsigned long long input_hash = hash_string(inputs[start_idx]);
         if (node->next->hash != input_hash) {
@@ -222,13 +222,28 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
         node = node->next;
     }
 
+    if (edited == false && start_idx % 2 == 1) {
+        node = _state_head;
+        start_idx--;
+        for (int i = 0; i < start_idx; i++) {
+            node = node->next;
+        }
+        while(node->next) {
+            struct state_node *tmp = node->next;
+            node->next = node->next->next;
+            _backend->free_state(tmp->state);
+            delete tmp;
+        }
+        edited = true;
+    }
+
     LOGD("Loading state node %i hash %llu\n", start_idx-1, node->hash);
     _backend->set_state(node->state);
 
     std::vector<float> logits(_vocab_size);
     response = "";
     int ret;
-    for (int i = start_idx; i < inputs.size(); i++) {
+    for (int i = start_idx; i < (int)inputs.size(); i++) {
         std::string prompt;
         if (i % 2 == 0) {
             prompt = _user_role + ": " + inputs[i] + "\n\n";
@@ -249,6 +264,7 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
         node = node->next;
         node->hash = hash_string(inputs[i]);
         _backend->get_state(node->state);
+        LOGD("New state node %i hash %llu\n", i, node->hash);
     }
 
     if (edited || start_idx == 0) {
@@ -316,6 +332,13 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
     node = node->next;
     node->hash = hash_string(response);
     _backend->get_state(node->state);
+    start_idx = -1;
+    node = _state_head;
+    while(node->next) {
+        start_idx++;
+        node = node->next;
+    }
+    LOGD("New state node %i hash %llu\n", start_idx, node->hash);
 
     return RWKV_SUCCESS;
 }
