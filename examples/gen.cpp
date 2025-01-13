@@ -24,12 +24,12 @@ int main(int argc, char **argv) {
 
     std::string prompt = "The Eiffel tower is in the city of";
     std::cout << prompt;
-    ENSURE_SUCCESS_OR_LOG_EXIT(runtime.gen_completion(prompt, result, 1), "Failed to generate chat message");
+    ENSURE_SUCCESS_OR_LOG_EXIT(runtime.gen_completion(prompt, result, 1, 261, nullptr), "Failed to generate chat message");
     std::cout << result;
     auto start = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < 200; i++ ) {
         std::string input(result);
-        ENSURE_SUCCESS_OR_LOG_EXIT(runtime.gen_completion(input, result, 1), "Failed to generate chat message");
+        ENSURE_SUCCESS_OR_LOG_EXIT(runtime.gen_completion(input, result, 1, 261, nullptr), "Failed to generate chat message");
         std::cout << result;
     }
     auto end = std::chrono::high_resolution_clock::now();

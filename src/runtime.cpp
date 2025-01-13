@@ -89,6 +89,8 @@ int runtime::load_model(std::string model_path) {
     }
     _backend->clear_state();
     _backend->get_state(_state_head->state);
+
+    _vocab_size = _backend->get_num_vocab();
     return ret;
 }
 
@@ -194,12 +196,6 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
-
-    // LOGD("Input list:\n");
-    // for (auto input : inputs) {
-    //     LOGD("  \"%s\"\n", input.c_str());
-    // }
-    // LOGD("\n");
 
     struct state_node *node = _state_head;
     int start_idx = 0;
@@ -380,11 +376,12 @@ std::string runtime::get_prompt() {
     return _prompt;
 }
 
-int runtime::gen_completion(std::string prompt, std::string &completion, int length) {
+int runtime::gen_completion(std::string prompt, std::string &completion, int max_length, int stop_code, void (*callback)(const char *)) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
     std::vector<int> ids = _tokenizer->encode(prompt);
+    LOGD("vocab size: %d\n", _vocab_size);
     std::vector<float> logits(_vocab_size);
     int ret = eval_logits(ids, logits);
     if (ret) {
@@ -392,7 +389,7 @@ int runtime::gen_completion(std::string prompt, std::string &completion, int len
     }
 
     completion = "";
-    for (int i = 0; i < length; i++) {
+    for (int i = 0; i < max_length; i++) {
         for (auto &[id, occurence] : _occurences) {
             logits[id] -=
                 _frequency_penalty * occurence + _presence_penalty;
@@ -400,18 +397,20 @@ int runtime::gen_completion(std::string prompt, std::string &completion, int len
         }
 
         int idx = _sampler->sample(logits.data(), logits.size(), _temperature, _top_k, _top_p);
-        if (idx == 0) {
-            break;
-        }
-        _occurences[idx]++;
+        std::string tmp = completion + _tokenizer->decode(idx);
+        bool stopping = (idx == stop_code);
 
         completion += _tokenizer->decode(idx);
-        if (i != length - 1) {
-            ret = eval_logits(idx, logits);
-            if (ret) {
-                return ret;
-            }
+        ret = eval_logits(idx, logits);
+        if (callback) {
+            callback(completion.c_str());
         }
+
+        if (stopping) {
+            break;
+        }
+
+        _occurences[idx]++;
     }
 
     return RWKV_SUCCESS;

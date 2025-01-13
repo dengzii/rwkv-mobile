@@ -294,7 +294,7 @@ def build_sum(param_lines, input, output, layer_count, blob_count):
     sum_count += 1
     return layer_count, blob_count
 
-def build_time_mixing_v6(param_lines, fp, w, input, output, layer_id, layer_count, blob_count, n_head, head_size):
+def build_time_mixing_v6(param_lines, fp, w, input, output, layer_id, layer_count, blob_count, n_head, head_size, jellyfish_modified=False):
     prefix = f'att_{layer_id}_'
     layer_count, blob_count = build_split(param_lines, input, [prefix + 'x_last', prefix + 'x'], layer_count, blob_count)
     layer_count, blob_count = build_layernorm(param_lines, fp, prefix + 'x', prefix + 'xx', w[f'blocks.{layer_id}.ln1.weight'], w[f'blocks.{layer_id}.ln1.bias'], layer_count, blob_count)
@@ -384,7 +384,7 @@ def build_channel_mixing_v6(param_lines, fp, w, input, output, layer_id, layer_c
     layer_count, blob_count = build_add(param_lines, prefix + 'rv', prefix + 'x_last', output, layer_count, blob_count)
     return layer_count, blob_count
 
-def build_time_mixing_v7(param_lines, fp, w, input, output, layer_id, layer_count, blob_count, n_head, head_size):
+def build_time_mixing_v7(param_lines, fp, w, input, output, layer_id, layer_count, blob_count, n_head, head_size, jellyfish_modified=False):
     prefix = f'att_{layer_id}_'
     layer_count, blob_count = build_split(param_lines, input, [prefix + 'x_last', prefix + 'x'], layer_count, blob_count)
     layer_count, blob_count = build_layernorm(param_lines, fp, prefix + 'x', prefix + 'xx', w[f'blocks.{layer_id}.ln1.weight'], w[f'blocks.{layer_id}.ln1.bias'], layer_count, blob_count)
@@ -407,7 +407,11 @@ def build_time_mixing_v7(param_lines, fp, w, input, output, layer_id, layer_coun
     layer_count, blob_count = build_linear(param_lines, fp, prefix + 'ma_lora_0', prefix + 'ma_lora_1', w[f'blocks.{layer_id}.att.a2'].t(), torch.float16, layer_count, blob_count)
     layer_count, blob_count = build_data(param_lines, fp, w[f'blocks.{layer_id}.att.a0'].flatten(), prefix + 'a0', torch.float16, layer_count, blob_count)
     layer_count, blob_count = build_add(param_lines, prefix + 'ma_lora_1', prefix + 'a0', prefix + 'ma_lora_2', layer_count, blob_count)
-    layer_count, blob_count = build_sigmoid(param_lines, prefix + 'ma_lora_2', prefix + 'a', layer_count, blob_count)
+    if jellyfish_modified:
+        layer_count, blob_count = build_sigmoid(param_lines, prefix + 'ma_lora_2', prefix + 'a_tmp', layer_count, blob_count)
+        layer_count, blob_count = build_mul(param_lines, prefix + 'a_tmp', "2.0", prefix + 'a', layer_count, blob_count, scalar_B=True)
+    else:
+        layer_count, blob_count = build_sigmoid(param_lines, prefix + 'ma_lora_2', prefix + 'a', layer_count, blob_count)
     layer_count, blob_count = build_split(param_lines, prefix + 'a', [prefix + 'a_0', prefix + 'a_1'], layer_count, blob_count)
 
     layer_count, blob_count = build_linear(param_lines, fp, prefix + 'mg', prefix + 'mg_lora', w[f'blocks.{layer_id}.att.g1'].t(), torch.float16, layer_count, blob_count)
@@ -447,7 +451,11 @@ def build_time_mixing_v7(param_lines, fp, w, input, output, layer_id, layer_coun
     layer_count, blob_count = build_add(param_lines, prefix + 'mw_lora_tanh_linear', prefix + 'td', prefix + 'time_decay_pre', layer_count, blob_count)
     layer_count, blob_count = build_sigmoid(param_lines, prefix + 'time_decay_pre', prefix + 'time_decay_sigmoid', layer_count, blob_count)
     layer_count, blob_count = build_exp(param_lines, prefix + 'time_decay_sigmoid', prefix + 'time_decay', layer_count, blob_count, scale="-0.606531")
-    layer_count, blob_count = build_reshape(param_lines, prefix + 'time_decay', prefix + 'time_decay_reshape', [n_head, 1, head_size], layer_count, blob_count)
+    if jellyfish_modified:
+        layer_count, blob_count = build_split(param_lines, prefix + 'time_decay', [prefix + 'time_decay_0', prefix + 'time_decay_1'], layer_count, blob_count)
+        layer_count, blob_count = build_reshape(param_lines, prefix + 'time_decay_0', prefix + 'time_decay_reshape', [n_head, 1, head_size], layer_count, blob_count)
+    else:
+        layer_count, blob_count = build_reshape(param_lines, prefix + 'time_decay', prefix + 'time_decay_reshape', [n_head, 1, head_size], layer_count, blob_count)
 
     # non-customlayer implementation
     layer_count, blob_count = build_split(param_lines, prefix + 'key_a', [prefix + 'key_a_0', prefix + 'key_a_1'], layer_count, blob_count)
@@ -459,7 +467,11 @@ def build_time_mixing_v7(param_lines, fp, w, input, output, layer_id, layer_coun
     layer_count, blob_count = build_split(param_lines, prefix + 'key_k_norm_reshape', [prefix + 'kk_0', prefix + 'kk_1'], layer_count, blob_count)
     layer_count, blob_count = build_mul(param_lines, prefix + 'kk_0', "-1.0", prefix + 'kk_0_neg', layer_count, blob_count, scalar_B=True)
     layer_count, blob_count = build_reshape(param_lines, prefix + 'kk_0_neg', prefix + 'kk_0_neg_reshape', [n_head, head_size, 1], layer_count, blob_count)
-    layer_count, blob_count = build_mul(param_lines, prefix + 'kk_1', prefix + 'a_1', prefix + 'kk_a', layer_count, blob_count)
+    if jellyfish_modified:
+        layer_count, blob_count = build_mul(param_lines, prefix + 'time_decay_1', prefix + 'a_1', prefix + 'a_extended', layer_count, blob_count)
+        layer_count, blob_count = build_mul(param_lines, prefix + 'a_extended', prefix + 'kk_1', prefix + 'kk_a', layer_count, blob_count)
+    else:
+        layer_count, blob_count = build_mul(param_lines, prefix + 'kk_1', prefix + 'a_1', prefix + 'kk_a', layer_count, blob_count)
     layer_count, blob_count = build_reshape(param_lines, prefix + 'kk_a', prefix + 'kk_a_reshape', [n_head, 1, head_size], layer_count, blob_count)
     layer_count, blob_count = build_matmul(param_lines, prefix + 'kk_0_neg_reshape', prefix + 'kk_a_reshape', prefix + 'ab', layer_count, blob_count)
     layer_count, blob_count = build_split(param_lines, f'state_{3*layer_id+1}_in', [prefix + 'state_prev_0', prefix + 'state_prev_1'], layer_count, blob_count)

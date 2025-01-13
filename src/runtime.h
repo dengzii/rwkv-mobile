@@ -26,7 +26,7 @@ public:
 
     // with history
     int chat(std::vector<std::string> inputs, std::string &response, const int max_length, void (*callback)(const char *) = nullptr);
-    int gen_completion(std::string prompt, std::string &completion, int length);
+    int gen_completion(std::string prompt, std::string &completion, int max_length, int stop_code, void (*callback)(const char *));
 
     int set_prompt(std::string prompt);
     std::string get_prompt();
@@ -146,7 +146,7 @@ private:
     std::unique_ptr<tokenizer_base> _tokenizer;
     std::unique_ptr<sampler> _sampler;
 
-    int _vocab_size = 65536;
+    int _vocab_size = 0;
 
     float _temperature = 2.0;
     int _top_k = 128;

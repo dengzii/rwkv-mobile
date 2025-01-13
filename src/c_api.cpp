@@ -109,8 +109,10 @@ int rwkvmobile_runtime_gen_completion(
     rwkvmobile_runtime_t handle,
     const char * prompt,
     char * completion,
-    const int length) {
-    if (handle == nullptr || prompt == nullptr || completion == nullptr || length <= 0) {
+    const int max_length,
+    const int stop_code,
+    void (*callback)(const char *)) {
+    if (handle == nullptr || prompt == nullptr || completion == nullptr || max_length <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
 
@@ -119,7 +121,9 @@ int rwkvmobile_runtime_gen_completion(
     int ret = rt->gen_completion(
         std::string(prompt),
         completion_str,
-        length);
+        max_length,
+        stop_code,
+        callback);
     if (ret != RWKV_SUCCESS) {
         return ret;
     }
