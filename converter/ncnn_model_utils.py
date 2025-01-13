@@ -294,6 +294,29 @@ def build_sum(param_lines, input, output, layer_count, blob_count):
     sum_count += 1
     return layer_count, blob_count
 
+cast_count = 0
+def build_cast(param_lines, input, output, intype, outtype, layer_count, blob_count):
+    global cast_count
+    if intype == torch.float32:
+        intype = 1
+    elif intype == torch.float16:
+        intype = 2
+    else:
+        assert 0, f'unsupported intype {intype}'
+
+    if outtype == torch.float32:
+        outtype = 1
+    elif outtype == torch.float16:
+        outtype = 2
+    else:
+        assert 0, f'unsupported outtype {outtype}'
+
+    param_lines.append(f'Cast cast_{cast_count} 1 1 {input} {output} 0={intype} 1={outtype}\n')
+    layer_count += 1
+    blob_count += 1
+    cast_count += 1
+    return layer_count, blob_count
+
 def build_time_mixing_v6(param_lines, fp, w, input, output, layer_id, layer_count, blob_count, n_head, head_size, jellyfish_modified=False):
     prefix = f'att_{layer_id}_'
     layer_count, blob_count = build_split(param_lines, input, [prefix + 'x_last', prefix + 'x'], layer_count, blob_count)
@@ -468,8 +491,10 @@ def build_time_mixing_v7(param_lines, fp, w, input, output, layer_id, layer_coun
     layer_count, blob_count = build_mul(param_lines, prefix + 'kk_0', "-1.0", prefix + 'kk_0_neg', layer_count, blob_count, scalar_B=True)
     layer_count, blob_count = build_reshape(param_lines, prefix + 'kk_0_neg', prefix + 'kk_0_neg_reshape', [n_head, head_size, 1], layer_count, blob_count)
     if jellyfish_modified:
-        layer_count, blob_count = build_mul(param_lines, prefix + 'time_decay_1', prefix + 'a_1', prefix + 'a_extended', layer_count, blob_count)
-        layer_count, blob_count = build_mul(param_lines, prefix + 'a_extended', prefix + 'kk_1', prefix + 'kk_a', layer_count, blob_count)
+        layer_count, blob_count = build_cast(param_lines, prefix + 'time_decay_1', prefix + 'time_decay_1_fp32', torch.float16, torch.float32, layer_count, blob_count)
+        layer_count, blob_count = build_cast(param_lines, prefix + 'a_1', prefix + 'a_1_fp32', torch.float16, torch.float32, layer_count, blob_count)
+        layer_count, blob_count = build_mul(param_lines, prefix + 'time_decay_1_fp32', prefix + 'a_1_fp32', prefix + 'a_extended_fp32', layer_count, blob_count)
+        layer_count, blob_count = build_mul(param_lines, prefix + 'a_extended_fp32', prefix + 'kk_1', prefix + 'kk_a', layer_count, blob_count)
     else:
         layer_count, blob_count = build_mul(param_lines, prefix + 'kk_1', prefix + 'a_1', prefix + 'kk_a', layer_count, blob_count)
     layer_count, blob_count = build_reshape(param_lines, prefix + 'kk_a', prefix + 'kk_a_reshape', [n_head, 1, head_size], layer_count, blob_count)
