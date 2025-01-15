@@ -388,7 +388,7 @@ int runtime::gen_completion(std::string prompt, std::string &completion, int max
         return ret;
     }
 
-    completion = "";
+    completion = prompt;
     for (int i = 0; i < max_length; i++) {
         for (auto &[id, occurence] : _occurences) {
             logits[id] -=
