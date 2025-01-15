@@ -395,7 +395,7 @@ int runtime::gen_completion(std::string prompt, std::string &completion, int max
             occurence *= _penalty_decay;
         }
 
-        int idx = _sampler->sample(logits.data(), logits.size(), _temperature, _top_k, _top_p);
+        int idx = _sampler->sample(logits.data(), _vocab_size, _temperature, _top_k, _top_p);
         bool stopping = (idx == stop_code);
 
         std::string next = _tokenizer->decode(idx);
