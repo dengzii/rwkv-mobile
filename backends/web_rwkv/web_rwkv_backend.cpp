@@ -25,6 +25,8 @@ int web_rwkv_backend::load_model(std::string model_path) {
         || model_path.find("MIDI") != std::string::npos
         || model_path.find("midi") != std::string::npos) {
         load_with_rescale(model_path.c_str(), 999, 999, 999);
+    } else if (model_path.find("extended") != std::string::npos) {
+        load_extended(model_path.c_str(), 999, 999);
     } else {
         load(model_path.c_str(), 999, 999);
     }
