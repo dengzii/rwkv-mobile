@@ -88,6 +88,9 @@ if (BUILD_EXAMPLES)
 
     add_executable(test_chat examples/test_chat.cpp)
     target_link_libraries(test_chat PUBLIC rwkv_mobile_internal)
+
+    add_executable(test_othello examples/test_othello.cpp src/c_api.cpp)
+    target_link_libraries(test_othello PUBLIC rwkv_mobile_internal)
 endif()
 
 if (NOT WIN32)
