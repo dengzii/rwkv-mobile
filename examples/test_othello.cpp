@@ -7,10 +7,8 @@
 
 #define ENSURE_SUCCESS_OR_LOG_EXIT(x, msg) if (x != rwkvmobile::RWKV_SUCCESS) { std::cout << msg << std::endl; return 1; }
 
-std::string current = "";
 void callback(const char *msg, const int) {
-    std::cout << msg + current.size();
-    current = msg;
+    std::cout << msg;
 }
 
 int main(int argc, char **argv) {
