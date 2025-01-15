@@ -26,7 +26,7 @@ public:
 
     // with history
     int chat(std::vector<std::string> inputs, std::string &response, const int max_length, void (*callback)(const char *) = nullptr);
-    int gen_completion(std::string prompt, std::string &completion, int max_length, int stop_code, void (*callback)(const char *));
+    int gen_completion(std::string prompt, std::string &completion, int max_length, int stop_code, void (*callback)(const char *, const int));
 
     int set_prompt(std::string prompt);
     std::string get_prompt();

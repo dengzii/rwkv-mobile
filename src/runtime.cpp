@@ -376,12 +376,11 @@ std::string runtime::get_prompt() {
     return _prompt;
 }
 
-int runtime::gen_completion(std::string prompt, std::string &completion, int max_length, int stop_code, void (*callback)(const char *)) {
+int runtime::gen_completion(std::string prompt, std::string &completion, int max_length, int stop_code, void (*callback)(const char *, const int)) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
     std::vector<int> ids = _tokenizer->encode(prompt);
-    LOGD("vocab size: %d\n", _vocab_size);
     std::vector<float> logits(_vocab_size);
     int ret = eval_logits(ids, logits);
     if (ret) {
@@ -397,13 +396,13 @@ int runtime::gen_completion(std::string prompt, std::string &completion, int max
         }
 
         int idx = _sampler->sample(logits.data(), logits.size(), _temperature, _top_k, _top_p);
-        std::string tmp = completion + _tokenizer->decode(idx);
         bool stopping = (idx == stop_code);
 
-        completion += _tokenizer->decode(idx);
+        std::string next = _tokenizer->decode(idx);
+        completion = completion + next;
         ret = eval_logits(idx, logits);
         if (callback) {
-            callback(completion.c_str());
+            callback(next.c_str(), idx);
         }
 
         if (stopping) {

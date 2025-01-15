@@ -111,7 +111,7 @@ int rwkvmobile_runtime_gen_completion(
     char * completion,
     const int max_length,
     const int stop_code,
-    void (*callback)(const char *)) {
+    void (*callback)(const char *, const int)) {
     if (handle == nullptr || prompt == nullptr || completion == nullptr || max_length <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
