@@ -8,6 +8,7 @@ include(FetchContent)
 
 option(ENABLE_NCNN_BACKEND "Enable NCNN backend" ON)
 option(ENABLE_WEBRWKV_BACKEND "Enable WebRWKV backend" ON)
+option(ENABLE_LLAMACPP_BACKEND "Enable llama.cpp backend" ON)
 
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_STATIC_LIB "Build static library" OFF)
@@ -62,7 +63,21 @@ if (ENABLE_NCNN_BACKEND)
     FetchContent_MakeAvailable(ncnn)
 endif()
 
-add_library(rwkv_mobile_internal ${RWKV_MOBILE_SRCS})
+if (ENABLE_LLAMACPP_BACKEND)
+    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/llama_cpp/llama_cpp_backend.cpp)
+
+    FetchContent_Declare(
+        llama_cpp
+        GIT_REPOSITORY https://github.com/mollysophia/llama.cpp
+        GIT_TAG rwkv-v7
+    )
+
+    option(LLAMA_STANDALONE "" OFF)
+    set(BUILD_SHARED_LIBS_DEFAULT OFF)
+    FetchContent_MakeAvailable(llama_cpp)
+endif()
+
+add_library(rwkv_mobile_internal STATIC ${RWKV_MOBILE_SRCS})
 target_include_directories(rwkv_mobile_internal PUBLIC src)
 
 if (ENABLE_WEBRWKV_BACKEND)
@@ -80,6 +95,34 @@ if (ENABLE_NCNN_BACKEND)
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_NCNN)
     target_include_directories(rwkv_mobile_internal PUBLIC backends/ncnn)
     target_link_libraries(rwkv_mobile_internal PUBLIC ncnn)
+endif()
+
+if (ENABLE_LLAMACPP_BACKEND)
+    if (APPLE AND GGML_ACCELERATE)
+        find_library(ACCELERATE_FRAMEWORK Accelerate)
+        if (ACCELERATE_FRAMEWORK)
+            set(LLAMACPP_EXTRA_LIBS ${LLAMACPP_EXTRA_LIBS} ${ACCELERATE_FRAMEWORK})
+        endif()
+    endif()
+
+    if (GGML_METAL)
+        find_library(FOUNDATION_LIBRARY Foundation REQUIRED)
+        find_library(METAL_FRAMEWORK    Metal      REQUIRED)
+        find_library(METALKIT_FRAMEWORK MetalKit   REQUIRED)
+        add_compile_definitions(GGML_USE_METAL)
+
+        set(LLAMACPP_EXTRA_LIBS ${LLAMACPP_EXTRA_LIBS}
+            ${FOUNDATION_LIBRARY}
+            ${METAL_FRAMEWORK}
+            ${METALKIT_FRAMEWORK}
+        )
+
+        set(LLAMACPP_EXTRA_LIBS ${LLAMACPP_EXTRA_LIBS} $<TARGET_OBJECTS:ggml-metal> $<TARGET_OBJECTS:ggml-blas>)
+    endif()
+
+    target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_LLAMACPP)
+    target_include_directories(rwkv_mobile_internal PUBLIC backends/llama_cpp ${llama_cpp_SOURCE_DIR}/include ${llama_cpp_SOURCE_DIR}/src ${llama_cpp_SOURCE_DIR}/ggml/include)
+    target_link_libraries(rwkv_mobile_internal PUBLIC $<TARGET_OBJECTS:llama> $<TARGET_OBJECTS:ggml> $<TARGET_OBJECTS:ggml-base> $<TARGET_OBJECTS:ggml-cpu> ${LLAMACPP_EXTRA_LIBS})
 endif()
 
 if (BUILD_EXAMPLES)
