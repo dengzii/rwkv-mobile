@@ -9,6 +9,10 @@
 #include "ncnn_rwkv_backend.h"
 #endif
 
+#ifdef ENABLE_LLAMACPP
+#include "llama_cpp_backend.h"
+#endif
+
 namespace rwkvmobile {
 
 std::string backend_enum_to_str(int backend) {
@@ -17,6 +21,8 @@ std::string backend_enum_to_str(int backend) {
             return "web-rwkv";
         case RWKV_BACKEND_NCNN:
             return "ncnn";
+        case RWKV_BACKEND_LLAMACPP:
+            return "llama.cpp";
         default:
             return "unknown";
     }
@@ -27,6 +33,8 @@ int backend_str_to_enum(std::string backend) {
         return RWKV_BACKEND_WEBRWKV;
     } else if (backend == "ncnn") {
         return RWKV_BACKEND_NCNN;
+    } else if (backend == "llama.cpp") {
+        return RWKV_BACKEND_LLAMACPP;
     }
     return -1;
 }
@@ -60,6 +68,12 @@ int runtime::init(int backend_id) {
     } else if(backend_id == RWKV_BACKEND_NCNN) {
 #ifdef ENABLE_NCNN
         _backend = std::unique_ptr<execution_provider>(new ncnn_rwkv_backend);
+#else
+        return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+#endif
+    } else if(backend_id == RWKV_BACKEND_LLAMACPP) {
+#ifdef ENABLE_LLAMACPP
+        _backend = std::unique_ptr<execution_provider>(new llama_cpp_backend);
 #else
         return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 #endif
@@ -117,6 +131,11 @@ int runtime::get_available_backend_ids(std::vector<int> &backend_ids) {
 #ifdef ENABLE_NCNN
     backend_ids.push_back(RWKV_BACKEND_NCNN);
 #endif
+
+#ifdef ENABLE_LLAMACPP
+    backend_ids.push_back(RWKV_BACKEND_LLAMACPP);
+#endif
+
     return RWKV_SUCCESS;
 }
 
