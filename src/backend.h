@@ -21,7 +21,7 @@ public:
     virtual int free_state(std::any state) { return 0; }
     virtual int clear_state() { return 0; }
     virtual int release_model() { return 0; };
-    virtual int release() { return 0; };
+    virtual int release() { release_model(); return 0; };
     virtual bool is_available() { return false; };
     virtual bool is_selfmanaged_states() { return false; };
     int get_head_count() { return num_heads; }
@@ -39,6 +39,7 @@ public:
 enum {
     RWKV_BACKEND_WEBRWKV = 0,
     RWKV_BACKEND_NCNN,
+    RWKV_BACKEND_LLAMACPP,
     RWKV_BACKEND_COUNT,
 };
 

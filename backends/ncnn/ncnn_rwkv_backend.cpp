@@ -149,6 +149,17 @@ int ncnn_rwkv_backend::clear_state() {
     return RWKV_SUCCESS;
 }
 
+int ncnn_rwkv_backend::release_model() {
+    states.clear();
+    net.clear();
+    return RWKV_SUCCESS;
+}
+
+int ncnn_rwkv_backend::release() {
+    release_model();
+    return RWKV_SUCCESS;
+}
+
 bool ncnn_rwkv_backend::is_available() {
     // always available
     return true;
@@ -185,6 +196,14 @@ int ncnn_rwkv_backend::set_state(std::any state) {
 }
 
 int ncnn_rwkv_backend::free_state(std::any state) {
+    return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+}
+
+int ncnn_rwkv_backend::release_model() {
+    return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+}
+
+int ncnn_rwkv_backend::release() {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 
