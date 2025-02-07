@@ -100,6 +100,17 @@ int llama_cpp_backend::free_state(std::any state) {
     return RWKV_SUCCESS;
 }
 
+int llama_cpp_backend::release_model() {
+    llama_free(ctx);
+    llama_model_free(model);
+    return RWKV_SUCCESS;
+}
+
+int llama_cpp_backend::release() {
+    release_model();
+    return RWKV_SUCCESS;
+}
+
 #else
 
 int llama_cpp_backend::init(void * extra) {
@@ -133,6 +144,15 @@ int llama_cpp_backend::set_state(std::any state) {
 int llama_cpp_backend::free_state(std::any state) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
+
+int llama_cpp_backend::release_model() {
+    return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+}
+
+int llama_cpp_backend::release() {
+    return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+}
+
 
 bool llama_cpp_backend::is_available() {
     return false;
