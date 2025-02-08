@@ -101,13 +101,14 @@ int llama_cpp_backend::free_state(std::any state) {
 }
 
 int llama_cpp_backend::release_model() {
-    llama_free(ctx);
-    llama_model_free(model);
+    if (ctx)
+        llama_free(ctx);
+    if (model)
+        llama_model_free(model);
     return RWKV_SUCCESS;
 }
 
 int llama_cpp_backend::release() {
-    release_model();
     return RWKV_SUCCESS;
 }
 

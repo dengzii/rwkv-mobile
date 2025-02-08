@@ -57,8 +57,6 @@ public:
         if (ret != RWKV_SUCCESS) {
             return ret;
         }
-        delete _tokenizer.get();
-        delete _sampler.get();
         _tokenizer = nullptr;
         _sampler = nullptr;
         return _backend->release();

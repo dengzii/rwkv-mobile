@@ -156,7 +156,6 @@ int ncnn_rwkv_backend::release_model() {
 }
 
 int ncnn_rwkv_backend::release() {
-    release_model();
     return RWKV_SUCCESS;
 }
 
