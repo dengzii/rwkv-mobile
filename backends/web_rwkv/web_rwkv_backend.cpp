@@ -8,8 +8,7 @@
 
 namespace rwkvmobile {
 
-// #ifdef ENABLE_WEBRWKV
-#if 1
+#ifdef ENABLE_WEBRWKV
 int web_rwkv_backend::init(void * extra) {
     ::init((uint64_t)time(NULL));
     return RWKV_SUCCESS;
@@ -20,15 +19,22 @@ int web_rwkv_backend::load_model(std::string model_path) {
         return RWKV_ERROR_MODEL | RWKV_ERROR_IO;
     }
     int ret = 0;
-    if (model_path.find("ABC") != std::string::npos 
+    if (model_path.find("prefab") != std::string::npos) {
+        load_prefab(model_path.c_str());
+    } else if (model_path.find("ABC") != std::string::npos 
         || model_path.find("abc") != std::string::npos
         || model_path.find("MIDI") != std::string::npos
         || model_path.find("midi") != std::string::npos) {
-        load_with_rescale(model_path.c_str(), 999, 999, 999);
+        load_with_rescale(model_path.c_str(), 0, 0, 0, 999);
     } else if (model_path.find("extended") != std::string::npos) {
-        load_extended(model_path.c_str(), 999, 999);
+        load_extended(model_path.c_str(), 0, 0, 999);
     } else {
-        load(model_path.c_str(), 999, 999);
+        if (model_path.find("0.1B") != std::string::npos
+        || model_path.find("0.4B") != std::string::npos) {
+            load(model_path.c_str(), 999, 0, 0);
+        } else {
+            load(model_path.c_str(), 0, 999, 0);
+        }
     }
 
     struct ModelInfoOutput info = get_model_info();
@@ -103,6 +109,15 @@ int web_rwkv_backend::free_state(std::any state) {
     return RWKV_SUCCESS;
 }
 
+int web_rwkv_backend::release_model() {
+    ::release();
+    return RWKV_SUCCESS;
+}
+
+int web_rwkv_backend::release() {
+    return RWKV_SUCCESS;
+}
+
 #else
 
 int web_rwkv_backend::init(void * extra) {
@@ -139,6 +154,14 @@ int web_rwkv_backend::free_state(std::any state) {
 
 bool web_rwkv_backend::is_available() {
     return false;
+}
+
+int web_rwkv_backend::release_model() {
+    return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+}
+
+int web_rwkv_backend::release() {
+    return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 
 #endif
