@@ -9,6 +9,7 @@ include(FetchContent)
 option(ENABLE_NCNN_BACKEND "Enable NCNN backend" ON)
 option(ENABLE_WEBRWKV_BACKEND "Enable WebRWKV backend" ON)
 option(ENABLE_LLAMACPP_BACKEND "Enable llama.cpp backend" ON)
+option(ENABLE_QNN_BACKEND "Enable QNN backend" OFF)
 
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_STATIC_LIB "Build static library" OFF)
@@ -77,6 +78,13 @@ if (ENABLE_LLAMACPP_BACKEND)
     FetchContent_MakeAvailable(llama_cpp)
 endif()
 
+if (ENABLE_QNN_BACKEND)
+    file(GLOB QNN_SRCS backends/qnn/rwkv-qualcomm/Utils/*.cpp backends/qnn/rwkv-qualcomm/WrapperUtils/*.cpp backends/qnn/rwkv-qualcomm/PAL/src/common/*.cpp
+                        backends/qnn/rwkv-qualcomm/PAL/src/linux/*.cpp)
+    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} ${QNN_SRCS})
+    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/qnn/qnn_backend.cpp)
+endif()
+
 add_library(rwkv_mobile_internal STATIC ${RWKV_MOBILE_SRCS})
 target_include_directories(rwkv_mobile_internal PUBLIC src)
 
@@ -94,7 +102,7 @@ endif()
 if (ENABLE_NCNN_BACKEND)
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_NCNN)
     target_include_directories(rwkv_mobile_internal PUBLIC backends/ncnn)
-    target_link_libraries(rwkv_mobile_internal PUBLIC ncnn)
+    target_link_libraries(rwkv_mobile_internal PUBLIC "$<LINK_LIBRARY:WHOLE_ARCHIVE,ncnn>")
 endif()
 
 if (ENABLE_LLAMACPP_BACKEND)
@@ -123,6 +131,16 @@ if (ENABLE_LLAMACPP_BACKEND)
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_LLAMACPP)
     target_include_directories(rwkv_mobile_internal PUBLIC backends/llama_cpp ${llama_cpp_SOURCE_DIR}/include ${llama_cpp_SOURCE_DIR}/src ${llama_cpp_SOURCE_DIR}/ggml/include)
     target_link_libraries(rwkv_mobile_internal PUBLIC $<TARGET_OBJECTS:llama> $<TARGET_OBJECTS:ggml> $<TARGET_OBJECTS:ggml-base> $<TARGET_OBJECTS:ggml-cpu> ${LLAMACPP_EXTRA_LIBS})
+endif()
+
+if (ENABLE_QNN_BACKEND)
+    target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_QNN)
+    target_include_directories(rwkv_mobile_internal PUBLIC backends/qnn
+                               backends/qnn/rwkv-qualcomm
+                               backends/qnn/rwkv-qualcomm/Utils
+                               backends/qnn/rwkv-qualcomm/PAL/include
+                               backends/qnn/rwkv-qualcomm/WrapperUtils
+                               backends/qnn/rwkv-qualcomm/QNN/)
 endif()
 
 if (BUILD_EXAMPLES)
@@ -157,7 +175,6 @@ if (BUILD_STATIC_LIB)
     endif()
 
     if (ENABLE_NCNN_BACKEND)
-        target_link_libraries(rwkv_mobile PRIVATE ncnn)
         target_compile_definitions(rwkv_mobile PUBLIC ENABLE_NCNN)
         target_include_directories(rwkv_mobile PUBLIC backends/ncnn)
     endif()
@@ -168,7 +185,7 @@ else()
         target_link_libraries(rwkv_mobile PRIVATE web_rwkv_ffi ${WEBRWKV_EXTRA_LIBS})
     endif()
 
-    if (ENABLE_NCNN_BACKEND)
-        target_link_libraries(rwkv_mobile PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,ncnn>")
-    endif()
+    # if (ENABLE_NCNN_BACKEND)
+    #     target_link_libraries(rwkv_mobile PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,ncnn>")
+    # endif()
 endif()

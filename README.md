@@ -12,8 +12,9 @@ An inference runtime with multiple backends supported.
 ## Supported or planned backends:
 
 - [x] WebRWKV (WebGPU): Compatible with most PC graphics cards, as well as macOS Metal. Doesn't work on Qualcomm's proprietary Adreno GPU driver though.
-- [x] ncnn: Initial support for rwkv v6/v7 unquantized models.
-- [ ] Qualcomm Hexagon NPU (TODO: move code from the experimental repo [rwkv-qualcomm](github.com/MollySophia/rwkv-qualcomm)): Based on Qualcomm's QNN SDK.
+- [x] llama.cpp: Run on Android devices with CPU inference.
+- [x] ncnn: Initial support for rwkv v6/v7 unquantized models (suitable for running tiny models everywhere).
+- [x] Qualcomm Hexagon NPU: Based on Qualcomm's QNN SDK.
 - [ ] To be continued...
 
 ## How to build:
