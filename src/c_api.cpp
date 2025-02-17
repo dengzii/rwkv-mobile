@@ -2,6 +2,7 @@
 #include "commondef.h"
 #include "c_api.h"
 #include <cstring>
+#include <cstdlib>
 
 namespace rwkvmobile {
 
@@ -221,6 +222,13 @@ int rwkvmobile_runtime_get_prompt(rwkvmobile_runtime_t runtime, char * prompt, c
     }
     strncpy(prompt, prompt_str.c_str(), buf_len);
     return RWKV_SUCCESS;
+}
+
+void rwkvmobile_runtime_add_adsp_library_path(const char * path) {
+    auto ld_lib_path = std::string(getenv("LD_LIBRARY_PATH"));
+    ld_lib_path = std::string(path) + ":" + ld_lib_path;
+    setenv("LD_LIBRARY_PATH", ld_lib_path.c_str(), 1);
+    setenv("ADSP_LIBRARY_PATH", path, 1);
 }
 
 } // extern "C"

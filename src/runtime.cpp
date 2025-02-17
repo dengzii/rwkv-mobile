@@ -104,7 +104,7 @@ int runtime::load_model(std::string model_path) {
     int ret =  _backend->load_model(model_path);
     if (!ret) {
         LOGI("Loaded model from: %s\n", model_path.c_str());
-        LOGD("Model num_layers: %d, num_heads: %d, hidden_size: %d, vocab_size: %d\n",
+        LOGI("Model num_layers: %d, num_heads: %d, hidden_size: %d, vocab_size: %d\n",
              _backend->n_layers, _backend->num_heads, _backend->hidden_size, _backend->vocab_size);
     } else {
         LOGE("Failed to load model from: %s, errno = %d\n", model_path.c_str(), ret);
@@ -271,7 +271,7 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
         edited = true;
     }
 
-    LOGD("Loading state node %i hash %llu\n", start_idx-1, node->hash);
+    LOGI("Loading state node %i hash %llu\n", start_idx-1, node->hash);
     _backend->set_state(node->state);
 
     std::vector<float> logits(_vocab_size);

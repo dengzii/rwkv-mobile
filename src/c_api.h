@@ -51,6 +51,8 @@ struct penalty_params rwkvmobile_runtime_get_penalty_params(rwkvmobile_runtime_t
 
 void rwkvmobile_runtime_set_penalty_params(rwkvmobile_runtime_t runtime, struct penalty_params params);
 
+void rwkvmobile_runtime_add_adsp_library_path(const char * path);
+
 #ifdef __cplusplus
 }
 #endif
