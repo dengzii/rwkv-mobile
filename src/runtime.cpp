@@ -250,6 +250,7 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
                 _backend->free_state(tmp->state);
                 delete tmp;
             }
+            node->next = nullptr;
             break;
         }
         start_idx++;

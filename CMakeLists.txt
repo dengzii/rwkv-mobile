@@ -144,14 +144,7 @@ if (ENABLE_QNN_BACKEND)
 endif()
 
 if (BUILD_EXAMPLES)
-    add_executable(gen examples/gen.cpp)
-    target_link_libraries(gen PUBLIC rwkv_mobile_internal)
-
-    add_executable(test_chat examples/test_chat.cpp)
-    target_link_libraries(test_chat PUBLIC rwkv_mobile_internal)
-
-    add_executable(test_othello examples/test_othello.cpp src/c_api.cpp)
-    target_link_libraries(test_othello PUBLIC rwkv_mobile_internal)
+    add_subdirectory(examples)
 endif()
 
 if (NOT WIN32)

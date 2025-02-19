@@ -45,6 +45,7 @@ public:
             }
             delete tmp;
         }
+        _state_head->next = nullptr;
         return _backend->clear_state();
     }
 
