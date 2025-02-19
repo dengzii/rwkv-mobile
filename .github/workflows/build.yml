@@ -34,29 +34,51 @@ jobs:
       run: |
         git clone https://github.com/MollySophia/web-rwkv-ffi -b main && cd web-rwkv-ffi
         rustup target add aarch64-apple-ios
-        cargo build --release --target aarch64-apple-ios
+        rustup target add aarch64-apple-ios-sim
+        cargo build --release --target aarch64-apple-ios --target aarch64-apple-ios-sim
+        cargo build --target aarch64-apple-ios --target aarch64-apple-ios-sim
         cd ..
         cp web-rwkv-ffi/include/web_rwkv_ffi.h ./backends/web_rwkv
         rm -rf build-arm64
         mkdir build-arm64 && cd build-arm64
-        cp ../web-rwkv-ffi/target/aarch64-apple-ios/release/libweb_rwkv_ffi.a .
-        cmake .. -DENABLE_NCNN_BACKEND=OFF -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_LLAMACPP_BACKEND=OFF -DBUILD_STATIC_LIB=ON -DBUILD_EXAMPLES=OFF -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
+        cmake .. -DENABLE_NCNN_BACKEND=OFF -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_LLAMACPP_BACKEND=OFF -DBUILD_STATIC_LIB=ON -DBUILD_EXAMPLES=OFF \
           -GXcode -DCMAKE_TOOLCHAIN_FILE=../cmake/ios.toolchain.cmake -DPLATFORM=OS64 -DARCHS="arm64" \
           -DDEPLOYMENT_TARGET=$IOS_DEPLOYMENT_TARGET -DENABLE_BITCODE=$ENABLE_BITCODE -DENABLE_ARC=$ENABLE_ARC -DENABLE_VISIBILITY=$ENABLE_VISIBILITY
         cmake --build . --config Release -j 8
-        cp ./Release-iphoneos/librwkv_mobile.a .
+        cmake --build . --config Debug -j 8
+        cd ..
+        mkdir build-simulatorarm64 && cd build-simulatorarm64
+        cmake .. -DENABLE_NCNN_BACKEND=OFF -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_LLAMACPP_BACKEND=OFF -DBUILD_STATIC_LIB=ON -DBUILD_EXAMPLES=OFF \
+          -GXcode -DCMAKE_TOOLCHAIN_FILE=../cmake/ios.toolchain.cmake -DPLATFORM=SIMULATOR64 -DARCHS="arm64" \
+          -DDEPLOYMENT_TARGET=$IOS_DEPLOYMENT_TARGET -DENABLE_BITCODE=$ENABLE_BITCODE -DENABLE_ARC=$ENABLE_ARC -DENABLE_VISIBILITY=$ENABLE_VISIBILITY
+        cmake --build . --config Release -j 8
+        cmake --build . --config Debug -j 8
+        cd ..
+        mkdir release-build debug-build
+        xcodebuild -create-xcframework -library build-arm64/Release-iphoneos/librwkv_mobile.a -library build-simulatorarm64/Release-iphonesimulator/librwkv_mobile.a -output release-build/librwkv_mobile.xcframework
+        xcodebuild -create-xcframework -library build-arm64/Debug-iphoneos/librwkv_mobile.a -library build-simulatorarm64/Debug-iphonesimulator/librwkv_mobile.a -output debug-build/librwkv_mobile.xcframework
+        xcodebuild -create-xcframework -library web-rwkv-ffi/target/aarch64-apple-ios/release/libweb_rwkv_ffi.a -library web-rwkv-ffi/target/aarch64-apple-ios-sim/release/libweb_rwkv_ffi.a -output release-build/libweb_rwkv_ffi.xcframework
+        xcodebuild -create-xcframework -library web-rwkv-ffi/target/aarch64-apple-ios/debug/libweb_rwkv_ffi.a -library web-rwkv-ffi/target/aarch64-apple-ios-sim/debug/libweb_rwkv_ffi.a -output debug-build/libweb_rwkv_ffi.xcframework
 
     - name: package
       run: |
         rm -f ${{ env.PACKAGENAME }}.zip
-        pushd build-arm64
-        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.a libweb_rwkv_ffi.a
+        pushd release-build
+        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.xcframework libweb_rwkv_ffi.xcframework
+        popd
+        pushd debug-build
+        zip -9 -y -r ../${{ env.PACKAGENAME }}-debug.zip librwkv_mobile.xcframework libweb_rwkv_ffi.xcframework
         popd
     - name: upload-zip
       uses: actions/upload-artifact@v4
       with:
         name: ${{ env.PACKAGENAME }}
         path: ${{ env.PACKAGENAME }}.zip
+    - name: upload-zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.PACKAGENAME }}-debug
+        path: ${{ env.PACKAGENAME }}-debug.zip
   
   build-macos-library-x64:
     needs: [setup]
@@ -190,6 +212,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static
+      - name: download-ios-debug
+        uses: actions/download-artifact@v4
+        with:
+          name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static-debug
 
       - name: download-macos
         uses: actions/download-artifact@v4
@@ -205,6 +231,7 @@ jobs:
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static.zip librwkv_mobile-dev-latest-ios-static.zip
+          mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static-debug.zip librwkv_mobile-dev-latest-ios-static-debug.zip
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos.zip librwkv_mobile-dev-latest-macos.zip
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c.zip librwkv_mobile-dev-latest-aarch64-android-ndk-r25c.zip
       - uses: "marvinpinto/action-automatic-releases@latest"
@@ -216,6 +243,7 @@ jobs:
           title: "Development Build"
           files: |
             librwkv_mobile-dev-latest-ios-static.zip
+            librwkv_mobile-dev-latest-ios-static-debug.zip
             librwkv_mobile-dev-latest-macos.zip
             librwkv_mobile-dev-latest-aarch64-android-ndk-r25c.zip
       - uses: "marvinpinto/action-automatic-releases@latest"
@@ -224,6 +252,7 @@ jobs:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
           files: |
-            librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static.zip
-            librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos.zip
-            librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c.zip
+            librwkv_mobile-dev-latest-ios-static.zip
+            librwkv_mobile-dev-latest-ios-static-debug.zip
+            librwkv_mobile-dev-latest-macos.zip
+            librwkv_mobile-dev-latest-aarch64-android-ndk-r25c.zip
