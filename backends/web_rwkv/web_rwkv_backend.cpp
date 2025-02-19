@@ -92,6 +92,9 @@ int web_rwkv_backend::get_state(std::any &state) {
 }
 
 int web_rwkv_backend::set_state(std::any state) {
+    if (!state.has_value()) {
+        return RWKV_ERROR_BACKEND | RWKV_ERROR_INVALID_PARAMETERS;
+    }
     struct StateRaw raw = std::any_cast<struct StateRaw>(state);
     if (!raw.len || !raw.state) {
         return RWKV_ERROR_BACKEND | RWKV_ERROR_INVALID_PARAMETERS;
@@ -101,6 +104,9 @@ int web_rwkv_backend::set_state(std::any state) {
 }
 
 int web_rwkv_backend::free_state(std::any state) {
+    if (!state.has_value()) {
+        return RWKV_ERROR_BACKEND | RWKV_ERROR_INVALID_PARAMETERS;
+    }
     struct StateRaw raw = std::any_cast<struct StateRaw>(state);
     if (!raw.len || !raw.state) {
         return RWKV_ERROR_BACKEND | RWKV_ERROR_INVALID_PARAMETERS;
