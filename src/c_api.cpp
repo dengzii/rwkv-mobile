@@ -1,6 +1,7 @@
 #include "runtime.h"
 #include "commondef.h"
 #include "c_api.h"
+#include "logger.h"
 #include <cstring>
 #include <cstdlib>
 
@@ -225,8 +226,14 @@ int rwkvmobile_runtime_get_prompt(rwkvmobile_runtime_t runtime, char * prompt, c
 }
 
 void rwkvmobile_runtime_add_adsp_library_path(const char * path) {
-    auto ld_lib_path = std::string(getenv("LD_LIBRARY_PATH"));
-    ld_lib_path = std::string(path) + ":" + ld_lib_path;
+    auto ld_lib_path_char = getenv("LD_LIBRARY_PATH");
+    std::string ld_lib_path;
+    if (ld_lib_path_char) {
+        ld_lib_path = std::string(path) + ":" + std::string(ld_lib_path_char);
+    } else {
+        ld_lib_path = std::string(path);
+    }
+    LOGI("Setting LD_LIBRARY_PATH to %s\n", ld_lib_path.c_str());
     setenv("LD_LIBRARY_PATH", ld_lib_path.c_str(), 1);
     setenv("ADSP_LIBRARY_PATH", path, 1);
 }
