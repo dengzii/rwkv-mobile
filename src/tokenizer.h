@@ -27,6 +27,7 @@ public:
 class trie_tokenizer : public tokenizer_base {
 public:
     trie_tokenizer() : tokenizer_base(0, 0, 0) {};
+    ~trie_tokenizer();
     int load(const std::string vocab_file);
     std::vector<int> encode(std::string_view str) const;
     std::string decode(const std::vector<int> &ids) const;

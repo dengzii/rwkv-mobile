@@ -4,6 +4,7 @@
 #include <string>
 #include <map>
 #include <memory>
+#include <functional>
 #include "backend.h"
 #include "tokenizer.h"
 #include "sampler.h"
@@ -54,6 +55,11 @@ public:
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
         }
         clear_state();
+        if (_state_head != nullptr && _state_head->state.has_value()) {
+            _backend->free_state(_state_head->state);
+            delete _state_head;
+            _state_head = nullptr;
+        }
         int ret = _backend->release_model();
         if (ret != RWKV_SUCCESS) {
             return ret;
@@ -145,8 +151,8 @@ public:
     } * _state_head = nullptr;
 
 private:
-    std::unique_ptr<execution_provider> _backend;
-    std::unique_ptr<tokenizer_base> _tokenizer;
+    std::unique_ptr<execution_provider, std::function<void(execution_provider*)>> _backend;
+    std::unique_ptr<tokenizer_base, std::function<void(tokenizer_base*)>> _tokenizer;
     std::unique_ptr<sampler> _sampler;
 
     int _vocab_size = 0;

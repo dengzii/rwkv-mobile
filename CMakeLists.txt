@@ -16,6 +16,14 @@ option(BUILD_STATIC_LIB "Build static library" OFF)
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
+option(ADDRESS_SANITIZER "Enable AddressSanitizer" OFF)
+
+if (ADDRESS_SANITIZER)
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+    # set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+endif()
+
 set(RWKV_MOBILE_SRCS
     src/runtime.cpp
     src/sampler.cpp

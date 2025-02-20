@@ -1,6 +1,7 @@
 #include "runtime.h"
 #include "backend.h"
 #include "logger.h"
+#include <functional>
 #ifdef ENABLE_WEBRWKV
 #include "web_rwkv_backend.h"
 #endif
@@ -69,25 +70,37 @@ int runtime::init(int backend_id) {
 
     if (backend_id == RWKV_BACKEND_WEBRWKV) {
 #ifdef ENABLE_WEBRWKV
-        _backend = std::unique_ptr<execution_provider>(new web_rwkv_backend);
+        _backend = std::unique_ptr<execution_provider, std::function<void(execution_provider*)>>(new web_rwkv_backend,
+            [](execution_provider *p) {
+                delete (web_rwkv_backend*)p;
+            });
 #else
         return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 #endif
     } else if (backend_id == RWKV_BACKEND_NCNN) {
 #ifdef ENABLE_NCNN
-        _backend = std::unique_ptr<execution_provider>(new ncnn_rwkv_backend);
+        _backend = std::unique_ptr<execution_provider, std::function<void(execution_provider*)>>(new ncnn_rwkv_backend,
+            [](execution_provider *p) {
+                delete (ncnn_rwkv_backend*)p;
+            });
 #else
         return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 #endif
     } else if (backend_id == RWKV_BACKEND_LLAMACPP) {
 #ifdef ENABLE_LLAMACPP
-        _backend = std::unique_ptr<execution_provider>(new llama_cpp_backend);
+        _backend = std::unique_ptr<execution_provider, std::function<void(execution_provider*)>>(new llama_cpp_backend,
+            [](execution_provider *p) {
+                delete (llama_cpp_backend*)p;
+            });
 #else
         return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 #endif
     } else if (backend_id == RWKV_BACKEND_QNN) {
 #ifdef ENABLE_QNN
-        _backend = std::unique_ptr<execution_provider>(new qnn_backend);
+        _backend = std::unique_ptr<execution_provider, std::function<void(execution_provider*)>>(new qnn_backend,
+            [](execution_provider *p) {
+                delete (qnn_backend*)p;
+            });
 #else
         return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 #endif
@@ -126,7 +139,10 @@ int runtime::load_tokenizer(std::string vocab_file) {
     if (_tokenizer != nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
-    _tokenizer = std::unique_ptr<tokenizer_base>(new trie_tokenizer);
+    _tokenizer = std::unique_ptr<tokenizer_base, std::function<void(tokenizer_base*)>>(new trie_tokenizer,
+        [](tokenizer_base *p) {
+            delete (trie_tokenizer*)p;
+        });
     if (_tokenizer == nullptr) {
         return RWKV_ERROR_TOKENIZER;
     }

@@ -10,6 +10,12 @@ int trie_tokenizer::load(const std::string vocab_file) {
     return RWKV_SUCCESS;
 }
 
+trie_tokenizer::~trie_tokenizer() {
+    if (_tokenizer != nullptr) {
+        delete _tokenizer;
+    }
+}
+
 std::vector<int> trie_tokenizer::encode(std::string_view str) const {
     auto ids = _tokenizer->encode(std::string(str));
     return ids;
