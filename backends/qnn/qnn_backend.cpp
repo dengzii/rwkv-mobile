@@ -738,16 +738,13 @@ int qnn_backend::release_model() {
         inputTensors[i]  = nullptr;
         outputTensors[i] = nullptr;
     }
-    
+
     qnn_wrapper_api::freeGraphsInfo(&qnnGraphsInfo, qnnGraphsCount);
     qnnGraphsInfo = nullptr;
 
-    // free contexts
-    for (int i = 0; i < qnnContextHandles.size(); i++) {
-        if (QNN_CONTEXT_NO_ERROR !=
-            qnnFunctionPointers.qnnInterface.contextFree(qnnContextHandles[i], nullptr)) {
-            LOGE("Could not free context");
-        }
+    if (QNN_CONTEXT_NO_ERROR !=
+        qnnFunctionPointers.qnnInterface.contextFree(qnnContextHandles[0], nullptr)) {
+        LOGE("Could not free context");
     }
 
     qnn_destory_power_config_id();
