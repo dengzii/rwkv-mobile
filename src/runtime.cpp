@@ -49,11 +49,15 @@ int backend_str_to_enum(std::string backend) {
 }
 
 int runtime::init(std::string backend_name) {
+    return init(backend_name, nullptr);
+}
+
+int runtime::init(std::string backend_name, void * extra) {
     int backend_id = backend_str_to_enum(backend_name);
     if (backend_id < 0) {
         return RWKV_ERROR_BACKEND;
     }
-    int ret = init(backend_id);
+    int ret = init(backend_id, extra);
     if (!ret) {
         LOGI("Initialized runtime with backend: %s\n", backend_name.c_str());
     } else {
@@ -63,6 +67,10 @@ int runtime::init(std::string backend_name) {
 }
 
 int runtime::init(int backend_id) {
+    return init(backend_id, nullptr);
+}
+
+int runtime::init(int backend_id, void * extra) {
     _sampler = std::unique_ptr<sampler>(new sampler);
     if (_sampler == nullptr) {
         return RWKV_ERROR_SAMPLER;
@@ -107,7 +115,7 @@ int runtime::init(int backend_id) {
     } else {
         return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
     }
-    return _backend->init(nullptr);
+    return _backend->init(extra);
 }
 
 int runtime::load_model(std::string model_path) {

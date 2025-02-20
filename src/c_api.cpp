@@ -18,6 +18,15 @@ rwkvmobile_runtime_t rwkvmobile_runtime_init_with_name(const char * backend_name
     return rt;
 }
 
+rwkvmobile_runtime_t rwkvmobile_runtime_init_with_name_extra(const char * backend_name, void * extra) {
+    runtime * rt = new runtime();
+    if (rt == nullptr) {
+        return nullptr;
+    }
+    rt->init(backend_name, extra);
+    return rt;
+}
+
 int rwkvmobile_runtime_load_model(rwkvmobile_runtime_t handle, const char * model_path) {
     if (handle == nullptr || model_path == nullptr) {
         return RWKV_ERROR_INVALID_PARAMETERS;

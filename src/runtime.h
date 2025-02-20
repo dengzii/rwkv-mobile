@@ -17,6 +17,8 @@ public:
     ~runtime() {};
     int init(std::string backend_name);
     int init(int backend_id);
+    int init(std::string backend_name, void * extra);
+    int init(int backend_id, void * extra);
     int load_model(std::string model_path);
     int load_tokenizer(std::string vocab_file);
     int eval_logits(int id, std::vector<float> &logits);

@@ -23,6 +23,8 @@ int rwkvmobile_runtime_get_available_backend_names(char * backend_names_buffer, 
 
 rwkvmobile_runtime_t rwkvmobile_runtime_init_with_name(const char * backend_name);
 
+rwkvmobile_runtime_t rwkvmobile_runtime_init_with_name_extra(const char * backend_name, void * extra);
+
 int rwkvmobile_runtime_release(rwkvmobile_runtime_t runtime);
 
 int rwkvmobile_runtime_load_model(rwkvmobile_runtime_t runtime, const char * model_path);
