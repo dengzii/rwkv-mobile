@@ -9,10 +9,6 @@ namespace rwkvmobile {
 
 class qnn_backend : public execution_provider {
 public:
-    ~qnn_backend() {
-        release_model();
-        release();
-    }
     int init(void * extra) override;
     int load_model(std::string model_path) override;
     int eval(int id, std::vector<float> &logits) override;
