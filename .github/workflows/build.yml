@@ -228,14 +228,14 @@ jobs:
       run: |
         rm -rf build
         mkdir build && cd build
-        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=OFF -DENABLE_QNN_BACKEND=ON \
+        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_QNN_BACKEND=ON \
           -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-28 -DANDROID_NDK=$GITHUB_WORKSPACE/android-ndk-r25c \
           -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/android-ndk-r25c/build/cmake/android.toolchain.cmake -DCMAKE_BUILD_TYPE=Release \
           -G Ninja
         ninja
         cd ..
         mkdir build-debug && cd build-debug
-        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=OFF -DENABLE_QNN_BACKEND=ON \
+        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_QNN_BACKEND=ON \
           -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-28 -DANDROID_NDK=$GITHUB_WORKSPACE/android-ndk-r25c \
           -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/android-ndk-r25c/build/cmake/android.toolchain.cmake -DCMAKE_BUILD_TYPE=Debug \
           -G Ninja
