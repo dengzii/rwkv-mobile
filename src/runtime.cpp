@@ -336,8 +336,8 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
         for (int i = 1; i < inputs.size(); i += 2) {
             std::vector<int> ids = _tokenizer->encode(" " + inputs[i]);
             for (auto id: ids) {
-                for (auto &[id, occurence] : _occurences) {
-                    occurence *= _penalty_decay;
+                for (auto &[_id, occurence] : _occurences) {
+                    _occurences[_id] *= _penalty_decay;
                 }
                 _occurences[id]++;
             }
@@ -348,7 +348,7 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
         for (auto &[id, occurence] : _occurences) {
             logits[id] -=
                 _frequency_penalty * occurence + _presence_penalty;
-            occurence *= _penalty_decay;
+            _occurences[id] *= _penalty_decay;
         }
 
         int idx = _sampler->sample(logits.data(), logits.size(), _temperature, _top_k, _top_p);
