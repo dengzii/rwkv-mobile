@@ -39,13 +39,13 @@ dynamicloadutil::StatusCode dynamicloadutil::getQnnFunctionPointers(
     void** backendHandleRtn,
     bool loadModelLib,
     void** modelHandleRtn) {
-#if defined(__ANDROID__)
-  void* libBackendHandle = pal::dynamicloading::dlOpen(
-      backendPath.c_str(), pal::dynamicloading::DL_NOW | pal::dynamicloading::DL_LOCAL);
-#else
+// #if defined(__ANDROID__)
+//   void* libBackendHandle = pal::dynamicloading::dlOpen(
+//       backendPath.c_str(), pal::dynamicloading::DL_NOW | pal::dynamicloading::DL_LOCAL);
+// #else
   void* libBackendHandle = pal::dynamicloading::dlOpen(
       backendPath.c_str(), pal::dynamicloading::DL_NOW | pal::dynamicloading::DL_GLOBAL);
-#endif
+// #endif
   if (nullptr == libBackendHandle) {
     LOGE("Unable to load backend. pal::dynamicloading::dlError(): %s",
               pal::dynamicloading::dlError());
@@ -127,7 +127,6 @@ dynamicloadutil::StatusCode dynamicloadutil::getQnnFunctionPointers(
 
 dynamicloadutil::StatusCode dynamicloadutil::getQnnSystemFunctionPointers(
     std::string systemLibraryPath, rwkv_app::QnnFunctionPointers* qnnFunctionPointers) {
-
   if (!qnnFunctionPointers) {
     LOGE("nullptr provided for qnnFunctionPointers");
     return StatusCode::FAILURE;
@@ -174,6 +173,5 @@ dynamicloadutil::StatusCode dynamicloadutil::getQnnSystemFunctionPointers(
     LOGE("Unable to find a valid system interface.");
     return StatusCode::FAIL_GET_INTERFACE_PROVIDERS;
   }
-
   return StatusCode::SUCCESS;
 }

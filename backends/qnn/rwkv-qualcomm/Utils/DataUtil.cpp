@@ -77,7 +77,7 @@ datautil::StatusCode datautil::readDataFromFile(std::string filePath,
     return err;
   }
   if (length != l) {
-    LOGE("Input file %s: file size in bytes (%lu), should be equal to: %lu",
+    LOGE("Input file %s: file size in bytes (%d), should be equal to: %d",
               filePath.c_str(),
               length,
               l);
@@ -132,9 +132,9 @@ datautil::ReadBatchDataRetType_t datautil::readBatchData(const std::vector<std::
     in.seekg(0, in.beg);
     if ((tensorLength % fileSize) != 0 || fileSize > tensorLength || fileSize == 0) {
       LOGE(
-          "Given input file %s with file size in bytes %lu. If the model expects a batch size of "
-          "one, the file size should match the tensor extent: %lu bytes. If the model expects a "
-          "batch size > 1, the file size should evenly divide the tensor extent: %lu bytes.",
+          "Given input file %s with file size in bytes %d. If the model expects a batch size of "
+          "one, the file size should match the tensor extent: %d bytes. If the model expects a "
+          "batch size > 1, the file size should evenly divide the tensor extent: %d bytes.",
           filePaths[fileIndex].c_str(),
           fileSize,
           tensorLength,

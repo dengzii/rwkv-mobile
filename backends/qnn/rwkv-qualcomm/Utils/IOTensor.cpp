@@ -1,899 +1,477 @@
 //==============================================================================
 //
 //  Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
-//  All rights reserved.
+//  All Rights Reserved.
 //  Confidential and Proprietary - Qualcomm Technologies, Inc.
 //
 //==============================================================================
-#include <algorithm>
 #include <cstring>
 #include <fstream>
 #include <iostream>
 
-#include "half.hpp"
-#include "DataUtil.hpp"
-#include "IOTensor.hpp"
-#include "logger.h"
-#ifndef __hexagon__
-#include "PAL/Directory.hpp"
-#include "PAL/FileOp.hpp"
-#include "PAL/Path.hpp"
+#include "ClientBuffer.hpp"
+#ifndef _WIN32
+#include "DmaBufAllocator.hpp"
 #endif
-#include "PAL/StringOp.hpp"
+#include "IBufferAlloc.hpp"
+#include "IOTensor.hpp"
 #include "QnnTypeMacros.hpp"
+#include "RpcMem.hpp"
 
-using namespace qnn;
-using namespace qnn::tools;
+#ifdef _WIN32
+#define __strdup _strdup
+#else
+#define __strdup strdup
+#endif
 
-// Helper method to read data from files to a buffer.
-iotensor::PopulateInputTensorsRetType_t iotensor::IOTensor::readDataAndAllocateBuffer(
-    const std::vector<std::string>& filePaths,
-    const size_t filePathsIndexOffset,
-    const bool loopBackToStart,
-    std::vector<size_t> dims,
-    Qnn_DataType_t dataType,
-    uint8_t** bufferToCopy) {
-  StatusCode returnStatus  = StatusCode::SUCCESS;
-  *bufferToCopy            = nullptr;
-  returnStatus             = allocateBuffer(bufferToCopy, dims, dataType);
-  size_t numFilesPopulated = 0;
-  size_t batchSize         = 0;
-  datautil::StatusCode status;
-  std::tie(status, numFilesPopulated, batchSize) =
-      datautil::readBatchData(filePaths,
-                              filePathsIndexOffset,
-                              loopBackToStart,
-                              dims,
-                              dataType,
-                              reinterpret_cast<uint8_t*>(*bufferToCopy));
-  if (datautil::StatusCode::SUCCESS != status) {
-    LOGE("Failure in datautil::readBatchData");
-    returnStatus = StatusCode::FAILURE;
+IOTensor::IOTensor(BufferAlloc bufferAllocIn, QNN_INTERFACE_VER_TYPE* qnnInterface)
+    : m_bufferAlloc(bufferAllocIn),
+      m_qnnInterface(qnnInterface),
+      m_bufferManager(new ClientBuffer()) {}
+
+bool IOTensor::initialize(Qnn_ContextHandle_t contextHandle) {
+  if (m_bufferAlloc == BufferAlloc::SHARED_BUFFER) {
+    m_bufferManager = std::unique_ptr<IBufferAlloc>(new RpcMem(contextHandle, m_qnnInterface));
+  } else if (m_bufferAlloc == BufferAlloc::DMABUF) {
+#ifdef _WIN32
+    return false;
+#else
+    m_bufferManager =
+        std::unique_ptr<IBufferAlloc>(new DmaBufferAllocator(contextHandle, m_qnnInterface));
+#endif
   }
-  if (StatusCode::SUCCESS != returnStatus) {
-    if (nullptr != *bufferToCopy) {
-      free(*bufferToCopy);
-      *bufferToCopy = nullptr;
-    }
+
+  if (true != m_bufferManager->initialize()) {
+    LOGE("Failed to initialize buffer manager");
+    return false;
   }
-  return {returnStatus, numFilesPopulated, batchSize};
+
+  return true;
 }
 
-// Helper method to copy a float buffer, quantize it, and copy
-// it to a tensor (Qnn_Tensor_t) buffer.
-iotensor::StatusCode iotensor::IOTensor::copyFromFloatToNative(float* floatBuffer,
-                                                               Qnn_Tensor_t* tensor) {
-  if (nullptr == floatBuffer || nullptr == tensor) {
-    LOGE("copyFromFloatToNative(): received a nullptr");
-    return StatusCode::FAILURE;
+IOTensor::~IOTensor() {
+  if (m_bufferAlloc == BufferAlloc::SHARED_BUFFER || m_bufferAlloc == BufferAlloc::DMABUF) {
+    m_bufferManager->freeFusedBuffers();
   }
-
-  StatusCode returnStatus = StatusCode::SUCCESS;
-  std::vector<size_t> dims;
-  fillDims(dims, QNN_TENSOR_GET_DIMENSIONS(tensor), QNN_TENSOR_GET_RANK(tensor));
-
-  switch (QNN_TENSOR_GET_DATA_TYPE(tensor)) {
-    case QNN_DATATYPE_UFIXED_POINT_8:
-      datautil::floatToTfN<uint8_t>(static_cast<uint8_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-                                    floatBuffer,
-                                    QNN_TENSOR_GET_QUANT_PARAMS(tensor).scaleOffsetEncoding.offset,
-                                    QNN_TENSOR_GET_QUANT_PARAMS(tensor).scaleOffsetEncoding.scale,
-                                    datautil::calculateElementCount(dims));
-      break;
-
-    case QNN_DATATYPE_UFIXED_POINT_16:
-      datautil::floatToTfN<uint16_t>(static_cast<uint16_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-                                     floatBuffer,
-                                     QNN_TENSOR_GET_QUANT_PARAMS(tensor).scaleOffsetEncoding.offset,
-                                     QNN_TENSOR_GET_QUANT_PARAMS(tensor).scaleOffsetEncoding.scale,
-                                     datautil::calculateElementCount(dims));
-      break;
-
-    case QNN_DATATYPE_UINT_8:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castFromFloat<uint8_t>(
-              static_cast<uint8_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              floatBuffer,
-              datautil::calculateElementCount(dims))) {
-        LOGE("failure in castFromFloat<uint8_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_UINT_16:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castFromFloat<uint16_t>(
-              static_cast<uint16_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              floatBuffer,
-              datautil::calculateElementCount(dims))) {
-        LOGE("failure in castFromFloat<uint16_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_UINT_32:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castFromFloat<uint32_t>(
-              static_cast<uint32_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              floatBuffer,
-              datautil::calculateElementCount(dims))) {
-        LOGE("failure in castFromFloat<uint32_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_UINT_64:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castFromFloat<uint64_t>(
-              static_cast<uint64_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              floatBuffer,
-              datautil::calculateElementCount(dims))) {
-        LOGE("failure in castFromFloat<uint64_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_INT_8:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castFromFloat<int8_t>(
-              static_cast<int8_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              floatBuffer,
-              datautil::calculateElementCount(dims))) {
-        LOGE("failure in castFromFloat<int8_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_INT_16:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castFromFloat<int16_t>(
-              static_cast<int16_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              floatBuffer,
-              datautil::calculateElementCount(dims))) {
-        LOGE("failure in castFromFloat<int16_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_INT_32:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castFromFloat<int32_t>(
-              static_cast<int32_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              floatBuffer,
-              datautil::calculateElementCount(dims))) {
-        LOGE("failure in castFromFloat<int32_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_INT_64:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castFromFloat<int64_t>(
-              static_cast<int64_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              floatBuffer,
-              datautil::calculateElementCount(dims))) {
-        LOGE("failure in castFromFloat<int64_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_BOOL_8:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castFromFloat<uint8_t>(
-              static_cast<uint8_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              floatBuffer,
-              datautil::calculateElementCount(dims))) {
-        LOGE("failure in castFromFloat<bool>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    default:
-      LOGE("Datatype not supported yet!");
-      returnStatus = StatusCode::FAILURE;
-      break;
-  }
-  return returnStatus;
-}
-
-// Helper method to populate an input tensor in the graph during execution.
-// It relies on reading data from files provided during app creation.
-iotensor::PopulateInputTensorsRetType_t iotensor::IOTensor::populateInputTensor(
-    const std::vector<std::string>& filePaths,
-    const size_t filePathsIndexOffset,
-    const bool loopBackToStart,
-    Qnn_Tensor_t* input,
-    iotensor::InputDataType inputDataType) {
-  if (nullptr == input) {
-    LOGE("input is nullptr");
-    return {StatusCode::FAILURE, 0, 0};
-  }
-
-  auto returnStatus        = StatusCode::SUCCESS;
-  size_t numFilesPopulated = 0;
-  size_t batchSize         = 0;
-  std::vector<size_t> dims;
-  fillDims(dims, QNN_TENSOR_GET_DIMENSIONS(input), QNN_TENSOR_GET_RANK(input));
-
-  if (inputDataType == InputDataType::FLOAT &&
-      QNN_TENSOR_GET_DATA_TYPE(input) != QNN_DATATYPE_FLOAT_32) {
-    uint8_t* fileToBuffer = nullptr;
-    std::tie(returnStatus, numFilesPopulated, batchSize) =
-        readDataAndAllocateBuffer(filePaths,
-                                  filePathsIndexOffset,
-                                  loopBackToStart,
-                                  dims,
-                                  QNN_DATATYPE_FLOAT_32,
-                                  &fileToBuffer);
-    if (StatusCode::SUCCESS == returnStatus) {
-      LOGD("readDataFromFileToBuffer successful");
-      returnStatus = copyFromFloatToNative(reinterpret_cast<float*>(fileToBuffer), input);
-    }
-    if (nullptr != fileToBuffer) {
-      free(fileToBuffer);
-      fileToBuffer = nullptr;
-    }
-  } else {
-    datautil::StatusCode status;
-    std::tie(status, numFilesPopulated, batchSize) =
-        datautil::readBatchData(filePaths,
-                                filePathsIndexOffset,
-                                loopBackToStart,
-                                dims,
-                                QNN_TENSOR_GET_DATA_TYPE(input),
-                                static_cast<uint8_t*>(QNN_TENSOR_GET_CLIENT_BUF(input).data));
-    if (datautil::StatusCode::SUCCESS != status) {
-      LOGE("Failure in datautil::readBatchData");
-      returnStatus = StatusCode::FAILURE;
-    }
-  }
-  return {returnStatus, numFilesPopulated, batchSize};
-}
-
-// Helper method to populate all input tensors during execution.
-iotensor::PopulateInputTensorsRetType_t iotensor::IOTensor::populateInputTensors(
-    uint32_t graphIdx,
-    const std::vector<std::vector<std::string>>& filePathsVector,
-    const size_t filePathsIndexOffset,
-    const bool loopBackToStart,
-    const std::unordered_map<std::string, uint32_t>& inputNameToIndex,
-    Qnn_Tensor_t* inputs,
-    qnn_wrapper_api::GraphInfo_t graphInfo,
-    iotensor::InputDataType inputDataType) {
-  LOGD("populateInputTensors() graphIndx %d", graphIdx);
-  if (nullptr == inputs) {
-    LOGE("inputs is nullptr");
-    return {StatusCode::FAILURE, 0, 0};
-  }
-  auto inputCount = graphInfo.numInputTensors;
-  if (filePathsVector.size() != inputCount) {
-    LOGE(
-        "Incorrect amount of Input files for graphIdx: %u. Expected: %u, "
-        "received: %lu",
-        graphIdx,
-        inputCount,
-        filePathsVector.size());
-    return {StatusCode::FAILURE, 0, 0};
-  }
-  size_t numFilesPopulated = 0;
-  size_t numBatchSize      = 0;
-  for (size_t inputIdx = 0; inputIdx < inputCount; inputIdx++) {
-    size_t inputNameIdx = inputIdx;
-    LOGD("index = %zu input column index = %zu", inputIdx, inputNameIdx);
-    std::string inputNodeName;
-    if (QNN_TENSOR_GET_NAME(graphInfo.inputTensors[inputIdx]))
-      inputNodeName = QNN_TENSOR_GET_NAME(graphInfo.inputTensors[inputIdx]);
-    if (!inputNodeName.empty() && inputNameToIndex.find(inputNodeName) != inputNameToIndex.end()) {
-      inputNameIdx = inputNameToIndex.at(inputNodeName);
-    }
-    StatusCode returnStatus;
-    size_t currentInputNumFilesPopulated = 0;
-    size_t currentInputNumBatchSize      = 0;
-    std::tie(returnStatus, currentInputNumFilesPopulated, currentInputNumBatchSize) =
-        populateInputTensor(filePathsVector[inputNameIdx],
-                            filePathsIndexOffset,
-                            loopBackToStart,
-                            &(inputs[inputIdx]),
-                            inputDataType);
-    if (StatusCode::SUCCESS != returnStatus) {
-      LOGE("populateInputTensorFromFiles failed for input %s with index %zu",
-                inputNodeName.c_str(),
-                inputIdx);
-      return {StatusCode::FAILURE, currentInputNumFilesPopulated, currentInputNumBatchSize};
-    }
-    if (inputIdx == 0) {
-      numFilesPopulated = currentInputNumFilesPopulated;
-      numBatchSize      = currentInputNumBatchSize;
-    } else {
-      if (numFilesPopulated != currentInputNumFilesPopulated ||
-          numBatchSize != currentInputNumBatchSize) {
-        LOGE(
-            "Current input tensor with name: %s with index %lu files populated = %lu, batch size = %lu"
-            " does not match with expected files populated = %lu, batch size = %lu",
-            inputNodeName.c_str(),
-            inputIdx,
-            currentInputNumFilesPopulated,
-            currentInputNumBatchSize,
-            numFilesPopulated,
-            numBatchSize);
-        return {StatusCode::FAILURE, numFilesPopulated, numBatchSize};
-      }
-    }
-  }
-  return {StatusCode::SUCCESS, numFilesPopulated, numBatchSize};
 }
 
 // Setup details for Qnn_Tensor_t for execution
-// based on information in Qnn_TensorWrapper_t provided by model.so.
-iotensor::StatusCode iotensor::IOTensor::setupTensors(Qnn_Tensor_t** tensors,
-                                                      uint32_t tensorCount,
-                                                      Qnn_Tensor_t* tensorWrappers) {
+// based on information in TensorWrapper provided by model.so.
+bool IOTensor::setupTensors(Qnn_Tensor_t** tensors,
+                            std::unordered_map<std::string, void*>& tensorNameToTensorPointer,
+                            uint32_t tensorCount,
+                            TensorWrapper* tensorWrappers,
+                            std::unordered_map<std::string, size_t>& tensorsSize,
+                            Qnn_ContextHandle_t contextHandle,
+                            bool skipBufferAllocation) {
   if (nullptr == tensorWrappers) {
     LOGE("tensorWrappers is nullptr");
-    return StatusCode::FAILURE;
+    return false;
   }
   if (0 == tensorCount) {
-    LOGI("tensor count is 0. Nothing to setup.");
-    return StatusCode::SUCCESS;
+    LOGD("tensor count is 0. Nothing to setup.");
+    return true;
   }
-  auto returnStatus = StatusCode::SUCCESS;
-  *tensors          = (Qnn_Tensor_t*)calloc(1, tensorCount * sizeof(Qnn_Tensor_t));
+
+  *tensors = (Qnn_Tensor_t*)calloc(1, tensorCount * sizeof(Qnn_Tensor_t));
   if (nullptr == *tensors) {
     LOGE("mem alloc failed for *tensors");
-    returnStatus = StatusCode::FAILURE;
-    return returnStatus;
+    return false;
   }
-  for (size_t tensorIdx = 0; tensorIdx < tensorCount; tensorIdx++) {
-    Qnn_Tensor_t wrapperTensor = tensorWrappers[tensorIdx];
-    std::vector<size_t> dims;
-    fillDims(dims, QNN_TENSOR_GET_DIMENSIONS(wrapperTensor), QNN_TENSOR_GET_RANK(wrapperTensor));
-    if (StatusCode::SUCCESS == returnStatus) {
-      LOGD("allocateBuffer successful");
-      (*tensors)[tensorIdx] = QNN_TENSOR_INIT;
-      returnStatus =
-          (rwkv_app::deepCopyQnnTensorInfo(((*tensors) + tensorIdx), &wrapperTensor) == true
-               ? StatusCode::SUCCESS
-               : StatusCode::FAILURE);
+
+  auto returnStatus = true;
+
+  uint64_t totalBufferSize = 0;
+  void* memPointer         = nullptr;
+  int32_t fd               = -1;
+  if (m_bufferAlloc == BufferAlloc::SHARED_BUFFER) {
+    // Calculate the total size of the tensors
+    for (size_t tensorIdx = 0; tensorIdx < tensorCount; tensorIdx++) {
+      auto wrapperTensorName = std::string(GET_TENSOR_WRAPPER_NAME(tensorWrappers[tensorIdx]));
+      totalBufferSize += tensorsSize[wrapperTensorName];
     }
-    if (StatusCode::SUCCESS == returnStatus) {
-      LOGD("deepCopyQnnTensorInfo successful");
-      QNN_TENSOR_SET_MEM_TYPE(((*tensors) + tensorIdx), QNN_TENSORMEMTYPE_RAW);
-    }
-    Qnn_ClientBuffer_t clientBuffer = QNN_CLIENT_BUFFER_INIT;
-    returnStatus = allocateBuffer(reinterpret_cast<uint8_t**>(&clientBuffer.data),
-                                  dims,
-                                  QNN_TENSOR_GET_DATA_TYPE((*tensors) + tensorIdx));
-    datautil::StatusCode datautilStatus{datautil::StatusCode::SUCCESS};
-    size_t length{0};
-    std::tie(datautilStatus, length) =
-        datautil::calculateLength(dims, QNN_TENSOR_GET_DATA_TYPE((*tensors) + tensorIdx));
-    if (datautilStatus != datautil::StatusCode::SUCCESS) {
-      returnStatus = StatusCode::FAILURE;
-    }
-    clientBuffer.dataSize = length;
-    QNN_TENSOR_SET_CLIENT_BUF(((*tensors) + tensorIdx), clientBuffer);
-    if (StatusCode::SUCCESS != returnStatus) {
-      LOGE("Failure in setupTensors, cleaning up resources");
-      if (nullptr != (QNN_TENSOR_GET_CLIENT_BUF((*tensors) + tensorIdx)).data) {
-        free(QNN_TENSOR_GET_CLIENT_BUF((*tensors) + tensorIdx).data);
+    LOGI("Calculated total size %lu", totalBufferSize);
+
+    if (!skipBufferAllocation) {
+      // Allocate the buffer of this size
+      memPointer = m_bufferManager->allocateTensorFusedBuffer(totalBufferSize, &fd);
+      if (memPointer) {
+        LOGI("Successfully allocated a buffer of size %lu, pointer %p, fd %d",
+                  (unsigned long)totalBufferSize,
+                  memPointer,
+                  fd);
+      } else {
+        LOGE("Not able to allocate buffer of size %lu", (unsigned long)totalBufferSize);
+        return false;
       }
-      tearDownTensors(*tensors, tensorIdx);
-      *tensors     = nullptr;
-      returnStatus = StatusCode::FAILURE;
-      LOGE("Failure in setupTensors, done cleaning up resources");
-      return returnStatus;
     }
   }
+
+  uint64_t offset = 0;
+
+  for (size_t tensorIdx = 0; tensorIdx < tensorCount; tensorIdx++) {
+    Qnn_Tensor_t wrapperTensor = GET_TENSOR_WRAPPER_TENSOR(tensorWrappers[tensorIdx]);
+    auto wrapperTensorName     = std::string(GET_TENSOR_WRAPPER_NAME(tensorWrappers[tensorIdx]));
+    if (true == returnStatus) {
+      (*tensors)[tensorIdx] = QNN_TENSOR_INIT;
+      returnStatus          = deepCopyQnnTensorInfo(((*tensors) + tensorIdx), &wrapperTensor);
+    }
+    if (true == returnStatus) {
+      size_t tensorDataSize = tensorsSize[wrapperTensorName];
+      if (m_bufferAlloc == BufferAlloc::SHARED_BUFFER) {
+        if (!skipBufferAllocation) {
+          returnStatus = m_bufferManager->mapFusedBufferOffset(((*tensors) + tensorIdx),
+                                                               tensorDataSize,
+                                                               fd,
+                                                               offset,
+                                                               totalBufferSize,
+                                                               memPointer,
+                                                               contextHandle);
+          offset += tensorDataSize;
+        }
+      } else {
+        returnStatus =
+            m_bufferManager->allocateTensorBuffer(((*tensors) + tensorIdx), tensorDataSize);
+      }
+    }
+    if (true != returnStatus) {
+      LOGE("Failure in setupTensors, cleaning up resources");
+      tearDownTensors(*tensors, tensorIdx);
+      *tensors = nullptr;
+      LOGE("Failure in setupTensors, done cleaning up resources");
+      return false;
+    } else {
+      tensorNameToTensorPointer.insert({wrapperTensorName, ((*tensors) + tensorIdx)});
+      // LOGD("allocateBuffer successful");
+    }
+  }
+
   return returnStatus;
 }
 
-// Setup details for all input and output tensors for graph execution.
-iotensor::StatusCode iotensor::IOTensor::setupInputAndOutputTensors(
-    Qnn_Tensor_t** inputs, Qnn_Tensor_t** outputs, qnn_wrapper_api::GraphInfo_t graphInfo) {
-  auto returnStatus = StatusCode::SUCCESS;
-  if (StatusCode::SUCCESS !=
-      setupTensors(inputs, graphInfo.numInputTensors, (graphInfo.inputTensors))) {
-    LOGE("Failure in setting up input tensors");
-    returnStatus = StatusCode::FAILURE;
-  }
-  if (StatusCode::SUCCESS !=
-      setupTensors(outputs, graphInfo.numOutputTensors, (graphInfo.outputTensors))) {
-    LOGE("Failure in setting up output tensors");
-    returnStatus = StatusCode::FAILURE;
-  }
-  if (StatusCode::SUCCESS != returnStatus) {
-    LOGE("Failure in setupInputAndOutputTensors, cleaning up resources");
+// Setup details for all input tensors for graph execution.
+bool IOTensor::setupInputTensors(Qnn_Tensor_t** inputs,
+                                 std::unordered_map<std::string, void*>& tensorNameToTensorPointer,
+                                 const GraphInfo_t& graphInfo,
+                                 std::unordered_map<std::string, size_t>& inputTensorsSize,
+                                 Qnn_ContextHandle_t contextHandle,
+                                 bool skipBufferAllocation) {
+  if (true != setupTensors(inputs,
+                           tensorNameToTensorPointer,
+                           graphInfo.numInputTensors,
+                           (graphInfo.inputTensors),
+                           inputTensorsSize,
+                           contextHandle,
+                           skipBufferAllocation)) {
+    LOGE("Failure in setupInputTensors, cleaning up resources");
     if (nullptr != *inputs) {
       LOGD("cleaning up input tensors");
       tearDownTensors(*inputs, graphInfo.numInputTensors);
       *inputs = nullptr;
     }
+    LOGE("Failure in setupInputTensors, done cleaning up resources");
+
+    return false;
+  }
+
+  return true;
+}
+
+// Setup details for all output tensors for graph execution.
+bool IOTensor::setupOutputTensors(Qnn_Tensor_t** outputs,
+                                  std::unordered_map<std::string, void*>& tensorNameToTensorPointer,
+                                  const GraphInfo_t& graphInfo,
+                                  std::unordered_map<std::string, size_t>& outputTensorsSize,
+                                  Qnn_ContextHandle_t contextHandle,
+                                  bool skipBufferAllocation) {
+  if (true != setupTensors(outputs,
+                           tensorNameToTensorPointer,
+                           graphInfo.numOutputTensors,
+                           (graphInfo.outputTensors),
+                           outputTensorsSize,
+                           contextHandle,
+                           skipBufferAllocation)) {
+    LOGE("Failure in setupOutputTensors, cleaning up resources");
     if (nullptr != *outputs) {
       LOGD("cleaning up output tensors");
       tearDownTensors(*outputs, graphInfo.numOutputTensors);
       *outputs = nullptr;
     }
-    LOGE("Failure in setupInputAndOutputTensors, done cleaning up resources");
+    LOGE("Failure in setupOutputTensors, done cleaning up resources");
+
+    return false;
+  }
+
+  return true;
+}
+
+// Setup details for Qnn_Tensor_t for execution.
+// Reuse same memory handle for KV input and input tensor.
+bool IOTensor::setupInputWithSharedTensors(
+    Qnn_Tensor_t** tensors,
+    std::unordered_map<std::string, void*>& tensorNameToTensorPointer,
+    const GraphInfo_t& graphInfo,
+    std::unordered_map<std::string, size_t>& tensorsSize,
+    Qnn_ContextHandle_t contextHandle,
+    std::unordered_map<std::string, Qnn_Tensor_t*> sharedTensorMap) {
+  uint32_t tensorCount          = graphInfo.numInputTensors;
+  TensorWrapper* tensorWrappers = graphInfo.inputTensors;
+  if (nullptr == tensorWrappers) {
+    LOGE("tensorWrappers is nullptr");
+    return false;
+  }
+
+  if (0 == tensorCount) {
+    LOGD("tensor count is 0. Nothing to setup.");
+    return true;
+  }
+
+  *tensors = (Qnn_Tensor_t*)calloc(1, tensorCount * sizeof(Qnn_Tensor_t));
+  if (nullptr == *tensors) {
+    LOGE("mem alloc failed for *tensors");
+    return false;
+  }
+
+  bool returnStatus = true;
+  for (size_t tensorIdx = 0; tensorIdx < tensorCount; tensorIdx++) {
+    Qnn_Tensor_t wrapperTensor = GET_TENSOR_WRAPPER_TENSOR(tensorWrappers[tensorIdx]);
+    auto wrapperTensorName     = std::string(GET_TENSOR_WRAPPER_NAME(tensorWrappers[tensorIdx]));
+    if (true == returnStatus) {
+      (*tensors)[tensorIdx] = QNN_TENSOR_INIT;
+      returnStatus          = deepCopyQnnTensorInfo(((*tensors) + tensorIdx), &wrapperTensor);
+    }
+    if (true == returnStatus) {
+      if (sharedTensorMap.find(wrapperTensorName) == sharedTensorMap.end()) {
+        size_t tensorDataSize = tensorsSize[wrapperTensorName];
+        LOGI("IoTensor :: Create Buffer for Tensor %s Size: %zu", wrapperTensorName.c_str(), tensorDataSize);
+        returnStatus =
+            m_bufferManager->allocateTensorBuffer(((*tensors) + tensorIdx), tensorDataSize);
+      } else {
+        std::string inputName = QNN_TENSOR_GET_NAME(sharedTensorMap[wrapperTensorName]);
+        LOGI("IoTensor :: Reuse Buffer %s for Tensor %s",
+                  inputName.c_str(),
+                  wrapperTensorName.c_str());
+        returnStatus = m_bufferManager->useSameMemory(((*tensors) + tensorIdx),
+                                                      sharedTensorMap[wrapperTensorName]);
+      }
+    }
+    if (true != returnStatus) {
+      LOGE("Failure in setupTensors, cleaning up resources");
+      tearDownTensors(*tensors, tensorIdx);
+      *tensors = nullptr;
+      LOGE("Failure in setupTensors, done cleaning up resources");
+      break;
+    } else {
+      tensorNameToTensorPointer.insert({wrapperTensorName, ((*tensors) + tensorIdx)});
+    }
   }
   return returnStatus;
+}
+
+bool IOTensor::setupOutputWithSharedTensors(
+    Qnn_Tensor_t** tensors,
+    std::unordered_map<std::string, void*>& tensorNameToTensorPointer,
+    const GraphInfo_t& graphInfo,
+    std::unordered_map<std::string, size_t>& tensorsSize,
+    Qnn_ContextHandle_t contextHandle,
+    std::unordered_map<std::string, Qnn_Tensor_t*> sharedTensorMap) {
+  uint32_t tensorCount          = graphInfo.numOutputTensors;
+  TensorWrapper* tensorWrappers = graphInfo.outputTensors;
+  if (nullptr == tensorWrappers) {
+    LOGE("tensorWrappers is nullptr");
+    return false;
+  }
+
+  if (0 == tensorCount) {
+    LOGD("tensor count is 0. Nothing to setup.");
+    return true;
+  }
+
+  *tensors = (Qnn_Tensor_t*)calloc(1, tensorCount * sizeof(Qnn_Tensor_t));
+  if (nullptr == *tensors) {
+    LOGE("mem alloc failed for *tensors");
+    return false;
+  }
+
+  bool returnStatus = true;
+  for (size_t tensorIdx = 0; tensorIdx < tensorCount; tensorIdx++) {
+    Qnn_Tensor_t wrapperTensor = GET_TENSOR_WRAPPER_TENSOR(tensorWrappers[tensorIdx]);
+    auto wrapperTensorName     = std::string(GET_TENSOR_WRAPPER_NAME(tensorWrappers[tensorIdx]));
+    if (true == returnStatus) {
+      (*tensors)[tensorIdx] = QNN_TENSOR_INIT;
+      returnStatus          = deepCopyQnnTensorInfo(((*tensors) + tensorIdx), &wrapperTensor);
+    }
+    if (true == returnStatus) {
+      if (sharedTensorMap.find(wrapperTensorName) == sharedTensorMap.end()) {
+        size_t tensorDataSize = tensorsSize[wrapperTensorName];
+        LOGI("IoTensor :: Create Buffer for Tensor %s Size: %zu", wrapperTensorName.c_str(), tensorDataSize);
+        returnStatus =
+            m_bufferManager->allocateTensorBuffer(((*tensors) + tensorIdx), tensorDataSize);
+      } else {
+        std::string outputName = QNN_TENSOR_GET_NAME(sharedTensorMap[wrapperTensorName]);
+        LOGI("IoTensor :: Reuse Buffer %s for Tensor %s",
+                  outputName.c_str(),
+                  wrapperTensorName.c_str());
+        returnStatus = m_bufferManager->useSameMemory(((*tensors) + tensorIdx),
+                                                      sharedTensorMap[wrapperTensorName]);
+      }
+    }
+    if (true != returnStatus) {
+      LOGE("Failure in setupTensors, cleaning up resources");
+      tearDownTensors(*tensors, tensorIdx);
+      *tensors = nullptr;
+      LOGE("Failure in setupTensors, done cleaning up resources");
+      break;
+    } else {
+      tensorNameToTensorPointer.insert({wrapperTensorName, ((*tensors) + tensorIdx)});
+    }
+  }
+  return returnStatus;
+}
+
+bool IOTensor::mapFusedBufferOffset(
+    GraphInfo_t* graph_info,
+    Qnn_ContextHandle_t context_handle,
+    const std::map<std::string, std::tuple<int, size_t, size_t>>& graph_allocs) {
+  std::lock_guard lk(_tmp_lock);  // READ COMMENT IN IOTensor.hpp _tmp_lock
+
+  bool ret = true;
+  for (const bool mode : {true, false}) {
+    TensorWrapper* tensor_bank = (mode) ? graph_info->inputTensors : graph_info->outputTensors;
+    uint32_t num_tensors = (mode) ? graph_info->numInputTensors : graph_info->numOutputTensors;
+
+    for (size_t tidx = 0; tidx < num_tensors; tidx++) {
+      TensorWrapper& tensor_wrapper = tensor_bank[tidx];
+
+      Qnn_Tensor_t* tensor    = &GET_TENSOR_WRAPPER_TENSOR(tensor_wrapper);
+      std::string tensor_name = std::string(GET_TENSOR_WRAPPER_NAME(tensor_wrapper));
+
+      if (!graph_allocs.contains(tensor_name)) continue;
+      auto& [alloc_idx, offset, size] = graph_allocs.at(tensor_name);
+      ret &= m_bufferManager->mapFusedBufferOffset(tensor, alloc_idx, offset, context_handle, size);
+    }
+  }
+
+  return ret;
 }
 
 // Clean up all tensors related data after execution.
-iotensor::StatusCode iotensor::IOTensor::tearDownTensors(Qnn_Tensor_t* tensors,
-                                                         uint32_t tensorCount) {
-  for (size_t tensorIdx = 0; tensorIdx < tensorCount; tensorIdx++) {
-    LOGD("freeing resources for tensor: %zu", tensorIdx);
-    if (nullptr != QNN_TENSOR_GET_DIMENSIONS(tensors[tensorIdx])) {
-      LOGD("freeing dimensions");
-      free(QNN_TENSOR_GET_DIMENSIONS(tensors[tensorIdx]));
+bool IOTensor::tearDownTensors(Qnn_Tensor_t* tensors, uint32_t tensorCount) {
+  if (nullptr != tensors) {
+    LOGD("cleaning up resources for tensors");
+    for (size_t tensorIdx = 0; tensorIdx < tensorCount; tensorIdx++) {
+      // LOGD("freeing resources for tensor: %zu", tensorIdx);
+      if (nullptr != QNN_TENSOR_GET_DIMENSIONS(&tensors[tensorIdx])) {
+        // LOGD("freeing maxDimensions");
+        free(QNN_TENSOR_GET_DIMENSIONS(&tensors[tensorIdx]));
+      }
+      if (m_bufferAlloc == BufferAlloc::SHARED_BUFFER) {
+        m_bufferManager->deregisterTensorFusedBuffer(&(tensors[tensorIdx]));
+      } else {
+        m_bufferManager->freeTensorBuffer(&(tensors[tensorIdx]));
+      }
+      m_freeTensorsPointerSet.insert(&(tensors[tensorIdx]));
     }
-    if (nullptr != QNN_TENSOR_GET_CLIENT_BUF(tensors[tensorIdx]).data) {
-      LOGD("freeing clientBuf.data");
-      free(QNN_TENSOR_GET_CLIENT_BUF(tensors[tensorIdx]).data);
-    }
+    free(tensors);
+    tensors = nullptr;
   }
-  free(tensors);
-  return StatusCode::SUCCESS;
+
+  return true;
 }
 
-// Clean up all input and output tensors after execution.
-iotensor::StatusCode iotensor::IOTensor::tearDownInputAndOutputTensors(Qnn_Tensor_t* inputs,
-                                                                       Qnn_Tensor_t* outputs,
-                                                                       size_t numInputTensors,
-                                                                       size_t numOutputTensors) {
-  if (nullptr != inputs) {
-    LOGI("cleaning up resources for input tensors");
-    tearDownTensors(inputs, numInputTensors);
-    inputs = nullptr;
+// Clean up all tensors after execution.
+bool IOTensor::tearDownTensors(std::vector<Qnn_Tensor_t*>& tensors, uint32_t numTensors) {
+  for (Qnn_Tensor_t* tensor : tensors) {
+    tearDownTensors(tensor, numTensors);
   }
-  if (nullptr != outputs) {
-    LOGI("cleaning up resources for output tensors");
-    tearDownTensors(outputs, numOutputTensors);
-    outputs = nullptr;
-  }
-  return StatusCode::SUCCESS;
+
+  return true;
 }
 
-// Helper method to allocate a buffer.
-iotensor::StatusCode iotensor::IOTensor::allocateBuffer(uint8_t** buffer,
-                                                        std::vector<size_t> dims,
-                                                        Qnn_DataType_t dataType) {
-  size_t elementCount = datautil::calculateElementCount(dims);
-  auto returnStatus   = StatusCode::SUCCESS;
-  switch (dataType) {
-    case QNN_DATATYPE_FLOAT_32:
-      LOGD("allocating float buffer");
-      returnStatus = allocateBuffer<float>(reinterpret_cast<float**>(buffer), elementCount);
-      break;
-
-    case QNN_DATATYPE_FLOAT_16:
-      LOGD("allocating half buffer");
-      returnStatus = allocateBuffer<half_float::half>(reinterpret_cast<half_float::half**>(buffer),
-                                                      elementCount);
-      break;
-
-    case QNN_DATATYPE_UINT_8:
-    case QNN_DATATYPE_UFIXED_POINT_8:
-      LOGD("allocating uint8_t buffer");
-      returnStatus = allocateBuffer<uint8_t>(reinterpret_cast<uint8_t**>(buffer), elementCount);
-      break;
-
-    case QNN_DATATYPE_UINT_16:
-    case QNN_DATATYPE_UFIXED_POINT_16:
-      LOGD("allocating uint16_t buffer");
-      returnStatus = allocateBuffer<uint16_t>(reinterpret_cast<uint16_t**>(buffer), elementCount);
-      break;
-
-    case QNN_DATATYPE_UINT_32:
-      LOGD("allocating uint32_t buffer");
-      returnStatus = allocateBuffer<uint32_t>(reinterpret_cast<uint32_t**>(buffer), elementCount);
-      break;
-
-    case QNN_DATATYPE_UINT_64:
-      LOGD("allocating uint64_t buffer");
-      returnStatus = allocateBuffer<uint64_t>(reinterpret_cast<uint64_t**>(buffer), elementCount);
-      break;
-
-    case QNN_DATATYPE_INT_8:
-      LOGD("allocating int8_t buffer");
-      returnStatus = allocateBuffer<int8_t>(reinterpret_cast<int8_t**>(buffer), elementCount);
-      break;
-
-    case QNN_DATATYPE_INT_16:
-      LOGD("allocating int16_t buffer");
-      returnStatus = allocateBuffer<int16_t>(reinterpret_cast<int16_t**>(buffer), elementCount);
-      break;
-
-    case QNN_DATATYPE_INT_32:
-      LOGD("allocating int32_t buffer");
-      returnStatus = allocateBuffer<int32_t>(reinterpret_cast<int32_t**>(buffer), elementCount);
-      break;
-
-    case QNN_DATATYPE_INT_64:
-      LOGD("allocating int64_t buffer");
-      returnStatus = allocateBuffer<int64_t>(reinterpret_cast<int64_t**>(buffer), elementCount);
-      break;
-
-    case QNN_DATATYPE_BOOL_8:
-      LOGD("allocating bool buffer");
-      returnStatus = allocateBuffer<uint8_t>(reinterpret_cast<uint8_t**>(buffer), elementCount);
-      break;
-
-    default:
-      LOGE("Datatype not supported yet!");
-      returnStatus = StatusCode::FAILURE;
-      break;
-  }
-  return returnStatus;
+bool IOTensor::tearDownTensors(std::vector<Qnn_Tensor_t>& tensors) {
+  return tearDownTensors(tensors.data(), tensors.size());
 }
 
-// Helper method to allocate a buffer.
-template <typename T>
-iotensor::StatusCode iotensor::IOTensor::allocateBuffer(T** buffer, size_t& elementCount) {
-  LOGD("ElementCount: %lu, sizeof(T): %lu, total size: %lu",
-            elementCount,
-            sizeof(T),
-            elementCount * sizeof(T));
-  *buffer = (T*)malloc(elementCount * sizeof(T));
-  if (nullptr == *buffer) {
-    LOGE("mem alloc failed for *buffer");
-    return StatusCode::FAILURE;
+// Clean up all tensors after execution.
+bool IOTensor::tearDownTensors(std::unordered_map<std::string, Qnn_Tensor_t*>& tensors,
+                               std::unordered_map<std::string, uint32_t>& tensorCountMap) {
+  for (auto& tensor : tensors) {
+    tearDownTensors(tensor.second, tensorCountMap[tensor.first]);
   }
-  return StatusCode::SUCCESS;
+
+  return true;
 }
 
-// Convert data to float or de-quantization. This is used when
-// user requests for float output and the model produces
-// non-float output.
-#ifndef __hexagon__
-iotensor::StatusCode iotensor::IOTensor::convertToFloat(float** out, Qnn_Tensor_t* tensor) {
-  if (nullptr == tensor) {
-    LOGE("tensors is nullptr");
-    return StatusCode::FAILURE;
+// Clean up all tensors after execution.
+bool IOTensor::tearDownTensors(std::vector<std::unordered_map<std::string, Qnn_Tensor_t*>>& tensors,
+                               std::unordered_map<std::string, uint32_t>& tensorCountMap) {
+  for (auto& tensor : tensors) {
+    tearDownTensors(tensor, tensorCountMap);
   }
-  std::vector<size_t> dims;
-  fillDims(dims, QNN_TENSOR_GET_DIMENSIONS(tensor), QNN_TENSOR_GET_RANK(tensor));
-  auto returnStatus   = StatusCode::SUCCESS;
-  size_t elementCount = datautil::calculateElementCount(dims);
-  returnStatus        = allocateBuffer<float>(out, elementCount);
-  if (StatusCode::SUCCESS != returnStatus) {
-    LOGE("failure in allocateBuffer<float>");
-    return returnStatus;
-  }
-  switch (QNN_TENSOR_GET_DATA_TYPE(tensor)) {
-    case QNN_DATATYPE_UFIXED_POINT_8:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::tfNToFloat<uint8_t>(
-              *out,
-              reinterpret_cast<uint8_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              QNN_TENSOR_GET_QUANT_PARAMS(tensor).scaleOffsetEncoding.offset,
-              QNN_TENSOR_GET_QUANT_PARAMS(tensor).scaleOffsetEncoding.scale,
-              elementCount)) {
-        LOGE("failure in tfNToFloat<uint8_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
 
-    case QNN_DATATYPE_UFIXED_POINT_16:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::tfNToFloat<uint16_t>(
-              *out,
-              reinterpret_cast<uint16_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              QNN_TENSOR_GET_QUANT_PARAMS(tensor).scaleOffsetEncoding.offset,
-              QNN_TENSOR_GET_QUANT_PARAMS(tensor).scaleOffsetEncoding.scale,
-              elementCount)) {
-        LOGE("failure in tfNToFloat<uint8_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_UINT_8:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castToFloat<uint8_t>(
-              *out,
-              reinterpret_cast<uint8_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              elementCount)) {
-        LOGE("failure in castToFloat<uint8_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_UINT_16:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castToFloat<uint16_t>(
-              *out,
-              reinterpret_cast<uint16_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              elementCount)) {
-        LOGE("failure in castToFloat<uint16_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_UINT_32:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castToFloat<uint32_t>(
-              *out,
-              reinterpret_cast<uint32_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              elementCount)) {
-        LOGE("failure in castToFloat<uint32_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_UINT_64:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castToFloat<uint64_t>(
-              *out,
-              reinterpret_cast<uint64_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              elementCount)) {
-        LOGE("failure in castToFloat<uint64_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_INT_8:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castToFloat<int8_t>(
-              *out,
-              reinterpret_cast<int8_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              elementCount)) {
-        LOGE("failure in castToFloat<int8_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_INT_16:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castToFloat<int16_t>(
-              *out,
-              reinterpret_cast<int16_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              elementCount)) {
-        LOGE("failure in castToFloat<int16_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_INT_32:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castToFloat<int32_t>(
-              *out,
-              reinterpret_cast<int32_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              elementCount)) {
-        LOGE("failure in castToFloat<int32_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_INT_64:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castToFloat<int64_t>(
-              *out,
-              reinterpret_cast<int64_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              elementCount)) {
-        LOGE("failure in castToFloat<int64_t>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    case QNN_DATATYPE_BOOL_8:
-      if (datautil::StatusCode::SUCCESS !=
-          datautil::castToFloat<uint8_t>(
-              *out,
-              reinterpret_cast<uint8_t*>(QNN_TENSOR_GET_CLIENT_BUF(tensor).data),
-              elementCount)) {
-        LOGE("failure in castToFloat<bool>");
-        returnStatus = StatusCode::FAILURE;
-      }
-      break;
-
-    default:
-      LOGE("Datatype not supported yet!");
-      returnStatus = StatusCode::FAILURE;
-      break;
-  }
-  if (StatusCode::SUCCESS != returnStatus) {
-    LOGD("freeing *out");
-    if (*out != nullptr) {
-      free(*out);
-      *out = nullptr;
-    }
-  }
-  return returnStatus;
+  return true;
 }
 
-// Helper method to convert Output tensors to float and write them
-// out to files.
-iotensor::StatusCode iotensor::IOTensor::convertAndWriteOutputTensorInFloat(
-    Qnn_Tensor_t* output,
-    std::vector<std::string> outputPaths,
-    std::string fileName,
-    size_t outputBatchSize) {
-  if (nullptr == output) {
-    LOGE("output is nullptr");
-    return StatusCode::FAILURE;
-  }
-
-  auto returnStatus = StatusCode::SUCCESS;
-  std::vector<size_t> dims;
-  fillDims(dims, QNN_TENSOR_GET_DIMENSIONS(output), QNN_TENSOR_GET_RANK(output));
-  float* floatBuffer = nullptr;
-  returnStatus       = convertToFloat(&floatBuffer, output);
-  if (StatusCode::SUCCESS != returnStatus) {
-    LOGE("failure in convertToFloat");
-    return StatusCode::FAILURE;
-  }
-  uint8_t* bufferToWrite = reinterpret_cast<uint8_t*>(floatBuffer);
-  if (datautil::StatusCode::SUCCESS !=
-      datautil::writeBatchDataToFile(
-          outputPaths, fileName, dims, QNN_DATATYPE_FLOAT_32, bufferToWrite, outputBatchSize)) {
-    LOGE("failure in writeBatchDataToFile");
-    returnStatus = StatusCode::FAILURE;
-  }
-  if (nullptr != floatBuffer) {
-    LOGD("freeing floatBuffer");
-    free(floatBuffer);
-    floatBuffer = nullptr;
-  }
-  return returnStatus;
-}
-
-// Helper method to write out output. There is no de-quantization here.
-// Just write output as is to files.
-iotensor::StatusCode iotensor::IOTensor::writeOutputTensor(Qnn_Tensor_t* output,
-                                                           std::vector<std::string> outputPaths,
-                                                           std::string fileName,
-                                                           size_t outputBatchSize) {
-  if (nullptr == output) {
-    LOGE("output is nullptr");
-    return StatusCode::FAILURE;
-  }
-  auto returnStatus = StatusCode::SUCCESS;
-  std::vector<size_t> dims;
-  fillDims(dims, QNN_TENSOR_GET_DIMENSIONS(output), QNN_TENSOR_GET_RANK(output));
-  uint8_t* bufferToWrite = reinterpret_cast<uint8_t*>(QNN_TENSOR_GET_CLIENT_BUF(output).data);
-  if (datautil::StatusCode::SUCCESS !=
-      datautil::writeBatchDataToFile(outputPaths,
-                                     fileName,
-                                     dims,
-                                     QNN_TENSOR_GET_DATA_TYPE(output),
-                                     bufferToWrite,
-                                     outputBatchSize)) {
-    LOGE("failure in writeBatchDataToFile");
-    returnStatus = StatusCode::FAILURE;
-  }
-  return returnStatus;
-}
-
-// Write out all output tensors to files. If output_data_type is float,
-// then all outputs will be raw floats regardless of what the model outputs.
-// If the output_data_type is native, then output is written as produced by the model.
-// Also, for native option, a json with quantization parameters is written out.
-// If output_data_type is float_and_native, both above are done.
-// If the output in the graph is float, then output_data_type has no effect.
-iotensor::StatusCode iotensor::IOTensor::writeOutputTensors(uint32_t graphIdx,
-                                                            size_t startIdx,
-                                                            char* graphName,
-                                                            Qnn_Tensor_t* outputs,
-                                                            uint32_t numOutputs,
-                                                            iotensor::OutputDataType outputDatatype,
-                                                            uint32_t graphsCount,
-                                                            std::string outputPath,
-                                                            size_t numInputFilesPopulated,
-                                                            size_t outputBatchSize) {
-  if (nullptr == outputs) {
+bool IOTensor::deepCopyQnnTensorInfo(Qnn_Tensor_t* dest, Qnn_Tensor_t* src) {
+  if (nullptr == dest || nullptr == src) {
     LOGE("Received nullptr");
-    return StatusCode::FAILURE;
+    return false;
   }
-  if (graphsCount > 1) {
-    if (nullptr != graphName && strlen(graphName) > 0) {
-      outputPath += (pal::Path::getSeparator() + std::string(graphName));
-    } else {
-      outputPath += (pal::Path::getSeparator() + std::string("Graph_") + std::to_string(graphIdx));
-    }
+
+  // set tensor.version before using QNN_TENSOR_SET macros, as they require the version to be set
+  // to correctly assign values
+  dest->version          = src->version;
+  const char* tensorName = QNN_TENSOR_GET_NAME(src);
+  if (!tensorName) {
+    QNN_TENSOR_SET_NAME(dest, nullptr);
+  } else {
+    QNN_TENSOR_SET_NAME(dest, __strdup(tensorName));
   }
-  auto returnStatus = StatusCode::SUCCESS;
-  std::vector<std::string> outputPaths;
-  for (size_t idx = 0; idx < numInputFilesPopulated; idx++) {
-    std::string output = outputPath + (pal::Path::getSeparator() + std::string("Result_") +
-                                       std::to_string(startIdx + idx));
-    outputPaths.push_back(output);
-  }
-  for (size_t outputIdx = 0; outputIdx < numOutputs; outputIdx++) {
-    LOGD("Writing output for outputIdx: %zu", outputIdx);
-    std::string outputFilePrefix;
-    if (nullptr != QNN_TENSOR_GET_NAME(outputs[outputIdx]) &&
-        strlen(QNN_TENSOR_GET_NAME(outputs[outputIdx])) > 0) {
-      outputFilePrefix = std::string(QNN_TENSOR_GET_NAME(outputs[outputIdx]));
-    } else {
-      outputFilePrefix = std::string("Output_") + std::to_string(outputIdx);
-    }
-    auto outputFile       = outputFilePrefix + std::string(".raw");
-    auto outputFileNative = outputFilePrefix + std::string("_native.raw");
-    if (QNN_TENSOR_GET_DATA_TYPE(outputs[outputIdx]) == QNN_DATATYPE_FLOAT_32) {
-      LOGD("Writing in output->dataType == QNN_DATATYPE_FLOAT_32");
-      returnStatus =
-          writeOutputTensor(&(outputs[outputIdx]), outputPaths, outputFile, outputBatchSize);
-    } else if (outputDatatype == OutputDataType::FLOAT_ONLY) {
-      LOGD("Writing in output->dataType == OutputDataType::FLOAT_ONLY");
-      returnStatus = convertAndWriteOutputTensorInFloat(
-          &(outputs[outputIdx]), outputPaths, outputFile, outputBatchSize);
-    } else if (outputDatatype == OutputDataType::NATIVE_ONLY) {
-      LOGD("Writing in output->dataType == OutputDataType::NATIVE_ONLY");
-      returnStatus =
-          writeOutputTensor(&(outputs[outputIdx]), outputPaths, outputFileNative, outputBatchSize);
-    } else if (outputDatatype == OutputDataType::FLOAT_AND_NATIVE) {
-      LOGD("Writing in output->dataType == OutputDataType::FLOAT_AND_NATIVE");
-      returnStatus = convertAndWriteOutputTensorInFloat(
-          &(outputs[outputIdx]), outputPaths, outputFile, outputBatchSize);
-      if (StatusCode::SUCCESS == returnStatus) {
-        returnStatus = writeOutputTensor(
-            &(outputs[outputIdx]), outputPaths, outputFileNative, outputBatchSize);
+  QNN_TENSOR_SET_ID(dest, QNN_TENSOR_GET_ID(src));
+  QNN_TENSOR_SET_TYPE(dest, QNN_TENSOR_GET_TYPE(src));
+  QNN_TENSOR_SET_DATA_FORMAT(dest, QNN_TENSOR_GET_DATA_FORMAT(src));
+  QNN_TENSOR_SET_DATA_TYPE(dest, QNN_TENSOR_GET_DATA_TYPE(src));
+  Qnn_QuantizeParams_t qParams = QNN_QUANTIZE_PARAMS_INIT;
+  qParams.encodingDefinition   = QNN_TENSOR_GET_QUANT_PARAMS(src).encodingDefinition;
+  qParams.quantizationEncoding = QNN_QUANTIZATION_ENCODING_UNDEFINED;
+  if (QNN_TENSOR_GET_QUANT_PARAMS(src).quantizationEncoding ==
+      QNN_QUANTIZATION_ENCODING_SCALE_OFFSET) {
+    qParams.quantizationEncoding = QNN_TENSOR_GET_QUANT_PARAMS(src).quantizationEncoding;
+    qParams.scaleOffsetEncoding  = QNN_TENSOR_GET_QUANT_PARAMS(src).scaleOffsetEncoding;
+  } else if (QNN_TENSOR_GET_QUANT_PARAMS(src).quantizationEncoding ==
+             QNN_QUANTIZATION_ENCODING_AXIS_SCALE_OFFSET) {
+    qParams.quantizationEncoding = QNN_TENSOR_GET_QUANT_PARAMS(src).quantizationEncoding;
+    qParams.axisScaleOffsetEncoding.axis =
+        QNN_TENSOR_GET_QUANT_PARAMS(src).axisScaleOffsetEncoding.axis;
+    qParams.axisScaleOffsetEncoding.numScaleOffsets =
+        QNN_TENSOR_GET_QUANT_PARAMS(src).axisScaleOffsetEncoding.numScaleOffsets;
+    if (QNN_TENSOR_GET_QUANT_PARAMS(src).axisScaleOffsetEncoding.numScaleOffsets > 0) {
+      qParams.axisScaleOffsetEncoding.scaleOffset = (Qnn_ScaleOffset_t*)malloc(
+          QNN_TENSOR_GET_QUANT_PARAMS(src).axisScaleOffsetEncoding.numScaleOffsets *
+          sizeof(Qnn_ScaleOffset_t));
+      if (qParams.axisScaleOffsetEncoding.scaleOffset) {
+        for (size_t idx = 0;
+             idx < QNN_TENSOR_GET_QUANT_PARAMS(src).axisScaleOffsetEncoding.numScaleOffsets;
+             idx++) {
+          qParams.axisScaleOffsetEncoding.scaleOffset[idx].scale =
+              QNN_TENSOR_GET_QUANT_PARAMS(src).axisScaleOffsetEncoding.scaleOffset[idx].scale;
+          qParams.axisScaleOffsetEncoding.scaleOffset[idx].offset =
+              QNN_TENSOR_GET_QUANT_PARAMS(src).axisScaleOffsetEncoding.scaleOffset[idx].offset;
+        }
       }
     }
   }
-  return returnStatus;
-}
-#endif
+  QNN_TENSOR_SET_QUANT_PARAMS(dest, qParams);
+  QNN_TENSOR_SET_RANK(dest, QNN_TENSOR_GET_RANK(src));
+  QNN_TENSOR_SET_DIMENSIONS(dest, nullptr);
+  if (QNN_TENSOR_GET_RANK(src) > 0) {
+    QNN_TENSOR_SET_DIMENSIONS(dest, (uint32_t*)malloc(QNN_TENSOR_GET_RANK(src) * sizeof(uint32_t)));
+    if (QNN_TENSOR_GET_DIMENSIONS(dest)) {
+      memcpy(QNN_TENSOR_GET_DIMENSIONS(dest),
+             QNN_TENSOR_GET_DIMENSIONS(src),
+             QNN_TENSOR_GET_RANK(src) * sizeof(uint32_t));
+    }
+  }
 
-// Helper method to allocate a buffer and copy data to it.
-iotensor::StatusCode iotensor::IOTensor::allocateAndCopyBuffer(uint8_t** buffer,
-                                                               Qnn_Tensor_t* tensor) {
-  if (nullptr == tensor) {
-    return StatusCode::FAILURE;
-  }
-  std::vector<size_t> dims;
-  fillDims(dims, QNN_TENSOR_GET_DIMENSIONS(tensor), QNN_TENSOR_GET_RANK(tensor));
-  datautil::StatusCode datautilStatus;
-  size_t length;
-  std::tie(datautilStatus, length) =
-      datautil::calculateLength(dims, QNN_TENSOR_GET_DATA_TYPE(tensor));
-  if (datautilStatus != datautil::StatusCode::SUCCESS) {
-    return StatusCode::FAILURE;
-  }
-  if (StatusCode::SUCCESS != allocateBuffer(buffer, dims, QNN_TENSOR_GET_DATA_TYPE(tensor))) {
-    LOGE("failure in allocateBuffer");
-    return StatusCode::FAILURE;
-  }
-  pal::StringOp::memscpy(*buffer,
-                         length * sizeof(uint8_t),
-                         QNN_TENSOR_GET_CLIENT_BUF(tensor).data,
-                         length * sizeof(uint8_t));
-  return StatusCode::SUCCESS;
-}
-
-iotensor::StatusCode iotensor::IOTensor::fillDims(std::vector<size_t>& dims,
-                                                  uint32_t* inDimensions,
-                                                  uint32_t rank) {
-  if (nullptr == inDimensions) {
-    LOGE("input dimensions is nullptr");
-    return StatusCode::FAILURE;
-  }
-  for (size_t r = 0; r < rank; r++) {
-    dims.push_back(inDimensions[r]);
-  }
-  return StatusCode::SUCCESS;
-}
-
-iotensor::OutputDataType iotensor::parseOutputDataType(std::string dataTypeString) {
-  std::transform(dataTypeString.begin(), dataTypeString.end(), dataTypeString.begin(), ::tolower);
-  OutputDataType parsedDataType = OutputDataType::INVALID;
-  if (dataTypeString == "float_only") {
-    parsedDataType = OutputDataType::FLOAT_ONLY;
-  } else if (dataTypeString == "native_only") {
-    parsedDataType = OutputDataType::NATIVE_ONLY;
-  } else if (dataTypeString == "float_and_native") {
-    parsedDataType = OutputDataType::FLOAT_AND_NATIVE;
-  }
-  return parsedDataType;
-}
-
-iotensor::InputDataType iotensor::parseInputDataType(std::string dataTypeString) {
-  std::transform(dataTypeString.begin(), dataTypeString.end(), dataTypeString.begin(), ::tolower);
-  InputDataType parsedDataType = InputDataType::INVALID;
-  if (dataTypeString == "float") {
-    parsedDataType = InputDataType::FLOAT;
-  } else if (dataTypeString == "native") {
-    parsedDataType = InputDataType::NATIVE;
-  }
-  return parsedDataType;
+  return true;
 }
