@@ -25,10 +25,10 @@ public:
     int eval_logits(std::vector<int> ids, std::vector<float> &logits);
 
     // without history
-    int chat(std::string input, std::string &response, const int max_length, void (*callback)(const char *) = nullptr);
+    int chat(std::string input, std::string &response, const int max_length, void (*callback)(const char *) = nullptr, bool enable_reasoning = false);
 
     // with history
-    int chat(std::vector<std::string> inputs, std::string &response, const int max_length, void (*callback)(const char *) = nullptr);
+    int chat(std::vector<std::string> inputs, std::string &response, const int max_length, void (*callback)(const char *) = nullptr, bool enable_reasoning = false);
     int gen_completion(std::string prompt, std::string &completion, int max_length, int stop_code, void (*callback)(const char *, const int));
 
     int set_prompt(std::string prompt);

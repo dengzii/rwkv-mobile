@@ -206,7 +206,7 @@ int runtime::eval_logits(std::vector<int> ids, std::vector<float> &logits) {
     return _backend->eval(ids, logits);
 }
 
-int runtime::chat(std::string input, std::string &response, const int max_length, void (*callback)(const char *)) {
+int runtime::chat(std::string input, std::string &response, const int max_length, void (*callback)(const char *), bool enable_reasoning) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
@@ -254,7 +254,7 @@ int runtime::chat(std::string input, std::string &response, const int max_length
     return RWKV_SUCCESS;
 }
 
-int runtime::chat(std::vector<std::string> inputs, std::string &response, const int max_length, void (*callback)(const char *)) {
+int runtime::chat(std::vector<std::string> inputs, std::string &response, const int max_length, void (*callback)(const char *), bool enable_reasoning) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
@@ -311,7 +311,12 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
         }
         LOGD("Processing history %i: \"%s\"\n", i, prompt.c_str());
         if (i == inputs.size() - 1) {
-            prompt += _response_role + ":";
+            if (enable_reasoning) {
+                prompt += _response_role + ": <think";
+                response += " <think";
+            } else {
+                prompt += _response_role + ":";
+            }
         }
         std::vector<int> ids = _tokenizer->encode(prompt);
         ret = eval_logits(ids, logits);

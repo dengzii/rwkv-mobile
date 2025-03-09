@@ -68,7 +68,8 @@ int rwkvmobile_runtime_eval_chat(
     const char * input,
     char * response,
     const int max_length,
-    void (*callback)(const char *)) {
+    void (*callback)(const char *),
+    int enable_reasoning) {
     if (handle == nullptr || input == nullptr || response == nullptr || max_length <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
@@ -79,7 +80,8 @@ int rwkvmobile_runtime_eval_chat(
         std::string(input),
         response_str,
         max_length,
-        callback);
+        callback,
+        enable_reasoning != 0);
     if (ret != RWKV_SUCCESS) {
         return ret;
     }
@@ -93,7 +95,8 @@ int rwkvmobile_runtime_eval_chat_with_history(
     const int num_inputs,
     char * response,
     const int max_length,
-    void (*callback)(const char *)) {
+    void (*callback)(const char *),
+    int enable_reasoning) {
     if (handle == nullptr || inputs == nullptr || num_inputs == 0 || response == nullptr || max_length <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
@@ -108,7 +111,8 @@ int rwkvmobile_runtime_eval_chat_with_history(
         inputs_vec,
         response_str,
         max_length,
-        callback);
+        callback,
+        enable_reasoning != 0);
     if (ret != RWKV_SUCCESS) {
         return ret;
     }
