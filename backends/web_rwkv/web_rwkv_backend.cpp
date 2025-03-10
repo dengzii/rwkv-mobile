@@ -58,6 +58,7 @@ int web_rwkv_backend::eval(int id, std::vector<float> &logits) {
         logits.resize(ret.len);
     }
     logits.assign(ret.logits, ret.logits + ret.len);
+    ::free_raw(ret);
     return RWKV_SUCCESS;
 }
 
@@ -71,6 +72,7 @@ int web_rwkv_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
         logits.resize(ret.len);
     }
     logits.assign(ret.logits, ret.logits + ret.len);
+    ::free_raw(ret);
     return RWKV_SUCCESS;
 }
 
