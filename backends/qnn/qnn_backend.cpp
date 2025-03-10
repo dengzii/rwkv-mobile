@@ -36,8 +36,6 @@
 
 namespace rwkvmobile {
 
-#define ENABLE_QNN 1
-
 #ifdef ENABLE_QNN
 using namespace qnn::tools;
 
