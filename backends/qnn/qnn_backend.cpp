@@ -36,6 +36,8 @@
 
 namespace rwkvmobile {
 
+#define ENABLE_QNN 1
+
 #ifdef ENABLE_QNN
 using namespace qnn::tools;
 
@@ -603,6 +605,15 @@ int qnn_backend::qnn_initialize_tensors() {
                 return RWKV_ERROR_IO;
             }
 
+            for (size_t i = 0; i < graphInfo.numOutputTensors; i++) {
+                auto tensorName = std::string(QNN_TENSOR_GET_NAME(graphInfo.outputTensors[i]));
+                if (tensorName == "out") {
+                    logitsOutputTensor = (Qnn_Tensor_t*)decodeGraphsTensorNameToTensorPointer[graph_id]["out"];
+                } else if (graph_id == qnnDecodeGraphsCount - 1 && tensorName.find("out_chunk") != std::string::npos) {
+                    logitsOutputTensor = (Qnn_Tensor_t*)decodeGraphsTensorNameToTensorPointer[graph_id]["out_chunk" + std::to_string(graph_id+1)];
+                }
+            }
+
             std::unordered_map<std::string, Qnn_Tensor_t*> sharedTensorMap;
             for (size_t i = 0; i < graphInfo.numInputTensors; i++) {
                 size_t tensorDataSize = 1;
@@ -675,10 +686,8 @@ int qnn_backend::qnn_initialize_tensors() {
                         sharedTensorMapPrefill[tensorName] = (Qnn_Tensor_t*)decodeGraphsTensorNameToTensorPointer[graph_id][tensorName];
                     } else if (tensorName == "out_prefill") {
                         sharedTensorMapPrefill[tensorName] = (Qnn_Tensor_t*)decodeGraphsTensorNameToTensorPointer[graph_id]["out"];
-                        logitsOutputTensor = (Qnn_Tensor_t*)decodeGraphsTensorNameToTensorPointer[graph_id]["out"];
                     } else if (graph_id == qnnPrefillGraphsCount - 1 && tensorName.find("out_prefill_chunk") != std::string::npos) {
                         sharedTensorMapPrefill[tensorName] = (Qnn_Tensor_t*)decodeGraphsTensorNameToTensorPointer[graph_id]["out_chunk" + std::to_string(graph_id+1)];
-                        logitsOutputTensor = (Qnn_Tensor_t*)decodeGraphsTensorNameToTensorPointer[graph_id]["out_chunk" + std::to_string(graph_id+1)];
                     }
                 }
 
@@ -742,9 +751,9 @@ int qnn_backend::qnn_initialize_tensors() {
 }
 
 int qnn_backend::eval(int id, std::vector<float> &logits) {
-    if (nullptr == inputTensors[0] || nullptr == outputTensors[0])
+    if (!isTensorInitialized) {
         return RWKV_ERROR_EVAL;
-
+    }
     int *token_input = (int*)qnnIOTensorUtils.getBuffer(&inputTensors[0][0]);
     *token_input = id;
 

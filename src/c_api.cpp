@@ -127,7 +127,7 @@ int rwkvmobile_runtime_gen_completion(
     const int max_length,
     const int stop_code,
     void (*callback)(const char *, const int)) {
-    if (handle == nullptr || prompt == nullptr || completion == nullptr || max_length <= 0) {
+    if (handle == nullptr || prompt == nullptr || max_length <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
 
@@ -142,7 +142,9 @@ int rwkvmobile_runtime_gen_completion(
     if (ret != RWKV_SUCCESS) {
         return ret;
     }
-    strncpy(completion, completion_str.c_str(), completion_str.size());
+    if (completion) {
+        strncpy(completion, completion_str.c_str(), completion_str.size());
+    }
     return RWKV_SUCCESS;
 }
 
