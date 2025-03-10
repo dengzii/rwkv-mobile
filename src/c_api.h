@@ -33,15 +33,15 @@ int rwkvmobile_runtime_load_tokenizer(rwkvmobile_runtime_t runtime, const char *
 
 int rwkvmobile_runtime_eval_logits(rwkvmobile_runtime_t runtime, const int *ids, int ids_len, float * logits, int logits_len);
 
-int rwkvmobile_runtime_eval_chat(rwkvmobile_runtime_t runtime, const char * input, char * response, const int max_length, void (*callback)(const char *), int enable_reasoning);
+int rwkvmobile_runtime_eval_chat(rwkvmobile_runtime_t runtime, const char * input, char * response, const int max_tokens, void (*callback)(const char *), int enable_reasoning);
 
-int rwkvmobile_runtime_eval_chat_with_history(rwkvmobile_runtime_t handle, const char ** inputs, const int num_inputs, char * response, const int max_length, void (*callback)(const char *), int enable_reasoning);
+int rwkvmobile_runtime_eval_chat_with_history(rwkvmobile_runtime_t handle, const char ** inputs, const int num_inputs, char * response, const int max_tokens, void (*callback)(const char *), int enable_reasoning);
 
 int rwkvmobile_runtime_set_prompt(rwkvmobile_runtime_t runtime, const char * prompt);
 
 int rwkvmobile_runtime_get_prompt(rwkvmobile_runtime_t runtime, char * prompt, const int buf_len);
 
-int rwkvmobile_runtime_gen_completion(rwkvmobile_runtime_t runtime, const char * prompt, char * completion, const int max_length, const int stop_code, void (*callback)(const char *, const int));
+int rwkvmobile_runtime_gen_completion(rwkvmobile_runtime_t runtime, const char * prompt, char * completion, const int max_tokens, const int stop_code, void (*callback)(const char *, const int));
 
 int rwkvmobile_runtime_clear_state(rwkvmobile_runtime_t runtime);
 

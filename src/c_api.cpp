@@ -67,10 +67,10 @@ int rwkvmobile_runtime_eval_chat(
     rwkvmobile_runtime_t handle,
     const char * input,
     char * response,
-    const int max_length,
+    const int max_tokens,
     void (*callback)(const char *),
     int enable_reasoning) {
-    if (handle == nullptr || input == nullptr || response == nullptr || max_length <= 0) {
+    if (handle == nullptr || input == nullptr || max_tokens <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
 
@@ -79,13 +79,15 @@ int rwkvmobile_runtime_eval_chat(
     int ret = rt->chat(
         std::string(input),
         response_str,
-        max_length,
+        max_tokens,
         callback,
         enable_reasoning != 0);
     if (ret != RWKV_SUCCESS) {
         return ret;
     }
-    strncpy(response, response_str.c_str(), response_str.size());
+    if (response != nullptr) {
+        strncpy(response, response_str.c_str(), response_str.size());
+    }
     return RWKV_SUCCESS;
 }
 
@@ -94,10 +96,10 @@ int rwkvmobile_runtime_eval_chat_with_history(
     const char ** inputs,
     const int num_inputs,
     char * response,
-    const int max_length,
+    const int max_tokens,
     void (*callback)(const char *),
     int enable_reasoning) {
-    if (handle == nullptr || inputs == nullptr || num_inputs == 0 || response == nullptr || max_length <= 0) {
+    if (handle == nullptr || inputs == nullptr || num_inputs == 0 || max_tokens <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
 
@@ -110,13 +112,15 @@ int rwkvmobile_runtime_eval_chat_with_history(
     int ret = rt->chat(
         inputs_vec,
         response_str,
-        max_length,
+        max_tokens,
         callback,
         enable_reasoning != 0);
     if (ret != RWKV_SUCCESS) {
         return ret;
     }
-    strncpy(response, response_str.c_str(), response_str.size());
+    if (response != nullptr) {
+        strncpy(response, response_str.c_str(), response_str.size());
+    }
     return RWKV_SUCCESS;
 }
 
@@ -124,10 +128,10 @@ int rwkvmobile_runtime_gen_completion(
     rwkvmobile_runtime_t handle,
     const char * prompt,
     char * completion,
-    const int max_length,
+    const int max_tokens,
     const int stop_code,
     void (*callback)(const char *, const int)) {
-    if (handle == nullptr || prompt == nullptr || max_length <= 0) {
+    if (handle == nullptr || prompt == nullptr || max_tokens <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
 
@@ -136,13 +140,13 @@ int rwkvmobile_runtime_gen_completion(
     int ret = rt->gen_completion(
         std::string(prompt),
         completion_str,
-        max_length,
+        max_tokens,
         stop_code,
         callback);
     if (ret != RWKV_SUCCESS) {
         return ret;
     }
-    if (completion) {
+    if (completion != nullptr) {
         strncpy(completion, completion_str.c_str(), completion_str.size());
     }
     return RWKV_SUCCESS;
