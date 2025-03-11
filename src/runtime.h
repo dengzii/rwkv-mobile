@@ -146,6 +146,24 @@ public:
         return _sampler->sample(logits.data(), logits.size(), _temperature, _top_k, _top_p);
     }
 
+    double get_avg_decode_speed() {
+        double avg_time = 0.0;
+        for (auto duration : _decode_durations_ms) {
+            avg_time += duration;
+        }
+        avg_time /= _decode_durations_ms.size();
+        return 1000.0 / avg_time;
+    }
+
+    double get_avg_prefill_speed() {
+        double avg_time = 0.0;
+        for (auto duration : _prefill_durations_ms) {
+            avg_time += duration;
+        }
+        avg_time /= _prefill_durations_ms.size();
+        return 1000.0 / avg_time;
+    }
+
     struct state_node {
         std::any state;
         unsigned long long hash = 0;
@@ -181,6 +199,12 @@ private:
         }
         return hash;
     }
+
+    const int _decode_duration_window = 30;
+    const int _prefill_duration_window = 10;
+
+    std::vector<double> _decode_durations_ms;
+    std::vector<double> _prefill_durations_ms;
 };
 
 }

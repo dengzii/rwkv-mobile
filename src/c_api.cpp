@@ -257,5 +257,21 @@ void rwkvmobile_runtime_add_adsp_library_path(const char * path) {
     setenv("ADSP_LIBRARY_PATH", path, 1);
 }
 
+double rwkvmobile_runtime_get_avg_decode_speed(rwkvmobile_runtime_t runtime) {
+    if (runtime == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->get_avg_decode_speed();
+}
+
+double rwkvmobile_runtime_get_avg_prefill_speed(rwkvmobile_runtime_t runtime) {
+    if (runtime == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->get_avg_prefill_speed();
+}
+
 } // extern "C"
 } // namespace rwkvmobile

@@ -2,6 +2,7 @@
 #include "backend.h"
 #include "logger.h"
 #include <functional>
+#include <chrono>
 #ifdef ENABLE_WEBRWKV
 #include "web_rwkv_backend.h"
 #endif
@@ -196,14 +197,28 @@ int runtime::eval_logits(int id, std::vector<float> &logits) {
     if (_backend == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
-    return _backend->eval(id, logits);
+    auto start = std::chrono::high_resolution_clock::now();
+    int ret = _backend->eval(id, logits);
+    auto end = std::chrono::high_resolution_clock::now();
+    _decode_durations_ms.push_back(std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+    if (_decode_durations_ms.size() > _decode_duration_window) {
+        _decode_durations_ms.erase(_decode_durations_ms.begin());
+    }
+    return ret;
 }
 
 int runtime::eval_logits(std::vector<int> ids, std::vector<float> &logits) {
     if (_backend == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
-    return _backend->eval(ids, logits);
+    auto start = std::chrono::high_resolution_clock::now();
+    int ret = _backend->eval(ids, logits);
+    auto end = std::chrono::high_resolution_clock::now();
+    _prefill_durations_ms.push_back(std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / (double)ids.size());
+    if (_prefill_durations_ms.size() > _prefill_duration_window) {
+        _prefill_durations_ms.erase(_prefill_durations_ms.begin());
+    }
+    return ret;
 }
 
 int runtime::chat(std::string input, std::string &response, const int max_length, void (*callback)(const char *), bool enable_reasoning) {
