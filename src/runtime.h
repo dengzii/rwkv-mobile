@@ -147,21 +147,29 @@ public:
     }
 
     double get_avg_decode_speed() {
-        double avg_time = 0.0;
-        for (auto duration : _decode_durations_ms) {
-            avg_time += duration;
+        if (_decode_durations_ms.size() == 0) {
+            return 0.0;
+        } else {
+            double avg_time = 0.0;
+            for (auto duration : _decode_durations_ms) {
+                avg_time += duration;
+            }
+            avg_time /= _decode_durations_ms.size();
+            return 1000.0 / avg_time;
         }
-        avg_time /= _decode_durations_ms.size();
-        return 1000.0 / avg_time;
     }
 
     double get_avg_prefill_speed() {
-        double avg_time = 0.0;
-        for (auto duration : _prefill_durations_ms) {
-            avg_time += duration;
+        if (_prefill_durations_ms.size() == 0) {
+            return 0.0;
+        } else {
+            double avg_time = 0.0;
+            for (auto duration : _prefill_durations_ms) {
+                avg_time += duration;
+            }
+            avg_time /= _prefill_durations_ms.size();
+            return 1000.0 / avg_time;
         }
-        avg_time /= _prefill_durations_ms.size();
-        return 1000.0 / avg_time;
     }
 
     struct state_node {
