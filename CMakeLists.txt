@@ -11,6 +11,8 @@ option(ENABLE_WEBRWKV_BACKEND "Enable WebRWKV backend" ON)
 option(ENABLE_LLAMACPP_BACKEND "Enable llama.cpp backend" ON)
 option(ENABLE_QNN_BACKEND "Enable QNN backend" OFF)
 
+option(ENABLE_VISION "Enable vision" ON)
+
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_STATIC_LIB "Build static library" OFF)
 
@@ -74,6 +76,12 @@ endif()
 
 if (ENABLE_LLAMACPP_BACKEND)
     set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/llama_cpp/llama_cpp_backend.cpp)
+    if (ENABLE_VISION)
+        set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS}
+            src/multimodal/vision/clip.cpp
+            src/multimodal/vision/llava.cpp
+        )
+    endif()
 
     FetchContent_Declare(
         llama_cpp
@@ -141,6 +149,10 @@ if (ENABLE_LLAMACPP_BACKEND)
         )
 
         set(LLAMACPP_EXTRA_LIBS ${LLAMACPP_EXTRA_LIBS} $<TARGET_OBJECTS:ggml-metal> $<TARGET_OBJECTS:ggml-blas>)
+    endif()
+
+    if (ENABLE_VISION)
+        target_include_directories(rwkv_mobile_internal PUBLIC src/multimodal/vision)
     endif()
 
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_LLAMACPP)

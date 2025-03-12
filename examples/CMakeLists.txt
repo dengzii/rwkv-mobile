@@ -15,3 +15,8 @@ target_link_libraries(test_clear_states PUBLIC rwkv_mobile_internal)
 
 add_executable(test_sudoku test_sudoku.cpp ../src/c_api.cpp)
 target_link_libraries(test_sudoku PUBLIC rwkv_mobile_internal)
+
+if (ENABLE_VISION)
+    add_executable(test_vision_encoder test_vision_encoder.cpp)
+    target_link_libraries(test_vision_encoder PUBLIC rwkv_mobile_internal)
+endif()
