@@ -84,6 +84,13 @@ if (ENABLE_LLAMACPP_BACKEND)
     option(LLAMA_STANDALONE "" OFF)
     set(BUILD_SHARED_LIBS_DEFAULT OFF)
     FetchContent_MakeAvailable(llama_cpp)
+
+    FetchContent_Declare(
+        whisper_cpp
+        GIT_REPOSITORY https://github.com/ggerganov/whisper.cpp
+        GIT_TAG master
+    )
+    FetchContent_MakeAvailable(whisper_cpp)
 endif()
 
 if (ENABLE_QNN_BACKEND)
@@ -138,7 +145,7 @@ if (ENABLE_LLAMACPP_BACKEND)
 
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_LLAMACPP)
     target_include_directories(rwkv_mobile_internal PUBLIC backends/llama_cpp ${llama_cpp_SOURCE_DIR}/include ${llama_cpp_SOURCE_DIR}/src ${llama_cpp_SOURCE_DIR}/ggml/include)
-    target_link_libraries(rwkv_mobile_internal PUBLIC $<TARGET_OBJECTS:llama> $<TARGET_OBJECTS:ggml> $<TARGET_OBJECTS:ggml-base> $<TARGET_OBJECTS:ggml-cpu> ${LLAMACPP_EXTRA_LIBS})
+    target_link_libraries(rwkv_mobile_internal PUBLIC $<TARGET_OBJECTS:llama> $<TARGET_OBJECTS:whisper> $<TARGET_OBJECTS:ggml> $<TARGET_OBJECTS:ggml-base> $<TARGET_OBJECTS:ggml-cpu> ${LLAMACPP_EXTRA_LIBS})
 endif()
 
 if (ENABLE_QNN_BACKEND)
