@@ -2,6 +2,7 @@
 #define C_API_H
 
 typedef void * rwkvmobile_runtime_t;
+typedef void * rwkvmobile_vision_encoder_t;
 
 struct sampler_params {
     float temperature;
@@ -58,6 +59,10 @@ void rwkvmobile_runtime_add_adsp_library_path(const char * path);
 double rwkvmobile_runtime_get_avg_decode_speed(rwkvmobile_runtime_t runtime);
 
 double rwkvmobile_runtime_get_avg_prefill_speed(rwkvmobile_runtime_t runtime);
+
+rwkvmobile_vision_encoder_t rwkvmobile_runtime_load_vision_encoder(rwkvmobile_runtime_t runtime, const char * model_path);
+
+int rwkvmobile_runtime_set_image_prompt(rwkvmobile_runtime_t runtime, const char * image_path);
 
 #ifdef __cplusplus
 }

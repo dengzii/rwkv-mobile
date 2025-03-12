@@ -9,6 +9,10 @@
 #include "tokenizer.h"
 #include "sampler.h"
 
+#ifdef ENABLE_VISION
+#include "clip.h"
+#endif
+
 namespace rwkvmobile {
 
 class runtime {
@@ -21,6 +25,7 @@ public:
     int init(int backend_id, void * extra);
     int load_model(std::string model_path);
     int load_tokenizer(std::string vocab_file);
+    int load_vision_encoder(std::string model_path);
     int eval_logits(int id, std::vector<float> &logits);
     int eval_logits(std::vector<int> ids, std::vector<float> &logits);
 
@@ -33,6 +38,10 @@ public:
 
     int set_prompt(std::string prompt);
     std::string get_prompt();
+
+#ifdef ENABLE_VISION
+    int set_image_prompt(std::string path);
+#endif
 
     int clear_state() {
         if (_backend == nullptr) {
@@ -213,6 +222,10 @@ private:
 
     std::vector<double> _decode_durations_ms;
     std::vector<double> _prefill_durations_ms;
+
+#ifdef ENABLE_VISION
+    std::unique_ptr<clip_ctx, std::function<void(clip_ctx*)>> _vision_encoder;
+#endif
 };
 
 }

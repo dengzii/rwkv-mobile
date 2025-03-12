@@ -19,6 +19,11 @@
 #include "qnn_backend.h"
 #endif
 
+#ifdef ENABLE_VISION
+#include "llava.h"
+#include "clip.h"
+#endif
+
 namespace rwkvmobile {
 
 std::string backend_enum_to_str(int backend) {
@@ -156,6 +161,21 @@ int runtime::load_tokenizer(std::string vocab_file) {
         return RWKV_ERROR_TOKENIZER;
     }
     return _tokenizer->load(vocab_file);
+}
+
+int runtime::load_vision_encoder(std::string model_path) {
+#ifdef ENABLE_VISION
+    _vision_encoder = std::unique_ptr<clip_ctx, std::function<void(clip_ctx*)>>(clip_model_load(model_path.c_str(), 0),
+        [](clip_ctx *p) {
+            clip_free(p);
+        });
+    if (_vision_encoder == nullptr) {
+        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    return RWKV_SUCCESS;
+#else
+    return RWKV_ERROR_RUNTIME | RWKV_ERROR_UNSUPPORTED;
+#endif
 }
 
 int runtime::get_available_backend_ids(std::vector<int> &backend_ids) {
@@ -458,6 +478,43 @@ int runtime::set_prompt(std::string prompt) {
 std::string runtime::get_prompt() {
     return _prompt;
 }
+
+#ifdef ENABLE_VISION
+int runtime::set_image_prompt(std::string path) {
+    if (_backend == nullptr || _tokenizer == nullptr || _vision_encoder == nullptr) {
+        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    unsigned long long hash;
+    std::string prompt = "<img src=\"" + path + "\">";
+    hash = hash_string(prompt);
+    if (_state_head->hash == hash) {
+        return RWKV_SUCCESS;
+    }
+    _prompt = prompt;
+    clear_state();
+    _state_head->hash = hash;
+
+    if (prompt.empty()) {
+        return RWKV_SUCCESS;
+    }
+    if (_state_head->state.has_value()) {
+        _backend->free_state(_state_head->state);
+    }
+
+    auto embd = llava_image_embed_make_with_filename(_vision_encoder.get(), 4, path.c_str());
+    if (embd == nullptr) {
+        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    std::vector<float> logits(_vocab_size);
+    // TODO here
+    // int ret = eval_logits_with_embeddings(embd->embed, embd->n_image_pos, logits);
+    // if (ret) {
+    //     return ret;
+    // }
+    _backend->get_state(_state_head->state);
+    return RWKV_SUCCESS;
+}
+#endif
 
 int runtime::gen_completion(std::string prompt, std::string &completion, int max_length, int stop_code, void (*callback)(const char *, const int)) {
     if (_backend == nullptr || _tokenizer == nullptr) {
