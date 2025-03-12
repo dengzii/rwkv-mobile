@@ -1,6 +1,7 @@
 from rwkv_src.rwkv_modeling import RWKV_RNN
 from rwkv_src.model_utils import get_dummy_input_for_rwkv_causal_llm
 import coremltools as ct
+from coremltools.optimize.torch.palettization import PostTrainingPalettizerConfig, PostTrainingPalettizer
 from pathlib import Path
 import argparse, types, os
 import torch
@@ -21,7 +22,18 @@ model = RWKV_RNN(model_args)
 
 inputs = get_dummy_input_for_rwkv_causal_llm(1, 1, model.device, model.args)
 
-model = torch.jit.trace(model, example_inputs=inputs)
+config = PostTrainingPalettizerConfig.from_dict({"global_config": 
+                                                {
+                                                "n_bits": 4,
+                                                "granularity": "per_grouped_channel",
+                                                "group_size": 16
+                                                }
+                                                })
+palettizer = PostTrainingPalettizer(model, config)
+palettized_model = palettizer.compress()
+
+model = torch.jit.trace(palettized_model, example_inputs=inputs)
+# model = torch.jit.trace(model, example_inputs=inputs)
 
 ct_inputs = [ct.TensorType('in0', inputs[0].shape)] + [ct.TensorType(f'state_{i-1}_in', inputs[i].shape) for i in range(1, len(inputs))]
 ct_outputs = [ct.TensorType(name='logits')] + [ct.TensorType(f'state_{i-1}_out') for i in range(1, len(inputs))]
@@ -29,5 +41,7 @@ mlmodel = ct.convert(
     model,
     inputs=ct_inputs,
     outputs=ct_outputs,
+    minimum_deployment_target=ct.target.iOS18,
 )
 mlmodel.save(f'{str(os.path.basename(parser_args.model)).replace('.pth', '')}.mlpackage')
+
