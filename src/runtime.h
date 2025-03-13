@@ -28,6 +28,7 @@ public:
     int load_vision_encoder(std::string model_path);
     int eval_logits(int id, std::vector<float> &logits);
     int eval_logits(std::vector<int> ids, std::vector<float> &logits);
+    int eval_logits_with_embeddings(const float *embeddings, int n_tokens, std::vector<float> &logits);
 
     // without history
     int chat(std::string input, std::string &response, const int max_length, void (*callback)(const char *) = nullptr, bool enable_reasoning = false);

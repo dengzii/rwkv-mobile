@@ -7,6 +7,10 @@
 #include "llama-model.h"
 #include "commondef.h"
 
+#if ENABLE_VISION
+#include "llava.h"
+#endif
+
 namespace rwkvmobile {
 
 #ifdef ENABLE_LLAMACPP
@@ -54,6 +58,29 @@ int llama_cpp_backend::eval(int id, std::vector<float> &logits) {
 
 int llama_cpp_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
     llama_batch batch = llama_batch_get_one(ids.data(), ids.size());
+    llama_decode(ctx, batch);
+    float * logits_out = llama_get_logits_ith(ctx, -1);
+    if (!logits_out) {
+        return RWKV_ERROR_EVAL;
+    }
+    logits.assign(logits_out, logits_out + vocab_size);
+
+    return RWKV_SUCCESS;
+}
+
+int llama_cpp_backend::eval_with_embeddings(const float *embeddings, int n_tokens, std::vector<float> &logits) {
+    int n_embd = llama_model_n_embd(model);
+  
+    // llava_embd_batch llava_batch = llava_embd_batch(embd, n_eval, n_past, 0);
+    llama_batch batch = {
+        /*n_tokens       =*/ n_tokens,
+        /*tokens         =*/ nullptr,
+        /*embd           =*/ (float *)embeddings,
+        /*pos            =*/ nullptr,
+        /*n_seq_id       =*/ nullptr,
+        /*seq_id         =*/ nullptr,
+        /*logits         =*/ nullptr,
+    };
     llama_decode(ctx, batch);
     float * logits_out = llama_get_logits_ith(ctx, -1);
     if (!logits_out) {

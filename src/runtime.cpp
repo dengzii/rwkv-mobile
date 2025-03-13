@@ -241,6 +241,13 @@ int runtime::eval_logits(std::vector<int> ids, std::vector<float> &logits) {
     return ret;
 }
 
+int runtime::eval_logits_with_embeddings(const float *embeddings, int n_tokens, std::vector<float> &logits) {
+    if (_backend == nullptr) {
+        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    return _backend->eval_with_embeddings(embeddings, n_tokens, logits);
+}
+
 int runtime::chat(std::string input, std::string &response, const int max_length, void (*callback)(const char *), bool enable_reasoning) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;

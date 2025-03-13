@@ -12,6 +12,7 @@ public:
     int load_model(std::string model_path) override;
     int eval(int id, std::vector<float> &logits) override;
     int eval(std::vector<int> ids, std::vector<float> &logits) override;
+    int eval_with_embeddings(const float *embeddings, int n_tokens, std::vector<float> &logits) override;
     bool is_available() override;
     int clear_state() override;
     int get_state(std::any &state) override;
