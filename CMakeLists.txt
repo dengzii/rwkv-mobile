@@ -153,6 +153,7 @@ if (ENABLE_LLAMACPP_BACKEND)
 
     if (ENABLE_VISION)
         target_include_directories(rwkv_mobile_internal PUBLIC src/multimodal/vision)
+        target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_VISION)
     endif()
 
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_LLAMACPP)
