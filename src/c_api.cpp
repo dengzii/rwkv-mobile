@@ -281,7 +281,7 @@ int rwkvmobile_runtime_load_vision_encoder(rwkvmobile_runtime_t runtime, const c
     auto rt = static_cast<class runtime *>(runtime);
     return rt->load_vision_encoder(encoder_path);
 #else
-    return RWKV_ERROR_NOT_SUPPORTED;
+    return RWKV_ERROR_UNSUPPORTED;
 #endif
 }
 
@@ -293,7 +293,7 @@ int rwkvmobile_runtime_set_image_prompt(rwkvmobile_runtime_t runtime, const char
     auto rt = static_cast<class runtime *>(runtime);
     return rt->set_image_prompt(image_path);
 #else
-    return RWKV_ERROR_NOT_SUPPORTED;
+    return RWKV_ERROR_UNSUPPORTED;
 #endif
 }
 
