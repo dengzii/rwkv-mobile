@@ -285,6 +285,18 @@ int rwkvmobile_runtime_load_vision_encoder(rwkvmobile_runtime_t runtime, const c
 #endif
 }
 
+int rwkvmobile_runtime_release_vision_encoder(rwkvmobile_runtime_t runtime) {
+#if ENABLE_VISION
+    if (runtime == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->release_vision_encoder();
+#else
+    return RWKV_ERROR_UNSUPPORTED;
+#endif
+}
+
 int rwkvmobile_runtime_set_image_prompt(rwkvmobile_runtime_t runtime, const char * image_path) {
 #if ENABLE_VISION
     if (runtime == nullptr || image_path == nullptr) {

@@ -81,6 +81,8 @@ public:
         return _backend->release();
     }
 
+    int release_vision_encoder();
+
     inline int set_seed(int64_t seed) {
         if (_sampler == nullptr) {
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;

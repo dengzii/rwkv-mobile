@@ -63,6 +63,8 @@ double rwkvmobile_runtime_get_avg_prefill_speed(rwkvmobile_runtime_t runtime);
 // Vision
 int rwkvmobile_runtime_load_vision_encoder(rwkvmobile_runtime_t runtime, const char * encoder_path);
 
+int rwkvmobile_runtime_release_vision_encoder(rwkvmobile_runtime_t runtime);
+
 int rwkvmobile_runtime_set_image_prompt(rwkvmobile_runtime_t runtime, const char * image_path);
 
 int rwkvmobile_runtime_set_token_banned(rwkvmobile_runtime_t runtime, const int * token_banned, int token_banned_len);

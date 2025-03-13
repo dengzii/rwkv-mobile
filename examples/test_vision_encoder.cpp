@@ -30,6 +30,8 @@ int main(int argc, char **argv) {
     rwkvmobile_runtime_eval_chat(runtime, "What is unusual about this image?", response, 100, nullptr, 0);
     std::cout << response << std::endl;
 
+    rwkvmobile_runtime_release_vision_encoder(runtime);
+
     rwkvmobile_runtime_release(runtime);
 
     return 0;

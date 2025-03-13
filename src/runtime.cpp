@@ -190,6 +190,15 @@ int runtime::load_vision_encoder(std::string model_path) {
 #endif
 }
 
+int runtime::release_vision_encoder() {
+#ifdef ENABLE_VISION
+    _vision_encoder = nullptr;
+    return RWKV_SUCCESS;
+#else
+    return RWKV_ERROR_RUNTIME | RWKV_ERROR_UNSUPPORTED;
+#endif
+}
+
 int runtime::get_available_backend_ids(std::vector<int> &backend_ids) {
     backend_ids = std::vector<int>();
 
