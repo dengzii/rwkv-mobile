@@ -259,73 +259,7 @@ static bool encode_image_with_clip(clip_ctx * ctx_clip, int n_threads, const cli
 
     const char * mm_patch_merge_type = clip_patch_merge_type(ctx_clip);
 
-    if (clip_is_minicpmv(ctx_clip) || clip_is_qwen2vl(ctx_clip)) {
-        std::vector<float *> image_embd_v;
-        image_embd_v.resize(img_res_v.size);
-        struct clip_image_size * load_image_size = clip_image_size_init();
-
-        for (size_t i = 0; i < img_res_v.size; i++) {
-            const int64_t t_img_enc_step_start_us = ggml_time_us();
-            image_embd_v[i] = (float *)malloc(clip_embd_nbytes_by_img(ctx_clip, img_res_v.data[i].nx, img_res_v.data[i].ny));
-            int patch_size=14;
-            load_image_size->width = img_res_v.data[i].nx;
-            load_image_size->height = img_res_v.data[i].ny;
-            clip_add_load_image_size(ctx_clip, load_image_size);
-
-            bool encoded = false;
-            if (clip_is_qwen2vl(ctx_clip)) {
-                encoded = clip_image_encode(ctx_clip, n_threads, &img_res_v.data[i], image_embd_v[i]);
-            }
-            else {
-                encoded = clip_image_encode(ctx_clip, n_threads, reshape_by_patch(&img_res_v.data[i], patch_size), image_embd_v[i]);
-            }
-
-            if (!encoded) {
-                LOG_ERR("Unable to encode image - spatial_unpad - subimage %d of %d\n", (int) i+1, (int) img_res_v.size);
-                return false;
-            }
-            const int64_t t_img_enc_steop_batch_us = ggml_time_us();
-            LOG_INF("%s: step %d of %d encoded in %8.2f ms\n", __func__, (int)i+1, (int)img_res_v.size, (t_img_enc_steop_batch_us - t_img_enc_step_start_us) / 1000.0);
-        }
-        const int64_t t_img_enc_batch_us = ggml_time_us();
-        LOG_INF("%s: all %d segments encoded in %8.2f ms\n", __func__, (int)img_res_v.size, (t_img_enc_batch_us - t_img_enc_start_us) / 1000.0);
-
-        int n_img_pos_out = 0;
-        for (size_t i = 0; i < image_embd_v.size(); i++) {
-            std::memcpy(
-                image_embd + n_img_pos_out * clip_n_mmproj_embd(ctx_clip),
-                image_embd_v[i],
-                clip_embd_nbytes_by_img(ctx_clip, img_res_v.data[i].nx, img_res_v.data[i].ny));
-            n_img_pos_out += clip_n_patches_by_img(ctx_clip, &img_res_v.data[i]);
-        }
-        *n_img_pos = n_img_pos_out;
-        for (size_t i = 0; i < image_embd_v.size(); i++) {
-            free(image_embd_v[i]);
-        }
-        image_embd_v.clear();
-        load_image_size->width = img->nx;
-        load_image_size->height = img->ny;
-        clip_add_load_image_size(ctx_clip, load_image_size);
-        LOG_INF("%s: load_image_size %d %d\n", __func__, load_image_size->width, load_image_size->height);
-        delete[] img_res_v.data;
-        img_res_v.size = 0;
-        img_res_v.data = nullptr;
-    }
-    else if (clip_is_glm(ctx_clip)){
-        struct clip_image_size * load_image_size = clip_image_size_init();
-        load_image_size->width = img_res_v.data[0].nx;
-        load_image_size->height = img_res_v.data[0].ny;
-        clip_add_load_image_size(ctx_clip, load_image_size);
-
-        bool encoded = clip_image_encode(ctx_clip, n_threads, &img_res_v.data[0], image_embd);
-        int pos = int(load_image_size->width/clip_patch_size(ctx_clip)/2);
-        *n_img_pos = (pos * pos + 2);
-        if (!encoded){
-            LOG_ERR("Unable to encode image \n");
-            return false;
-        }
-    }
-    else if (strcmp(mm_patch_merge_type, "spatial_unpad") != 0) {
+    {
         // flat / default llava-1.5 type embedding
         *n_img_pos = clip_n_patches(ctx_clip);
         bool encoded = clip_image_encode(ctx_clip, n_threads, &img_res_v.data[0], image_embd); // image_embd shape is 576 x 4096
@@ -336,53 +270,6 @@ static bool encode_image_with_clip(clip_ctx * ctx_clip, int n_threads, const cli
             return false;
         }
     }
-    else {
-        // spatial_unpad llava-1.6 type embedding
-        // TODO: CLIP needs batching support - in HF the llm projection is separate after encoding, which might be a solution to quickly get batching working
-        std::vector<float *> image_embd_v;
-        image_embd_v.resize(img_res_v.size);
-        for (size_t i = 0; i < img_res_v.size; i++) {
-            image_embd_v[i] = (float *)malloc(clip_embd_nbytes(ctx_clip)); // 576 patches * 4096 embeddings * 4 bytes = 9437184
-            const bool encoded = clip_image_encode(ctx_clip, n_threads, &img_res_v.data[i], image_embd_v[i]); // image data is in 3x336x336 format and will be converted to 336x336x3 inside
-            if (!encoded) {
-                LOG_ERR("Unable to encode image - spatial_unpad - subimage %d of %d\n", (int) i+1, (int) img_res_v.size);
-                return false;
-            }
-        }
-        const int64_t t_img_enc_batch_us = ggml_time_us();
-        LOG_INF("%s: %d segments encoded in %8.2f ms\n", __func__, (int)img_res_v.size, (t_img_enc_batch_us - t_img_enc_start_us) / 1000.0);
-
-        const int32_t * image_grid = clip_image_grid(ctx_clip);
-
-        std::vector<std::pair<int, int>> grid_pinpoints;
-        for (int i = 0; i < 32 && image_grid[i] != 0; i += 2) {
-            grid_pinpoints.push_back({image_grid[i], image_grid[i+1]});
-        }
-
-        // free all img_res_v - not needed anymore
-        delete[] img_res_v.data;
-        img_res_v.size = 0;
-        img_res_v.data = nullptr;
-
-        const int32_t image_size = clip_image_size(ctx_clip);
-
-        struct clip_image_grid_shape grid_shape = get_anyres_image_grid_shape({img->nx,img->ny}, grid_pinpoints, image_size);
-
-        int n_img_pos_out;
-        clip_llava_handle_patches(ctx_clip, image_embd_v, grid_shape, image_embd, &n_img_pos_out);
-        *n_img_pos = n_img_pos_out;
-
-        for (size_t i = 0; i < image_embd_v.size(); i++) {
-            free(image_embd_v[i]);
-        }
-        image_embd_v.clear();
-
-        // debug image/segment/normalization content:
-        // clip_image_u8 * tmp = clip_image_u8_init();
-        // clip_image_convert_f32_to_u8(*image_feature, *tmp);
-        // clip_image_save_to_bmp(*tmp, "image_feature.bmp");
-    }
-
     LOG_INF("%s: image embedding created: %d tokens\n", __func__, *n_img_pos);
 
     const int64_t t_img_enc_end_us = ggml_time_us();
@@ -406,20 +293,9 @@ bool llava_validate_embed_size(const llama_context * ctx_llama, const clip_ctx *
 
 bool llava_image_embed_make_with_clip_img(clip_ctx * ctx_clip, int n_threads, const clip_image_u8 * img, float ** image_embd_out, int * n_img_pos_out) {
     int num_max_patches = 16;
-    if (clip_is_minicpmv(ctx_clip)) {
-        num_max_patches = 10;
-    }
-    if (clip_is_glm(ctx_clip)) {
-        num_max_patches = 1;
-    }
     float * image_embd;
-    if (clip_is_qwen2vl(ctx_clip)) {
-        // qwen2vl don't split image into chunks, so `num_max_patches` is not needed.
-        image_embd = (float *)malloc(clip_embd_nbytes_by_img(ctx_clip, img->nx, img->ny));
-    } else {
-        auto size = clip_embd_nbytes(ctx_clip)*num_max_patches;
-        image_embd = (float *)malloc(size); // TODO: base on gridsize/llava model
-    }
+    auto size = clip_embd_nbytes(ctx_clip)*num_max_patches;
+    image_embd = (float *)malloc(size); // TODO: base on gridsize/llava mode
     if (!image_embd) {
         LOG_ERR("Unable to allocate memory for image embeddings\n");
         return false;

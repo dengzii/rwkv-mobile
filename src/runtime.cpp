@@ -54,6 +54,18 @@ int backend_str_to_enum(std::string backend) {
     return -1;
 }
 
+void runtime::apply_logits_penalties(std::vector<float> &logits, float presence_penalty, float frequency_penalty, float penalty_decay) {
+    for (auto &[id, occurence] : _occurences) {
+        logits[id] -=
+            _frequency_penalty * occurence + _presence_penalty;
+        _occurences[id] *= _penalty_decay;
+    }
+
+    for (auto &token_banned : _token_banned) {
+        logits[token_banned] = -INFINITY;
+    }
+}
+
 int runtime::init(std::string backend_name) {
     return init(backend_name, nullptr);
 }
@@ -252,7 +264,7 @@ int runtime::chat(std::string input, std::string &response, const int max_length
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
-    std::string prompt = _user_role + ": " + input + "\n\n" + _response_role + ":";
+    std::string prompt = _bos_token + _user_role + ": " + input + _eos_token + _response_role + ":";
     std::vector<int> ids = _tokenizer->encode(prompt);
     std::vector<float> logits(_vocab_size);
     response = "";
@@ -262,11 +274,7 @@ int runtime::chat(std::string input, std::string &response, const int max_length
     }
 
     for (int i = 0; i < max_length; i++) {
-        for (auto &[id, occurence] : _occurences) {
-            logits[id] -=
-                _frequency_penalty * occurence + _presence_penalty;
-            occurence *= _penalty_decay;
-        }
+        apply_logits_penalties(logits, _presence_penalty, _frequency_penalty, _penalty_decay);
 
         int idx = _sampler->sample(logits.data(), logits.size(), _temperature, _top_k, _top_p);
         if (idx == 0) {
@@ -347,9 +355,9 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
     for (int i = start_idx; i < (int)inputs.size(); i++) {
         std::string prompt;
         if (i % 2 == 0) {
-            prompt = _user_role + ": " + inputs[i] + "\n\n";
+            prompt = _bos_token + _user_role + ": " + inputs[i] + _eos_token;
         } else {
-            prompt = _response_role + ": " + inputs[i] + "\n\n";
+            prompt = _response_role + ": " + inputs[i] + _eos_token;
         }
         LOGD("Processing history %i: \"%s\"\n", i, prompt.c_str());
         if (i == inputs.size() - 1) {
@@ -387,11 +395,7 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
     }
 
     for (int i = 0; i < max_length; i++) {
-        for (auto &[id, occurence] : _occurences) {
-            logits[id] -=
-                _frequency_penalty * occurence + _presence_penalty;
-            _occurences[id] *= _penalty_decay;
-        }
+        apply_logits_penalties(logits, _presence_penalty, _frequency_penalty, _penalty_decay);
 
         int idx = _sampler->sample(logits.data(), logits.size(), _temperature, _top_k, _top_p);
         if (idx == 0) {
@@ -513,12 +517,13 @@ int runtime::set_image_prompt(std::string path) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
     std::vector<float> logits(_vocab_size);
-    // TODO here
-    // int ret = eval_logits_with_embeddings(embd->embed, embd->n_image_pos, logits);
-    // if (ret) {
-    //     return ret;
-    // }
+
+    int ret = eval_logits_with_embeddings(embd->embed, embd->n_image_pos, logits);
+    if (ret) {
+        return ret;
+    }
     _backend->get_state(_state_head->state);
+    llava_image_embed_free(embd);
     return RWKV_SUCCESS;
 }
 #endif
@@ -536,11 +541,7 @@ int runtime::gen_completion(std::string prompt, std::string &completion, int max
 
     completion = prompt;
     for (int i = 0; i < max_length; i++) {
-        for (auto &[id, occurence] : _occurences) {
-            logits[id] -=
-                _frequency_penalty * occurence + _presence_penalty;
-            occurence *= _penalty_decay;
-        }
+        apply_logits_penalties(logits, _presence_penalty, _frequency_penalty, _penalty_decay);
 
         int idx = _sampler->sample(logits.data(), _vocab_size, _temperature, _top_k, _top_p);
         bool stopping = (idx == stop_code);

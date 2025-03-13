@@ -273,5 +273,58 @@ double rwkvmobile_runtime_get_avg_prefill_speed(rwkvmobile_runtime_t runtime) {
     return rt->get_avg_prefill_speed();
 }
 
+int rwkvmobile_runtime_load_vision_encoder(rwkvmobile_runtime_t runtime, const char * encoder_path) {
+#if ENABLE_VISION
+    if (runtime == nullptr || encoder_path == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->load_vision_encoder(encoder_path);
+#else
+    return RWKV_ERROR_NOT_SUPPORTED;
+#endif
+}
+
+int rwkvmobile_runtime_set_image_prompt(rwkvmobile_runtime_t runtime, const char * image_path) {
+#if ENABLE_VISION
+    if (runtime == nullptr || image_path == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->set_image_prompt(image_path);
+#else
+    return RWKV_ERROR_NOT_SUPPORTED;
+#endif
+}
+
+int rwkvmobile_runtime_set_token_banned(rwkvmobile_runtime_t runtime, const int * token_banned, int token_banned_len) {
+    if (runtime == nullptr || token_banned == nullptr || token_banned_len <= 0) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    std::vector<int> token_banned_vec(token_banned, token_banned + token_banned_len);
+    rt->set_token_banned(token_banned_vec);
+    return RWKV_SUCCESS;
+}
+
+int rwkvmobile_runtime_set_eos_token(rwkvmobile_runtime_t runtime, const char * eos_token) {
+    if (runtime == nullptr || eos_token == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    rt->set_eos_token(eos_token);
+    return RWKV_SUCCESS;
+}
+
+int rwkvmobile_runtime_set_bos_token(rwkvmobile_runtime_t runtime, const char * bos_token) {
+    if (runtime == nullptr || bos_token == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    rt->set_bos_token(bos_token);
+    return RWKV_SUCCESS;
+}
+
+
 } // extern "C"
 } // namespace rwkvmobile

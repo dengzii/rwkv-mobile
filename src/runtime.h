@@ -94,11 +94,25 @@ public:
 
     inline void set_user_role(std::string role) { _user_role = role; }
     inline void set_response_role(std::string role) { _response_role = role; }
+    inline void set_bos_token(std::string token) { _bos_token = token; }
+    inline void set_eos_token(std::string token) {
+        _eos_token = token;
+        for (auto &stop_code : _stop_codes) {
+            if (stop_code == _eos_token) {
+                return;
+            }
+        }
+        _stop_codes.push_back(_eos_token);
+    }
     std::string get_user_role() { return _user_role; }
     std::string get_response_role() { return _response_role; }
+    std::string get_bos_token() { return _bos_token; }
+    std::string get_eos_token() { return _eos_token; }
 
     inline std::vector<std::string> get_stop_codes() { return _stop_codes; }
     inline void set_stop_codes(std::vector<std::string> stop_codes) { _stop_codes = stop_codes; }
+    inline std::vector<int> get_token_banned() { return _token_banned; }
+    inline void set_token_banned(std::vector<int> token_banned) { _token_banned = token_banned; }
 
     inline void set_sampler_params(float temperature, int top_k, float top_p) {
         _temperature = temperature;
@@ -207,8 +221,13 @@ private:
     std::string _prompt;
 
     std::vector<std::string> _stop_codes = {"\n\n", "\nUser:", "User:"};
+    std::vector<int> _token_banned = {};
+    std::string _bos_token = "";
+    std::string _eos_token = "\n\n";
 
     std::map<int, float> _occurences;
+
+    void apply_logits_penalties(std::vector<float> &logits, float presence_penalty, float frequency_penalty, float penalty_decay);
 
     unsigned long long hash_string(std::string str) {
         unsigned long long hash = 0, p = 13131;

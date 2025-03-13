@@ -60,9 +60,16 @@ double rwkvmobile_runtime_get_avg_decode_speed(rwkvmobile_runtime_t runtime);
 
 double rwkvmobile_runtime_get_avg_prefill_speed(rwkvmobile_runtime_t runtime);
 
-rwkvmobile_vision_encoder_t rwkvmobile_runtime_load_vision_encoder(rwkvmobile_runtime_t runtime, const char * model_path);
+// Vision
+int rwkvmobile_runtime_load_vision_encoder(rwkvmobile_runtime_t runtime, const char * encoder_path);
 
 int rwkvmobile_runtime_set_image_prompt(rwkvmobile_runtime_t runtime, const char * image_path);
+
+int rwkvmobile_runtime_set_token_banned(rwkvmobile_runtime_t runtime, const int * token_banned, int token_banned_len);
+
+int rwkvmobile_runtime_set_eos_token(rwkvmobile_runtime_t runtime, const char * eos_token);
+
+int rwkvmobile_runtime_set_bos_token(rwkvmobile_runtime_t runtime, const char * bos_token);
 
 #ifdef __cplusplus
 }
