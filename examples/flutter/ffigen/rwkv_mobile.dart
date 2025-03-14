@@ -494,6 +494,57 @@ class rwkv_mobile {
       _rwkvmobile_runtime_set_image_promptPtr.asFunction<
           int Function(rwkvmobile_runtime_t, ffi.Pointer<ffi.Char>)>();
 
+  int rwkvmobile_runtime_load_whisper_encoder(
+    rwkvmobile_runtime_t runtime,
+    ffi.Pointer<ffi.Char> encoder_path,
+  ) {
+    return _rwkvmobile_runtime_load_whisper_encoder(
+      runtime,
+      encoder_path,
+    );
+  }
+
+  late final _rwkvmobile_runtime_load_whisper_encoderPtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Int Function(rwkvmobile_runtime_t, ffi.Pointer<ffi.Char>)>>(
+      'rwkvmobile_runtime_load_whisper_encoder');
+  late final _rwkvmobile_runtime_load_whisper_encoder =
+      _rwkvmobile_runtime_load_whisper_encoderPtr.asFunction<
+          int Function(rwkvmobile_runtime_t, ffi.Pointer<ffi.Char>)>();
+
+  int rwkvmobile_runtime_release_whisper_encoder(
+    rwkvmobile_runtime_t runtime,
+  ) {
+    return _rwkvmobile_runtime_release_whisper_encoder(
+      runtime,
+    );
+  }
+
+  late final _rwkvmobile_runtime_release_whisper_encoderPtr =
+      _lookup<ffi.NativeFunction<ffi.Int Function(rwkvmobile_runtime_t)>>(
+          'rwkvmobile_runtime_release_whisper_encoder');
+  late final _rwkvmobile_runtime_release_whisper_encoder =
+      _rwkvmobile_runtime_release_whisper_encoderPtr
+          .asFunction<int Function(rwkvmobile_runtime_t)>();
+
+  int rwkvmobile_runtime_set_audio_prompt(
+    rwkvmobile_runtime_t runtime,
+    ffi.Pointer<ffi.Char> audio_path,
+  ) {
+    return _rwkvmobile_runtime_set_audio_prompt(
+      runtime,
+      audio_path,
+    );
+  }
+
+  late final _rwkvmobile_runtime_set_audio_promptPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Int Function(rwkvmobile_runtime_t,
+              ffi.Pointer<ffi.Char>)>>('rwkvmobile_runtime_set_audio_prompt');
+  late final _rwkvmobile_runtime_set_audio_prompt =
+      _rwkvmobile_runtime_set_audio_promptPtr.asFunction<
+          int Function(rwkvmobile_runtime_t, ffi.Pointer<ffi.Char>)>();
+
   int rwkvmobile_runtime_set_token_banned(
     rwkvmobile_runtime_t runtime,
     ffi.Pointer<ffi.Int> token_banned,
@@ -548,6 +599,42 @@ class rwkv_mobile {
               ffi.Pointer<ffi.Char>)>>('rwkvmobile_runtime_set_bos_token');
   late final _rwkvmobile_runtime_set_bos_token =
       _rwkvmobile_runtime_set_bos_tokenPtr.asFunction<
+          int Function(rwkvmobile_runtime_t, ffi.Pointer<ffi.Char>)>();
+
+  int rwkvmobile_runtime_set_user_role(
+    rwkvmobile_runtime_t runtime,
+    ffi.Pointer<ffi.Char> user_role,
+  ) {
+    return _rwkvmobile_runtime_set_user_role(
+      runtime,
+      user_role,
+    );
+  }
+
+  late final _rwkvmobile_runtime_set_user_rolePtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Int Function(rwkvmobile_runtime_t,
+              ffi.Pointer<ffi.Char>)>>('rwkvmobile_runtime_set_user_role');
+  late final _rwkvmobile_runtime_set_user_role =
+      _rwkvmobile_runtime_set_user_rolePtr.asFunction<
+          int Function(rwkvmobile_runtime_t, ffi.Pointer<ffi.Char>)>();
+
+  int rwkvmobile_runtime_set_response_role(
+    rwkvmobile_runtime_t runtime,
+    ffi.Pointer<ffi.Char> response_role,
+  ) {
+    return _rwkvmobile_runtime_set_response_role(
+      runtime,
+      response_role,
+    );
+  }
+
+  late final _rwkvmobile_runtime_set_response_rolePtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Int Function(rwkvmobile_runtime_t,
+              ffi.Pointer<ffi.Char>)>>('rwkvmobile_runtime_set_response_role');
+  late final _rwkvmobile_runtime_set_response_role =
+      _rwkvmobile_runtime_set_response_rolePtr.asFunction<
           int Function(rwkvmobile_runtime_t, ffi.Pointer<ffi.Char>)>();
 }
 

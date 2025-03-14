@@ -13,6 +13,10 @@
 #include "clip.h"
 #endif
 
+#ifdef ENABLE_WHISPER
+#include "whisper.h"
+#endif
+
 namespace rwkvmobile {
 
 class runtime {
@@ -26,6 +30,7 @@ public:
     int load_model(std::string model_path);
     int load_tokenizer(std::string vocab_file);
     int load_vision_encoder(std::string model_path);
+    int load_whisper_encoder(std::string model_path);
     int eval_logits(int id, std::vector<float> &logits);
     int eval_logits(std::vector<int> ids, std::vector<float> &logits);
     int eval_logits_with_embeddings(const float *embeddings, int n_tokens, std::vector<float> &logits);
@@ -42,6 +47,10 @@ public:
 
 #ifdef ENABLE_VISION
     int set_image_prompt(std::string path);
+#endif
+
+#ifdef ENABLE_WHISPER
+    int set_audio_prompt(std::string path);
 #endif
 
     int clear_state() {
@@ -82,6 +91,7 @@ public:
     }
 
     int release_vision_encoder();
+    int release_whisper_encoder();
 
     inline int set_seed(int64_t seed) {
         if (_sampler == nullptr) {
@@ -247,6 +257,10 @@ private:
 
 #ifdef ENABLE_VISION
     std::unique_ptr<clip_ctx, std::function<void(clip_ctx*)>> _vision_encoder;
+#endif
+
+#ifdef ENABLE_WHISPER
+    std::unique_ptr<whisper_context, std::function<void(whisper_context*)>> _whisper_encoder;
 #endif
 };
 

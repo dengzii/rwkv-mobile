@@ -309,6 +309,42 @@ int rwkvmobile_runtime_set_image_prompt(rwkvmobile_runtime_t runtime, const char
 #endif
 }
 
+int rwkvmobile_runtime_load_whisper_encoder(rwkvmobile_runtime_t runtime, const char * encoder_path) {
+#if ENABLE_WHISPER
+    if (runtime == nullptr || encoder_path == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->load_whisper_encoder(encoder_path);
+#else
+    return RWKV_ERROR_UNSUPPORTED;
+#endif
+}
+
+int rwkvmobile_runtime_release_whisper_encoder(rwkvmobile_runtime_t runtime) {
+#if ENABLE_WHISPER
+    if (runtime == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->release_whisper_encoder();
+#else
+    return RWKV_ERROR_UNSUPPORTED;
+#endif
+}
+
+int rwkvmobile_runtime_set_audio_prompt(rwkvmobile_runtime_t runtime, const char * audio_path) {
+#if ENABLE_WHISPER
+    if (runtime == nullptr || audio_path == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->set_audio_prompt(audio_path);
+#else
+    return RWKV_ERROR_UNSUPPORTED;
+#endif
+}
+
 int rwkvmobile_runtime_set_token_banned(rwkvmobile_runtime_t runtime, const int * token_banned, int token_banned_len) {
     if (runtime == nullptr || token_banned == nullptr || token_banned_len <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
@@ -337,6 +373,23 @@ int rwkvmobile_runtime_set_bos_token(rwkvmobile_runtime_t runtime, const char * 
     return RWKV_SUCCESS;
 }
 
+int rwkvmobile_runtime_set_user_role(rwkvmobile_runtime_t runtime, const char * user_role) {
+    if (runtime == nullptr || user_role == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    rt->set_user_role(user_role);
+    return RWKV_SUCCESS;
+}
+
+int rwkvmobile_runtime_set_response_role(rwkvmobile_runtime_t runtime, const char * response_role) {
+    if (runtime == nullptr || response_role == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    rt->set_response_role(response_role);
+    return RWKV_SUCCESS;
+}
 
 } // extern "C"
 } // namespace rwkvmobile

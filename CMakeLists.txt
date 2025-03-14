@@ -12,6 +12,7 @@ option(ENABLE_LLAMACPP_BACKEND "Enable llama.cpp backend" ON)
 option(ENABLE_QNN_BACKEND "Enable QNN backend" OFF)
 
 option(ENABLE_VISION "Enable vision" ON)
+option(ENABLE_WHISPER "Enable whisper" ON)
 
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_STATIC_LIB "Build static library" OFF)
@@ -83,6 +84,12 @@ if (ENABLE_LLAMACPP_BACKEND)
         )
     endif()
 
+    if (ENABLE_WHISPER)
+        set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS}
+            src/multimodal/whisper/whisper.cpp
+        )
+    endif()
+
     FetchContent_Declare(
         llama_cpp
         GIT_REPOSITORY https://github.com/mollysophia/llama.cpp
@@ -92,13 +99,6 @@ if (ENABLE_LLAMACPP_BACKEND)
     option(LLAMA_STANDALONE "" OFF)
     set(BUILD_SHARED_LIBS_DEFAULT OFF)
     FetchContent_MakeAvailable(llama_cpp)
-
-    FetchContent_Declare(
-        whisper_cpp
-        GIT_REPOSITORY https://github.com/ggerganov/whisper.cpp
-        GIT_TAG master
-    )
-    FetchContent_MakeAvailable(whisper_cpp)
 endif()
 
 if (ENABLE_QNN_BACKEND)
@@ -156,9 +156,14 @@ if (ENABLE_LLAMACPP_BACKEND)
         target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_VISION)
     endif()
 
+    if (ENABLE_WHISPER)
+        target_include_directories(rwkv_mobile_internal PUBLIC src/multimodal/whisper)
+        target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_WHISPER)
+    endif()
+
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_LLAMACPP)
     target_include_directories(rwkv_mobile_internal PUBLIC backends/llama_cpp ${llama_cpp_SOURCE_DIR}/include ${llama_cpp_SOURCE_DIR}/src ${llama_cpp_SOURCE_DIR}/ggml/include)
-    target_link_libraries(rwkv_mobile_internal PUBLIC $<TARGET_OBJECTS:llama> $<TARGET_OBJECTS:whisper> $<TARGET_OBJECTS:ggml> $<TARGET_OBJECTS:ggml-base> $<TARGET_OBJECTS:ggml-cpu> ${LLAMACPP_EXTRA_LIBS})
+    target_link_libraries(rwkv_mobile_internal PUBLIC $<TARGET_OBJECTS:llama> $<TARGET_OBJECTS:ggml> $<TARGET_OBJECTS:ggml-base> $<TARGET_OBJECTS:ggml-cpu> ${LLAMACPP_EXTRA_LIBS})
 endif()
 
 if (ENABLE_QNN_BACKEND)

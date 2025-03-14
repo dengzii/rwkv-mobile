@@ -67,11 +67,22 @@ int rwkvmobile_runtime_release_vision_encoder(rwkvmobile_runtime_t runtime);
 
 int rwkvmobile_runtime_set_image_prompt(rwkvmobile_runtime_t runtime, const char * image_path);
 
+// Whisper
+int rwkvmobile_runtime_load_whisper_encoder(rwkvmobile_runtime_t runtime, const char * encoder_path);
+
+int rwkvmobile_runtime_release_whisper_encoder(rwkvmobile_runtime_t runtime);
+
+int rwkvmobile_runtime_set_audio_prompt(rwkvmobile_runtime_t runtime, const char * audio_path);
+
 int rwkvmobile_runtime_set_token_banned(rwkvmobile_runtime_t runtime, const int * token_banned, int token_banned_len);
 
 int rwkvmobile_runtime_set_eos_token(rwkvmobile_runtime_t runtime, const char * eos_token);
 
 int rwkvmobile_runtime_set_bos_token(rwkvmobile_runtime_t runtime, const char * bos_token);
+
+int rwkvmobile_runtime_set_user_role(rwkvmobile_runtime_t runtime, const char * user_role);
+
+int rwkvmobile_runtime_set_response_role(rwkvmobile_runtime_t runtime, const char * response_role);
 
 #ifdef __cplusplus
 }

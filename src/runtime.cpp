@@ -3,6 +3,7 @@
 #include "logger.h"
 #include <functional>
 #include <chrono>
+#include <fstream>
 #ifdef ENABLE_WEBRWKV
 #include "web_rwkv_backend.h"
 #endif
@@ -22,6 +23,10 @@
 #ifdef ENABLE_VISION
 #include "llava.h"
 #include "clip.h"
+#endif
+
+#ifdef ENABLE_WHISPER
+#include "whisper.h"
 #endif
 
 namespace rwkvmobile {
@@ -190,9 +195,35 @@ int runtime::load_vision_encoder(std::string model_path) {
 #endif
 }
 
+int runtime::load_whisper_encoder(std::string model_path) {
+#ifdef ENABLE_WHISPER
+    whisper_context_params cparams = whisper_context_default_params();
+    _whisper_encoder = std::unique_ptr<whisper_context, std::function<void(whisper_context*)>>(whisper_init_from_file_with_params(model_path.c_str(), cparams),
+        [](whisper_context *p) {
+            whisper_free(p);
+        });
+    if (_whisper_encoder == nullptr) {
+        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    whisper_init_state(_whisper_encoder.get());
+    return RWKV_SUCCESS;
+#else
+    return RWKV_ERROR_RUNTIME | RWKV_ERROR_UNSUPPORTED;
+#endif
+}
+
 int runtime::release_vision_encoder() {
 #ifdef ENABLE_VISION
     _vision_encoder = nullptr;
+    return RWKV_SUCCESS;
+#else
+    return RWKV_ERROR_RUNTIME | RWKV_ERROR_UNSUPPORTED;
+#endif
+}
+
+int runtime::release_whisper_encoder() {
+#ifdef ENABLE_WHISPER
+    _whisper_encoder = nullptr;
     return RWKV_SUCCESS;
 #else
     return RWKV_ERROR_RUNTIME | RWKV_ERROR_UNSUPPORTED;
@@ -273,7 +304,10 @@ int runtime::chat(std::string input, std::string &response, const int max_length
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
-    std::string prompt = _bos_token + _user_role + ": " + input + _eos_token + _response_role + ":";
+    std::string prompt = input + _eos_token + _response_role + ":";
+    if (!_user_role.empty()) {
+        prompt = _bos_token + _user_role + ": " + prompt;
+    }
     std::vector<int> ids = _tokenizer->encode(prompt);
     std::vector<float> logits(_vocab_size);
     response = "";
@@ -364,7 +398,11 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
     for (int i = start_idx; i < (int)inputs.size(); i++) {
         std::string prompt;
         if (i % 2 == 0) {
-            prompt = _bos_token + _user_role + ": " + inputs[i] + _eos_token;
+            if (!_user_role.empty()) {
+                prompt = _bos_token + _user_role + ": " + inputs[i] + _eos_token;
+            } else {
+                prompt = inputs[i] + _eos_token;
+            }
         } else {
             prompt = _response_role + ": " + inputs[i] + _eos_token;
         }
@@ -533,6 +571,59 @@ int runtime::set_image_prompt(std::string path) {
     }
     _backend->get_state(_state_head->state);
     llava_image_embed_free(embd);
+    return RWKV_SUCCESS;
+}
+#endif
+
+#ifdef ENABLE_WHISPER
+int runtime::set_audio_prompt(std::string path) {
+    if (_backend == nullptr || _tokenizer == nullptr || _whisper_encoder == nullptr) {
+        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    unsigned long long hash;
+    std::string prompt = "<audio src=\"" + path + "\">";
+    hash = hash_string(prompt);
+    if (_state_head->hash == hash) {
+        return RWKV_SUCCESS;
+    }
+    _prompt = prompt;
+    clear_state();
+    _state_head->hash = hash;
+
+    if (prompt.empty()) {
+        return RWKV_SUCCESS;
+    }
+    if (_state_head->state.has_value()) {
+        _backend->free_state(_state_head->state);
+    }
+
+    std::ifstream file(path, std::ios::binary);
+    if (!file.is_open()) {
+        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    file.seekg(0, std::ios::end);
+    size_t size = (size_t)file.tellg() - 78;
+    file.seekg(78, std::ios::beg);
+    std::vector<int16_t> samples(size);
+    file.read(reinterpret_cast<char*>(samples.data()), size * sizeof(int16_t));
+
+    std::vector<float> samples_f32(samples.size());
+    for (size_t i = 0; i < samples.size(); i++) {
+        samples_f32[i] = static_cast<float>(samples[i]) / 32768.0f;
+    }
+
+    whisper_pcm_to_mel(_whisper_encoder.get(), samples_f32.data(), samples_f32.size(), 4);
+    whisper_encode(_whisper_encoder.get(), 0, 4);
+
+    std::vector<float> logits(_vocab_size);
+
+    auto embd = whisper_get_adapter_output_tensor(_whisper_encoder.get());
+
+    int ret = eval_logits_with_embeddings((const float *)embd->data, embd->ne[1], logits);
+    if (ret) {
+        return ret;
+    }
+    _backend->get_state(_state_head->state);
     return RWKV_SUCCESS;
 }
 #endif
