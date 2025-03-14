@@ -288,7 +288,7 @@ int rwkvmobile_runtime_load_vision_encoder(rwkvmobile_runtime_t runtime, const c
 int rwkvmobile_runtime_release_vision_encoder(rwkvmobile_runtime_t runtime) {
 #if ENABLE_VISION
     if (runtime == nullptr) {
-        return RWKV_ERROR_INVALID_PARAMETERS;
+        return RWKV_SUCCESS;
     }
     auto rt = static_cast<class runtime *>(runtime);
     return rt->release_vision_encoder();
@@ -324,7 +324,7 @@ int rwkvmobile_runtime_load_whisper_encoder(rwkvmobile_runtime_t runtime, const 
 int rwkvmobile_runtime_release_whisper_encoder(rwkvmobile_runtime_t runtime) {
 #if ENABLE_WHISPER
     if (runtime == nullptr) {
-        return RWKV_ERROR_INVALID_PARAMETERS;
+        return RWKV_SUCCESS;
     }
     auto rt = static_cast<class runtime *>(runtime);
     return rt->release_whisper_encoder();
