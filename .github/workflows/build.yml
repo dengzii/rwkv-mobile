@@ -252,6 +252,56 @@ jobs:
         name: ${{ env.PACKAGENAME }}-debug
         path: ${{ env.PACKAGENAME }}-debug.zip
 
+  build-linux-x64-library:
+    needs: [setup]
+    runs-on: ubuntu-latest
+    env:
+      PACKAGENAME: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-linux-x86_64
+    steps:
+    - uses: actions/checkout@v4
+    - name: build
+      run: |
+        rm -rf build
+        mkdir build && cd build
+        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_LLAMACPP_BACKEND=ON -DENABLE_VISION=ON -DENABLE_WHISPER=ON
+        cmake --build . -j 8
+        mv librwkv_mobile.so librwkv_mobile-linux-x86_64.so
+    - name: package
+      run: |
+        pushd build
+        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile-linux-x86_64.so
+        popd
+    - name: upload-zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.PACKAGENAME }}
+        path: ${{ env.PACKAGENAME }}.zip
+
+  build-linux-arm64-library:
+    needs: [setup]
+    runs-on: ubuntu-22.04-arm
+    env:
+      PACKAGENAME: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-linux-aarch64
+    steps:
+    - uses: actions/checkout@v4
+    - name: build
+      run: |
+        rm -rf build
+        mkdir build && cd build
+        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_LLAMACPP_BACKEND=ON -DENABLE_VISION=ON -DENABLE_WHISPER=ON
+        cmake --build . -j 8
+        mv librwkv_mobile.so librwkv_mobile-linux-aarch64.so
+    - name: package
+      run: |
+        pushd build
+        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile-linux-aarch64.so
+        popd
+    - name: upload-zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.PACKAGENAME }}
+        path: ${{ env.PACKAGENAME }}.zip
+
   upload-dev-release:
     needs: [setup, build-ios-library, build-android-library, pack-macos-library-universal]
     runs-on: ubuntu-latest
@@ -283,6 +333,16 @@ jobs:
         with:
           name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c-debug
 
+      - name: download-linux-x64
+        uses: actions/download-artifact@v4
+        with:
+          name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-linux-x86_64
+      
+      - name: download-linux-arm64
+        uses: actions/download-artifact@v4
+        with:
+          name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-linux-aarch64
+
       - name: rename-dev-artifacts
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
@@ -292,6 +352,8 @@ jobs:
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-debug.zip librwkv_mobile-dev-latest-macos-debug.zip
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c.zip librwkv_mobile-dev-latest-aarch64-android-ndk-r25c.zip
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c-debug.zip librwkv_mobile-dev-latest-aarch64-android-ndk-r25c-debug.zip
+          mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-linux-x86_64.zip librwkv_mobile-dev-latest-linux-x86_64.zip
+          mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-linux-aarch64.zip librwkv_mobile-dev-latest-linux-aarch64.zip
       - uses: "marvinpinto/action-automatic-releases@latest"
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         with:
@@ -306,6 +368,8 @@ jobs:
             librwkv_mobile-dev-latest-macos-debug.zip
             librwkv_mobile-dev-latest-aarch64-android-ndk-r25c.zip
             librwkv_mobile-dev-latest-aarch64-android-ndk-r25c-debug.zip
+            librwkv_mobile-dev-latest-linux-x86_64.zip
+            librwkv_mobile-dev-latest-linux-aarch64.zip
       - uses: "marvinpinto/action-automatic-releases@latest"
         if: ${{ github.event_name == 'push' && github.ref == 'refs/tags/v' }}
         with:
@@ -318,3 +382,5 @@ jobs:
             librwkv_mobile-dev-latest-macos-debug.zip
             librwkv_mobile-dev-latest-aarch64-android-ndk-r25c.zip
             librwkv_mobile-dev-latest-aarch64-android-ndk-r25c-debug.zip
+            librwkv_mobile-dev-latest-linux-x86_64.zip
+            librwkv_mobile-dev-latest-linux-aarch64.zip
