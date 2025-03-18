@@ -11,7 +11,7 @@ int sampler::sample(const float* logits, const size_t size, float temperature, i
     if (top_k >= size || top_k == 0)
         top_k = size;
 
-    if (top_k == 1)
+    if (top_k == 1 || fabs(top_p - 0.f) < 1e-4)
         return std::max_element(logits, logits + size) - logits;
 
     // softmax
