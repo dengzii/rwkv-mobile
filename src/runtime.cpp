@@ -347,6 +347,9 @@ int runtime::chat(std::string input, std::string &response, const int max_length
         if (!_is_generating) break;
     }
     set_is_generating(false);
+    if (callback) {
+        callback(response.c_str(), 0);
+    }
     return RWKV_SUCCESS;
 }
 
@@ -501,6 +504,9 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
     }
     LOGD("New state node %i hash %llu\n", start_idx, node->hash);
     set_is_generating(false);
+    if (callback) {
+        callback(response.c_str(), 0);
+    }
 
     return RWKV_SUCCESS;
 }
@@ -669,6 +675,9 @@ int runtime::gen_completion(std::string prompt, std::string &completion, int max
     }
 
     set_is_generating(false);
+    if (callback) {
+        callback(completion.c_str(), 0);
+    }
     return RWKV_SUCCESS;
 }
 
