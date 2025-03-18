@@ -70,7 +70,7 @@ int rwkvmobile_runtime_eval_chat(
     const int max_tokens,
     void (*callback)(const char *, const int),
     int enable_reasoning) {
-    if (handle == nullptr || input == nullptr || max_tokens <= 0 || callback == nullptr) {
+    if (handle == nullptr || input == nullptr || max_tokens <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
 
@@ -97,7 +97,7 @@ int rwkvmobile_runtime_eval_chat_with_history(
     const int max_tokens,
     void (*callback)(const char *, const int),
     int enable_reasoning) {
-    if (handle == nullptr || inputs == nullptr || num_inputs == 0 || max_tokens <= 0 || callback == nullptr) {
+    if (handle == nullptr || inputs == nullptr || num_inputs == 0 || max_tokens <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
 
@@ -128,7 +128,7 @@ int rwkvmobile_runtime_gen_completion(
     const int max_tokens,
     const int stop_code,
     void (*callback)(const char *, const int)) {
-    if (handle == nullptr || prompt == nullptr || max_tokens <= 0 || callback == nullptr) {
+    if (handle == nullptr || prompt == nullptr || max_tokens <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
 
