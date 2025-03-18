@@ -413,8 +413,8 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
         LOGD("Processing history %i: \"%s\"\n", i, prompt.c_str());
         if (i == inputs.size() - 1) {
             if (enable_reasoning) {
-                prompt += _response_role + ": <think";
-                response += " <think";
+                prompt += _response_role + ": " + _thinking_token;
+                response += " " + _thinking_token;
             } else {
                 prompt += _response_role + ":";
             }

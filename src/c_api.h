@@ -88,6 +88,8 @@ int rwkvmobile_runtime_set_user_role(rwkvmobile_runtime_t runtime, const char * 
 
 int rwkvmobile_runtime_set_response_role(rwkvmobile_runtime_t runtime, const char * response_role);
 
+int rwkvmobile_runtime_set_thinking_token(rwkvmobile_runtime_t runtime, const char * thinking_token);
+
 #ifdef __cplusplus
 }
 #endif

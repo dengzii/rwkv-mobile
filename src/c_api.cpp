@@ -169,7 +169,6 @@ int rwkvmobile_runtime_is_generating(rwkvmobile_runtime_t runtime) {
     }
     auto rt = static_cast<class runtime *>(runtime);
     bool is_generating = rt->is_generating();
-    LOGI("get is_generating: %d", is_generating);
     return is_generating;
 }
 
@@ -409,6 +408,15 @@ int rwkvmobile_runtime_set_response_role(rwkvmobile_runtime_t runtime, const cha
     }
     auto rt = static_cast<class runtime *>(runtime);
     rt->set_response_role(response_role);
+    return RWKV_SUCCESS;
+}
+
+int rwkvmobile_runtime_set_thinking_token(rwkvmobile_runtime_t runtime, const char * thinking_token) {
+    if (runtime == nullptr || thinking_token == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    rt->set_thinking_token(thinking_token);
     return RWKV_SUCCESS;
 }
 
