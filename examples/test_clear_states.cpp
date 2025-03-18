@@ -24,17 +24,16 @@ int main(int argc, char **argv) {
     std::vector<std::string> input_list = {
         "Hello!"
     };
-    std::string response;
-    runtime.chat(input_list, response, 50, nullptr);
-    std::cout << "Response: " << response << std::endl;
+    runtime.chat(input_list, 50, nullptr);
+    std::cout << "Response: " << runtime.get_response_buffer_content() << std::endl;
 
     runtime.clear_state();
 
     input_list = {
         "Hi!"
     };
-    runtime.chat(input_list, response, 50, nullptr);
-    std::cout << "Response: " << response << std::endl;
+    runtime.chat(input_list, 50, nullptr);
+    std::cout << "Response: " << runtime.get_response_buffer_content() << std::endl;
 
     std::cout << std::endl;
 

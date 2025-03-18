@@ -77,10 +77,8 @@ int rwkvmobile_runtime_eval_chat(
     auto rt = static_cast<class runtime *>(handle);
     rt->set_is_generating(true);
     std::thread generation_thread([=]() {
-        std::string response_str;
         int ret = rt->chat(
             std::string(input),
-            response_str,
             max_tokens,
             callback,
             enable_reasoning != 0);
@@ -111,10 +109,8 @@ int rwkvmobile_runtime_eval_chat_with_history(
     }
 
     std::thread generation_thread([=]() {
-        std::string response_str;
         int ret = rt->chat(
             inputs_vec,
-            response_str,
             max_tokens,
             callback,
             enable_reasoning != 0);
@@ -139,10 +135,8 @@ int rwkvmobile_runtime_gen_completion(
     auto rt = static_cast<class runtime *>(handle);
     rt->set_is_generating(true);
     std::thread generation_thread([=]() {
-        std::string completion_str;
         int ret = rt->gen_completion(
             std::string(prompt),
-            completion_str,
             max_tokens,
             stop_code,
             callback);
@@ -418,6 +412,14 @@ int rwkvmobile_runtime_set_thinking_token(rwkvmobile_runtime_t runtime, const ch
     auto rt = static_cast<class runtime *>(runtime);
     rt->set_thinking_token(thinking_token);
     return RWKV_SUCCESS;
+}
+
+const char * rwkvmobile_runtime_get_response_buffer_content(rwkvmobile_runtime_t runtime) {
+    if (runtime == nullptr) {
+        return nullptr;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->get_response_buffer_content();
 }
 
 } // extern "C"

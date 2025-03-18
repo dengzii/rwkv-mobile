@@ -20,11 +20,10 @@ int main(int argc, char **argv) {
     ENSURE_SUCCESS_OR_LOG_EXIT(runtime.load_model(argv[2]), "Failed to load model");
 
     std::cout << "Generating demo text..." << std::endl;
-    std::string result;
 
     std::string prompt = "The Eiffel tower is in the city of";
-    ENSURE_SUCCESS_OR_LOG_EXIT(runtime.gen_completion(prompt, result, 200, 261, nullptr), "Failed to generate chat message");
-    std::cout << result;
+    ENSURE_SUCCESS_OR_LOG_EXIT(runtime.gen_completion(prompt, 200, 261, nullptr), "Failed to generate chat message");
+    std::cout << runtime.get_response_buffer_content();
 
     std::cout << std::endl;
 

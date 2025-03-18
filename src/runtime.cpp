@@ -300,7 +300,7 @@ int runtime::eval_logits_with_embeddings(const float *embeddings, int n_tokens, 
     return _backend->eval_with_embeddings(embeddings, n_tokens, logits);
 }
 
-int runtime::chat(std::string input, std::string &response, const int max_length, void (*callback)(const char *, const int), bool enable_reasoning) {
+int runtime::chat(std::string input, const int max_length, void (*callback)(const char *, const int), bool enable_reasoning) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
@@ -312,7 +312,8 @@ int runtime::chat(std::string input, std::string &response, const int max_length
     }
     std::vector<int> ids = _tokenizer->encode(prompt);
     std::vector<float> logits(_vocab_size);
-    response = "";
+
+    _response_buffer = "";
     int ret = eval_logits(ids, logits);
     if (ret) {
         return ret;
@@ -327,15 +328,15 @@ int runtime::chat(std::string input, std::string &response, const int max_length
         }
         _occurences[idx]++;
 
-        response += _tokenizer->decode(idx);
+        _response_buffer += _tokenizer->decode(idx);
         if (callback) {
-            callback(response.c_str(), idx);
+            callback(_response_buffer.c_str(), idx);
         }
 
         bool stopping = false;
         for (auto &stop_code : _stop_codes) {
-            if (response.size() >= stop_code.size() &&
-                response.compare(response.size() - stop_code.size(), stop_code.size(), stop_code) == 0) {
+            if (_response_buffer.size() >= stop_code.size() &&
+                _response_buffer.compare(_response_buffer.size() - stop_code.size(), stop_code.size(), stop_code) == 0) {
                 stopping = true;
                 break;
             }
@@ -348,12 +349,12 @@ int runtime::chat(std::string input, std::string &response, const int max_length
     }
     set_is_generating(false);
     if (callback) {
-        callback(response.c_str(), 0);
+        callback(_response_buffer.c_str(), 0);
     }
     return RWKV_SUCCESS;
 }
 
-int runtime::chat(std::vector<std::string> inputs, std::string &response, const int max_length, void (*callback)(const char *, const int), bool enable_reasoning) {
+int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*callback)(const char *, const int), bool enable_reasoning) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
@@ -400,7 +401,7 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
     _backend->set_state(node->state);
 
     std::vector<float> logits(_vocab_size);
-    response = "";
+    _response_buffer = "";
     int ret;
     for (int i = start_idx; i < (int)inputs.size(); i++) {
         std::string prompt;
@@ -417,7 +418,7 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
         if (i == inputs.size() - 1) {
             if (enable_reasoning) {
                 prompt += _response_role + ": " + _thinking_token;
-                response += " " + _thinking_token;
+                _response_buffer += " " + _thinking_token;
             } else {
                 prompt += _response_role + ":";
             }
@@ -456,7 +457,7 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
             break;
         }
 
-        std::string tmp = response + _tokenizer->decode(idx);
+        std::string tmp = _response_buffer + _tokenizer->decode(idx);
         bool stopping = false;
         for (auto &stop_code : _stop_codes) {
             if (tmp.size() >= stop_code.size() &&
@@ -470,14 +471,14 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
             break;
         }
 
-        response += _tokenizer->decode(idx);
-        if (i == 0 && response[0] == ' ') {
-            response = response.substr(1);
+        _response_buffer += _tokenizer->decode(idx);
+        if (i == 0 && _response_buffer[0] == ' ') {
+            _response_buffer = _response_buffer.substr(1);
         }
 
         _occurences[idx]++;
         if (callback) {
-            callback(response.c_str(), idx);
+            callback(_response_buffer.c_str(), idx);
         }
 
         ret = eval_logits(idx, logits);
@@ -487,14 +488,14 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
     ret = eval_logits(_tokenizer->encode(_stop_codes[0]), logits);
     if (ret) return ret;
 
-    LOGD("Response: \"%s\"\n", response.c_str());
+    LOGD("Response: \"%s\"\n", _response_buffer.c_str());
 
     node->next = new state_node;
     if (node->next == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
     }
     node = node->next;
-    node->hash = hash_string(response);
+    node->hash = hash_string(_response_buffer);
     _backend->get_state(node->state);
     start_idx = -1;
     node = _state_head;
@@ -505,7 +506,7 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
     LOGD("New state node %i hash %llu\n", start_idx, node->hash);
     set_is_generating(false);
     if (callback) {
-        callback(response.c_str(), 0);
+        callback(_response_buffer.c_str(), 0);
     }
 
     return RWKV_SUCCESS;
@@ -639,7 +640,7 @@ int runtime::set_audio_prompt(std::string path) {
 }
 #endif
 
-int runtime::gen_completion(std::string prompt, std::string &completion, int max_length, int stop_code, void (*callback)(const char *, const int)) {
+int runtime::gen_completion(std::string prompt, int max_length, int stop_code, void (*callback)(const char *, const int)) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
@@ -653,7 +654,7 @@ int runtime::gen_completion(std::string prompt, std::string &completion, int max
         return ret;
     }
 
-    completion = prompt;
+    _response_buffer = prompt;
     for (int i = 0; i < max_length; i++) {
         apply_logits_penalties(logits, _presence_penalty, _frequency_penalty, _penalty_decay);
 
@@ -661,10 +662,10 @@ int runtime::gen_completion(std::string prompt, std::string &completion, int max
         bool stopping = (idx == stop_code);
 
         std::string next = _tokenizer->decode(idx);
-        completion = completion + next;
+        _response_buffer += next;
         ret = eval_logits(idx, logits);
         if (callback) {
-            callback(next.c_str(), idx);
+            callback(_response_buffer.c_str(), idx);
         }
 
         if (stopping || !_is_generating) {
@@ -676,7 +677,7 @@ int runtime::gen_completion(std::string prompt, std::string &completion, int max
 
     set_is_generating(false);
     if (callback) {
-        callback(completion.c_str(), 0);
+        callback(_response_buffer.c_str(), 0);
     }
     return RWKV_SUCCESS;
 }

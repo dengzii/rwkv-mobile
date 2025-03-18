@@ -38,14 +38,16 @@ public:
     int eval_logits_with_embeddings(const float *embeddings, int n_tokens, std::vector<float> &logits);
 
     // without history
-    int chat(std::string input, std::string &response, const int max_length, void (*callback)(const char *, const int) = nullptr, bool enable_reasoning = false);
+    int chat(std::string input, const int max_length, void (*callback)(const char *, const int) = nullptr, bool enable_reasoning = false);
 
     // with history
-    int chat(std::vector<std::string> inputs, std::string &response, const int max_length, void (*callback)(const char *, const int) = nullptr, bool enable_reasoning = false);
-    int gen_completion(std::string prompt, std::string &completion, int max_length, int stop_code, void (*callback)(const char *, const int));
+    int chat(std::vector<std::string> inputs, const int max_length, void (*callback)(const char *, const int) = nullptr, bool enable_reasoning = false);
+    int gen_completion(std::string prompt, int max_length, int stop_code, void (*callback)(const char *, const int));
 
     int set_prompt(std::string prompt);
     std::string get_prompt();
+
+    const char * get_response_buffer_content() { return _response_buffer.c_str(); }
 
 #ifdef ENABLE_VISION
     int set_image_prompt(std::string path);
@@ -250,6 +252,8 @@ private:
     std::string _eos_token = "\n\n";
 
     std::map<int, float> _occurences;
+
+    std::string _response_buffer;
 
     void apply_logits_penalties(std::vector<float> &logits, float presence_penalty, float frequency_penalty, float penalty_decay);
 

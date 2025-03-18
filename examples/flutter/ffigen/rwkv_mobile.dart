@@ -428,6 +428,16 @@ late final _rwkvmobile_runtime_set_thinking_tokenPtr = _lookup<
     ffi.NativeFunction<ffi.Int Function(rwkvmobile_runtime_t , ffi.Pointer<ffi.Char> )>>('rwkvmobile_runtime_set_thinking_token');
 late final _rwkvmobile_runtime_set_thinking_token = _rwkvmobile_runtime_set_thinking_tokenPtr.asFunction<int Function(rwkvmobile_runtime_t , ffi.Pointer<ffi.Char> )>();
 
+ffi.Pointer<ffi.Char> rwkvmobile_runtime_get_response_buffer_content(rwkvmobile_runtime_t runtime,
+) {
+  return _rwkvmobile_runtime_get_response_buffer_content(runtime,
+);
+}
+
+late final _rwkvmobile_runtime_get_response_buffer_contentPtr = _lookup<
+    ffi.NativeFunction<ffi.Pointer<ffi.Char> Function(rwkvmobile_runtime_t )>>('rwkvmobile_runtime_get_response_buffer_content');
+late final _rwkvmobile_runtime_get_response_buffer_content = _rwkvmobile_runtime_get_response_buffer_contentPtr.asFunction<ffi.Pointer<ffi.Char> Function(rwkvmobile_runtime_t )>();
+
 }
 
 final class sampler_params extends ffi.Struct{

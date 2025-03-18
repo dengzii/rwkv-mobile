@@ -26,25 +26,24 @@ int main(int argc, char **argv) {
         "Hello! I'm your AI assistant. I'm here to help you with various tasks, such as answering questions, brainstorming ideas, drafting emails, writing code, providing advice, and much more.",
         "What's the weather like today?",
     };
-    std::string response;
-    runtime.chat(input_list, response, 50, nullptr);
-    std::cout << "Response: " << response << std::endl;
+    runtime.chat(input_list, 50, nullptr);
+    std::cout << "Response: " << runtime.get_response_buffer_content() << std::endl;
 
     input_list = {
         "Hello!",
         "Hello! I'm your AI assistant. I'm here to help you with various tasks, such as answering questions, brainstorming ideas, drafting emails, writing code, providing advice, and much more.",
         "Write me a poem",
     };
-    runtime.chat(input_list, response, 50, nullptr);
-    std::cout << "Response: " << response << std::endl;
+    runtime.chat(input_list, 50, nullptr);
+    std::cout << "Response: " << runtime.get_response_buffer_content() << std::endl;
 
     input_list = {
         "Hello!",
         "Hello! I'm your AI assistant. I'm here to help you with various tasks, such as answering questions, brainstorming ideas, drafting emails, writing code, providing advice, and much more.",
         "What's the weather like today?",
     };
-    runtime.chat(input_list, response, 50, nullptr);
-    std::cout << "Response: " << response << std::endl;
+    runtime.chat(input_list, 50, nullptr);
+    std::cout << "Response: " << runtime.get_response_buffer_content() << std::endl;
 
     std::cout << std::endl;
 
