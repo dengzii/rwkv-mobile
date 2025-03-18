@@ -8,10 +8,10 @@ sampler::sampler() {
 
 int sampler::sample(const float* logits, const size_t size, float temperature, int top_k, float top_p) {
     temperature = std::clamp(temperature, 0.1f, 5.f);
-    if (top_k >= size)
+    if (top_k >= size || top_k == 0)
         top_k = size;
 
-    if (top_k == 0 || top_k == 1)
+    if (top_k == 1)
         return std::max_element(logits, logits + size) - logits;
 
     // softmax
