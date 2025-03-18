@@ -300,10 +300,12 @@ int runtime::eval_logits_with_embeddings(const float *embeddings, int n_tokens, 
     return _backend->eval_with_embeddings(embeddings, n_tokens, logits);
 }
 
-int runtime::chat(std::string input, std::string &response, const int max_length, void (*callback)(const char *), bool enable_reasoning) {
+int runtime::chat(std::string input, std::string &response, const int max_length, void (*callback)(const char *, const int), bool enable_reasoning) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
+    set_is_generating(true);
+
     std::string prompt = input + _eos_token + _response_role + ":";
     if (!_user_role.empty()) {
         prompt = _bos_token + _user_role + ": " + prompt;
@@ -327,7 +329,7 @@ int runtime::chat(std::string input, std::string &response, const int max_length
 
         response += _tokenizer->decode(idx);
         if (callback) {
-            callback(response.c_str());
+            callback(response.c_str(), idx);
         }
 
         bool stopping = false;
@@ -342,15 +344,17 @@ int runtime::chat(std::string input, std::string &response, const int max_length
         ret = eval_logits(idx, logits);
         if (ret) return ret;
         if (stopping) break;
+        if (!_is_generating) break;
     }
-
+    set_is_generating(false);
     return RWKV_SUCCESS;
 }
 
-int runtime::chat(std::vector<std::string> inputs, std::string &response, const int max_length, void (*callback)(const char *), bool enable_reasoning) {
+int runtime::chat(std::vector<std::string> inputs, std::string &response, const int max_length, void (*callback)(const char *, const int), bool enable_reasoning) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
+    set_is_generating(true);
 
     struct state_node *node = _state_head;
     int start_idx = 0;
@@ -459,7 +463,7 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
             }
         }
 
-        if (stopping) {
+        if (stopping || !_is_generating) {
             break;
         }
 
@@ -470,7 +474,7 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
 
         _occurences[idx]++;
         if (callback) {
-            callback(response.c_str());
+            callback(response.c_str(), idx);
         }
 
         ret = eval_logits(idx, logits);
@@ -496,6 +500,7 @@ int runtime::chat(std::vector<std::string> inputs, std::string &response, const 
         node = node->next;
     }
     LOGD("New state node %i hash %llu\n", start_idx, node->hash);
+    set_is_generating(false);
 
     return RWKV_SUCCESS;
 }
@@ -632,10 +637,13 @@ int runtime::gen_completion(std::string prompt, std::string &completion, int max
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
+    set_is_generating(true);
+
     std::vector<int> ids = _tokenizer->encode(prompt);
     std::vector<float> logits(_vocab_size);
     int ret = eval_logits(ids, logits);
     if (ret) {
+        set_is_generating(false);
         return ret;
     }
 
@@ -653,13 +661,14 @@ int runtime::gen_completion(std::string prompt, std::string &completion, int max
             callback(next.c_str(), idx);
         }
 
-        if (stopping) {
+        if (stopping || !_is_generating) {
             break;
         }
 
         _occurences[idx]++;
     }
 
+    set_is_generating(false);
     return RWKV_SUCCESS;
 }
 

@@ -4,6 +4,9 @@ target_link_libraries(gen PUBLIC rwkv_mobile_internal)
 add_executable(test_chat test_chat.cpp)
 target_link_libraries(test_chat PUBLIC rwkv_mobile_internal)
 
+add_executable(test_chat_c_api test_chat_c_api.cpp ../src/c_api.cpp)
+target_link_libraries(test_chat_c_api PUBLIC rwkv_mobile_internal)
+
 add_executable(test_othello test_othello.cpp ../src/c_api.cpp)
 target_link_libraries(test_othello PUBLIC rwkv_mobile_internal)
 

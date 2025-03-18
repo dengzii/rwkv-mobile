@@ -9,6 +9,8 @@
 #include "tokenizer.h"
 #include "sampler.h"
 
+#include "logger.h"
+
 #ifdef ENABLE_VISION
 #include "clip.h"
 #endif
@@ -36,10 +38,10 @@ public:
     int eval_logits_with_embeddings(const float *embeddings, int n_tokens, std::vector<float> &logits);
 
     // without history
-    int chat(std::string input, std::string &response, const int max_length, void (*callback)(const char *) = nullptr, bool enable_reasoning = false);
+    int chat(std::string input, std::string &response, const int max_length, void (*callback)(const char *, const int) = nullptr, bool enable_reasoning = false);
 
     // with history
-    int chat(std::vector<std::string> inputs, std::string &response, const int max_length, void (*callback)(const char *) = nullptr, bool enable_reasoning = false);
+    int chat(std::vector<std::string> inputs, std::string &response, const int max_length, void (*callback)(const char *, const int) = nullptr, bool enable_reasoning = false);
     int gen_completion(std::string prompt, std::string &completion, int max_length, int stop_code, void (*callback)(const char *, const int));
 
     int set_prompt(std::string prompt);
@@ -125,6 +127,8 @@ public:
     inline void set_stop_codes(std::vector<std::string> stop_codes) { _stop_codes = stop_codes; }
     inline std::vector<int> get_token_banned() { return _token_banned; }
     inline void set_token_banned(std::vector<int> token_banned) { _token_banned = token_banned; }
+    inline std::string get_thinking_token() { return _thinking_token; }
+    inline void set_thinking_token(std::string thinking_token) { _thinking_token = thinking_token; }
 
     inline void set_sampler_params(float temperature, int top_k, float top_p) {
         _temperature = temperature;
@@ -144,6 +148,11 @@ public:
     inline float get_presence_penalty() { return _presence_penalty; }
     inline float get_frequency_penalty() { return _frequency_penalty; }
     inline float get_penalty_decay() { return _penalty_decay; }
+
+    inline bool is_generating() { return _is_generating; }
+    void set_is_generating(bool is_generating) {
+        _is_generating = is_generating;
+    }
 
     std::string get_available_backends_str();
     int get_available_backend_ids(std::vector<int> &backend_ids);
@@ -231,6 +240,9 @@ private:
     std::string _user_role = "User";
     std::string _response_role = "Assistant";
     std::string _prompt;
+    std::string _thinking_token = "<think";
+
+    bool _is_generating = false;
 
     std::vector<std::string> _stop_codes = {"\n\n", "\nUser:", "User:"};
     std::vector<int> _token_banned = {};

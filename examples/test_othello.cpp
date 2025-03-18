@@ -1,5 +1,5 @@
 #include <iostream>
-#include <chrono>
+#include <unistd.h>
 
 #include "commondef.h"
 #include "runtime.h"
@@ -40,8 +40,12 @@ int main(int argc, char **argv) {
                         "</input>\n\n";
 
     std::cout << std::endl;
-    char result[65536];
 
-    rwkvmobile_runtime_gen_completion(runtime, prompt.c_str(), result, 64000, 0, callback);
+    rwkvmobile_runtime_gen_completion(runtime, prompt.c_str(), 64000, 0, callback);
+
+    while (rwkvmobile_runtime_is_generating(runtime)) {
+        sleep(1);
+    }
+
     return 0;
 }

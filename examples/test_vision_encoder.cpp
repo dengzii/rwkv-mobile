@@ -1,11 +1,15 @@
 #include <iostream>
-#include <chrono>
+#include <unistd.h>
 
 #include "commondef.h"
 #include "runtime.h"
 #include "c_api.h"
 
 #define ENSURE_SUCCESS_OR_LOG_EXIT(x, msg) if (x != rwkvmobile::RWKV_SUCCESS) { std::cout << msg << std::endl; return 1; }
+
+void callback(const char *msg, const int) {
+    std::cout << msg;
+}
 
 int main(int argc, char **argv) {
     // set stdout to be unbuffered
@@ -26,9 +30,11 @@ int main(int argc, char **argv) {
 
     rwkvmobile_runtime_set_image_prompt(runtime, argv[4]);
 
-    char response[1000];
-    rwkvmobile_runtime_eval_chat(runtime, "What is unusual about this image?", response, 100, nullptr, 0);
-    std::cout << response << std::endl;
+    rwkvmobile_runtime_eval_chat(runtime, "What is unusual about this image?", 100, callback, 0);
+
+    while (rwkvmobile_runtime_is_generating(runtime)) {
+        sleep(1);
+    }
 
     rwkvmobile_runtime_release_vision_encoder(runtime);
 

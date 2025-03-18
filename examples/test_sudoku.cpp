@@ -41,6 +41,6 @@ int main(int argc, char **argv) {
     std::cout << std::endl;
 
     std::cout << "Generating completion" << std::endl;
-    rwkvmobile_runtime_gen_completion(runtime, prompt.c_str(), NULL, 5000000, 105, callback);
+    rwkvmobile_runtime_gen_completion(runtime, prompt.c_str(), 5000000, 105, callback);
     return 0;
 }

@@ -4,6 +4,7 @@
 #include "logger.h"
 #include <cstring>
 #include <cstdlib>
+#include <thread>
 
 namespace rwkvmobile {
 
@@ -66,28 +67,28 @@ int rwkvmobile_runtime_eval_logits(rwkvmobile_runtime_t handle, const int * ids,
 int rwkvmobile_runtime_eval_chat(
     rwkvmobile_runtime_t handle,
     const char * input,
-    char * response,
     const int max_tokens,
-    void (*callback)(const char *),
+    void (*callback)(const char *, const int),
     int enable_reasoning) {
-    if (handle == nullptr || input == nullptr || max_tokens <= 0) {
+    if (handle == nullptr || input == nullptr || max_tokens <= 0 || callback == nullptr) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
 
     auto rt = static_cast<class runtime *>(handle);
-    std::string response_str;
-    int ret = rt->chat(
-        std::string(input),
-        response_str,
-        max_tokens,
-        callback,
-        enable_reasoning != 0);
-    if (ret != RWKV_SUCCESS) {
+    rt->set_is_generating(true);
+    std::thread generation_thread([=]() {
+        std::string response_str;
+        int ret = rt->chat(
+            std::string(input),
+            response_str,
+            max_tokens,
+            callback,
+            enable_reasoning != 0);
         return ret;
-    }
-    if (response != nullptr) {
-        strncpy(response, response_str.c_str(), response_str.size());
-    }
+    });
+
+    generation_thread.detach();
+
     return RWKV_SUCCESS;
 }
 
@@ -95,61 +96,81 @@ int rwkvmobile_runtime_eval_chat_with_history(
     rwkvmobile_runtime_t handle,
     const char ** inputs,
     const int num_inputs,
-    char * response,
     const int max_tokens,
-    void (*callback)(const char *),
+    void (*callback)(const char *, const int),
     int enable_reasoning) {
-    if (handle == nullptr || inputs == nullptr || num_inputs == 0 || max_tokens <= 0) {
+    if (handle == nullptr || inputs == nullptr || num_inputs == 0 || max_tokens <= 0 || callback == nullptr) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
 
     auto rt = static_cast<class runtime *>(handle);
+    rt->set_is_generating(true);
     std::vector<std::string> inputs_vec;
     for (int i = 0; i < num_inputs; i++) {
         inputs_vec.push_back(std::string(inputs[i]));
     }
-    std::string response_str;
-    int ret = rt->chat(
-        inputs_vec,
-        response_str,
-        max_tokens,
-        callback,
-        enable_reasoning != 0);
-    if (ret != RWKV_SUCCESS) {
+
+    std::thread generation_thread([=]() {
+        std::string response_str;
+        int ret = rt->chat(
+            inputs_vec,
+            response_str,
+            max_tokens,
+            callback,
+            enable_reasoning != 0);
         return ret;
-    }
-    if (response != nullptr) {
-        strncpy(response, response_str.c_str(), response_str.size());
-    }
+    });
+
+    generation_thread.detach();
+
     return RWKV_SUCCESS;
 }
 
 int rwkvmobile_runtime_gen_completion(
     rwkvmobile_runtime_t handle,
     const char * prompt,
-    char * completion,
     const int max_tokens,
     const int stop_code,
     void (*callback)(const char *, const int)) {
-    if (handle == nullptr || prompt == nullptr || max_tokens <= 0) {
+    if (handle == nullptr || prompt == nullptr || max_tokens <= 0 || callback == nullptr) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
 
     auto rt = static_cast<class runtime *>(handle);
-    std::string completion_str;
-    int ret = rt->gen_completion(
-        std::string(prompt),
-        completion_str,
-        max_tokens,
-        stop_code,
-        callback);
-    if (ret != RWKV_SUCCESS) {
+    rt->set_is_generating(true);
+    std::thread generation_thread([=]() {
+        std::string completion_str;
+        int ret = rt->gen_completion(
+            std::string(prompt),
+            completion_str,
+            max_tokens,
+            stop_code,
+            callback);
         return ret;
-    }
-    if (completion != nullptr) {
-        strncpy(completion, completion_str.c_str(), completion_str.size());
-    }
+    });
+
+    generation_thread.detach();
+
     return RWKV_SUCCESS;
+}
+
+int rwkvmobile_runtime_stop_generation(rwkvmobile_runtime_t runtime) {
+    if (runtime == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    rt->set_is_generating(false);
+    return RWKV_SUCCESS;
+}
+
+int rwkvmobile_runtime_is_generating(rwkvmobile_runtime_t runtime) {
+    if (runtime == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    bool is_generating = rt->is_generating();
+    LOGI("get is_generating: %d", is_generating);
+    return is_generating;
 }
 
 int rwkvmobile_runtime_clear_state(rwkvmobile_runtime_t handle) {
