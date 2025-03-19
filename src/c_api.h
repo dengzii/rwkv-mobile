@@ -99,6 +99,8 @@ const char * rwkvmobile_runtime_get_response_buffer_content(rwkvmobile_runtime_t
 
 struct token_ids rwkvmobile_runtime_get_response_buffer_ids(rwkvmobile_runtime_t runtime);
 
+void rwkvmobile_runtime_free_token_ids(struct token_ids ids);
+
 #ifdef __cplusplus
 }
 #endif

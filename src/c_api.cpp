@@ -431,9 +431,24 @@ struct token_ids rwkvmobile_runtime_get_response_buffer_ids(rwkvmobile_runtime_t
     }
     auto rt = static_cast<class runtime *>(runtime);
     auto ids_vec = rt->get_response_buffer_ids();
-    ids.ids = ids_vec.data();
+    ids.ids = (int32_t *)malloc(ids_vec.size() * sizeof(int32_t));
+    if (ids.ids == nullptr) {
+        return ids;
+    }
+    for (int i = 0; i < ids_vec.size(); i++) {
+        ids.ids[i] = ids_vec[i];
+    }
     ids.len = ids_vec.size();
     return ids;
+}
+
+void rwkvmobile_runtime_free_token_ids(struct token_ids ids) {
+    if (ids.ids == nullptr) {
+        return;
+    }
+    free(ids.ids);
+    ids.ids = nullptr;
+    ids.len = 0;
 }
 
 } // extern "C"

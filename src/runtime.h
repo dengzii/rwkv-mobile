@@ -48,7 +48,7 @@ public:
     std::string get_prompt();
 
     const char * get_response_buffer_content() { return _response_buffer.c_str(); }
-    const std::vector<int> & get_response_buffer_ids() { return _response_buffer_ids; }
+    const std::vector<int32_t> get_response_buffer_ids() { return _response_buffer_ids; }
 #ifdef ENABLE_VISION
     int set_image_prompt(std::string path);
 #endif
@@ -254,7 +254,7 @@ private:
     std::map<int, float> _occurences;
 
     std::string _response_buffer;
-    std::vector<int> _response_buffer_ids;
+    std::vector<int32_t> _response_buffer_ids;
 
     void apply_logits_penalties(std::vector<float> &logits, float presence_penalty, float frequency_penalty, float penalty_decay);
 
