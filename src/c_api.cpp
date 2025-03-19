@@ -422,5 +422,19 @@ const char * rwkvmobile_runtime_get_response_buffer_content(rwkvmobile_runtime_t
     return rt->get_response_buffer_content();
 }
 
+struct token_ids rwkvmobile_runtime_get_response_buffer_ids(rwkvmobile_runtime_t runtime) {
+    struct token_ids ids;
+    ids.ids = nullptr;
+    ids.len = 0;
+    if (runtime == nullptr) {
+        return ids;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    auto ids_vec = rt->get_response_buffer_ids();
+    ids.ids = ids_vec.data();
+    ids.len = ids_vec.size();
+    return ids;
+}
+
 } // extern "C"
 } // namespace rwkvmobile

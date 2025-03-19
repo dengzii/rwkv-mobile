@@ -314,6 +314,7 @@ int runtime::chat(std::string input, const int max_length, void (*callback)(cons
     std::vector<float> logits(_vocab_size);
 
     _response_buffer = "";
+    _response_buffer_ids.clear();
     int ret = eval_logits(ids, logits);
     if (ret) {
         return ret;
@@ -329,6 +330,7 @@ int runtime::chat(std::string input, const int max_length, void (*callback)(cons
         _occurences[idx]++;
 
         _response_buffer += _tokenizer->decode(idx);
+        _response_buffer_ids.push_back(idx);
         if (callback) {
             callback(_response_buffer.c_str(), idx);
         }
@@ -402,6 +404,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
 
     std::vector<float> logits(_vocab_size);
     _response_buffer = "";
+    _response_buffer_ids.clear();
     int ret;
     for (int i = start_idx; i < (int)inputs.size(); i++) {
         std::string prompt;
@@ -419,6 +422,8 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             if (enable_reasoning) {
                 prompt += _response_role + ": " + _thinking_token;
                 _response_buffer += " " + _thinking_token;
+                auto tmp_ids = _tokenizer->encode(" " + _thinking_token);
+                _response_buffer_ids.insert(_response_buffer_ids.end(), tmp_ids.begin(), tmp_ids.end());
             } else {
                 prompt += _response_role + ":";
             }
@@ -472,6 +477,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         }
 
         _response_buffer += _tokenizer->decode(idx);
+        _response_buffer_ids.push_back(idx);
         if (i == 0 && _response_buffer[0] == ' ') {
             _response_buffer = _response_buffer.substr(1);
         }
@@ -655,6 +661,7 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
     }
 
     _response_buffer = prompt;
+    _response_buffer_ids = ids;
     for (int i = 0; i < max_length; i++) {
         apply_logits_penalties(logits, _presence_penalty, _frequency_penalty, _penalty_decay);
 
@@ -663,6 +670,7 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
 
         std::string next = _tokenizer->decode(idx);
         _response_buffer += next;
+        _response_buffer_ids.push_back(idx);
         ret = eval_logits(idx, logits);
         if (callback) {
             callback(_response_buffer.c_str(), idx);

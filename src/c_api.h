@@ -16,6 +16,11 @@ struct penalty_params {
     float penalty_decay;
 };
 
+struct token_ids {
+    int * ids;
+    int len;
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -91,6 +96,8 @@ int rwkvmobile_runtime_set_response_role(rwkvmobile_runtime_t runtime, const cha
 int rwkvmobile_runtime_set_thinking_token(rwkvmobile_runtime_t runtime, const char * thinking_token);
 
 const char * rwkvmobile_runtime_get_response_buffer_content(rwkvmobile_runtime_t runtime);
+
+struct token_ids rwkvmobile_runtime_get_response_buffer_ids(rwkvmobile_runtime_t runtime);
 
 #ifdef __cplusplus
 }
