@@ -148,6 +148,24 @@ int rwkvmobile_runtime_gen_completion(
     return RWKV_SUCCESS;
 }
 
+int rwkvmobile_runtime_gen_completion_blocking(
+    rwkvmobile_runtime_t handle,
+    const char * prompt,
+    const int max_tokens,
+    const int stop_code,
+    void (*callback)(const char *, const int)) {
+    if (handle == nullptr || prompt == nullptr || max_tokens <= 0 || callback == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+
+    auto rt = static_cast<class runtime *>(handle);
+    return rt->gen_completion(
+        std::string(prompt),
+        max_tokens,
+        stop_code,
+        callback);
+}
+
 int rwkvmobile_runtime_stop_generation(rwkvmobile_runtime_t runtime) {
     if (runtime == nullptr) {
         return RWKV_ERROR_INVALID_PARAMETERS;

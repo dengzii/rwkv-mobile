@@ -53,6 +53,8 @@ int rwkvmobile_runtime_get_prompt(rwkvmobile_runtime_t runtime, char * prompt, c
 
 int rwkvmobile_runtime_gen_completion(rwkvmobile_runtime_t runtime, const char * prompt, const int max_tokens, const int stop_code, void (*callback)(const char *, const int));
 
+int rwkvmobile_runtime_gen_completion_blocking(rwkvmobile_runtime_t runtime, const char * prompt, const int max_tokens, const int stop_code, void (*callback)(const char *, const int));
+
 int rwkvmobile_runtime_clear_state(rwkvmobile_runtime_t runtime);
 
 struct sampler_params rwkvmobile_runtime_get_sampler_params(rwkvmobile_runtime_t runtime);
