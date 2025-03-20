@@ -539,8 +539,6 @@ class Rwkv7Model(Model):
 
     def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:
         # unify tensor names here to make life easier
-        if name.startswith("blocks"):
-            name = name.replace("blocks", "model.blocks")
         name = name.replace("rwkv", "model").replace("blocks", "layers").replace("ffn", "feed_forward")
         name = name.replace("pre_ln", "pre_norm").replace("emb.weight", "embeddings.weight")
 
@@ -549,7 +547,7 @@ class Rwkv7Model(Model):
             # ignore them all since they are not used
             return
         
-        if "ln0" in name and "layers.0" not in name:
+        if "pre_norm" in name and "layers.0" not in name:
             return
 
         lerp_list = ["r", "w", "k", "v", "a", "g"]
