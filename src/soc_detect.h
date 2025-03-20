@@ -25,10 +25,10 @@ class soc_detect {
         const char * get_soc_name();
         const char * get_soc_partname();
     private:
-        platform_type platform_type = PLATFORM_UNKNOWN;
-        int soc_id = 0;
-        const char * soc_name = "Unknown";
-        const char * soc_partname = "Unknown";
+        platform_type m_platform_type = PLATFORM_UNKNOWN;
+        int m_soc_id = 0;
+        const char * m_soc_name = "Unknown";
+        const char * m_soc_partname = "Unknown";
 };
 
 } // namespace rwkvmobile

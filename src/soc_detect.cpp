@@ -41,22 +41,22 @@ int soc_detect::detect_platform() {
     }
 
     if (tmp == "Snapdragon") {
-        platform_type = PLATFORM_SNAPDRAGON;
+        m_platform_type = PLATFORM_SNAPDRAGON;
     } else {
-        platform_type = PLATFORM_UNKNOWN;
+        m_platform_type = PLATFORM_UNKNOWN;
     }
 
-    if (platform_type == PLATFORM_SNAPDRAGON) {
+    if (m_platform_type == PLATFORM_SNAPDRAGON) {
         std::ifstream file_soc_id("/sys/devices/soc0/soc_id");
         if (file_soc_id.is_open()) {
-            file_soc_id >> soc_id;
+            file_soc_id >> m_soc_id;
             file_soc_id.close();
         }
 
         for (int i = 0; i < sizeof(snapdragon_soc_ids) / sizeof(snapdragon_soc_ids[0]); i++) {
-            if (snapdragon_soc_ids[i].soc_id == soc_id) {
-                soc_name = snapdragon_soc_ids[i].soc_name;
-                soc_partname = snapdragon_soc_ids[i].soc_partname;
+            if (snapdragon_soc_ids[i].soc_id == m_soc_id) {
+                m_soc_name = snapdragon_soc_ids[i].soc_name;
+                m_soc_partname = snapdragon_soc_ids[i].soc_partname;
                 break;
             }
         }
@@ -66,19 +66,19 @@ int soc_detect::detect_platform() {
 }
 
 platform_type soc_detect::get_platform_type() {
-    return platform_type;
+    return m_platform_type; 
 }
 
 const char * soc_detect::get_platform_name() {
-    return platform_name[platform_type];
+    return platform_name[m_platform_type];
 }
 
 const char * soc_detect::get_soc_name() {
-    return soc_name;
+    return m_soc_name;
 }
 
 const char * soc_detect::get_soc_partname() {
-    return soc_partname;
+    return m_soc_partname;
 }
 
 } // namespace rwkvmobile
