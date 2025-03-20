@@ -234,9 +234,10 @@ int runtime::get_available_backend_ids(std::vector<int> &backend_ids) {
     backend_ids = std::vector<int>();
 
 #ifdef ENABLE_WEBRWKV
-    // TODO: Detect if the platform has Qualcomm Adreno proprietary vulkan driver
-    // (Doesn't work with WEBRWKV)
-    backend_ids.push_back(RWKV_BACKEND_WEBRWKV);
+    // Snapdragon platform doesn't support WebRWKV backend yet
+    if (_soc_detect.get_platform_type() != PLATFORM_SNAPDRAGON) {
+        backend_ids.push_back(RWKV_BACKEND_WEBRWKV);
+    }
 #endif
 
 #ifdef ENABLE_NCNN
@@ -248,8 +249,12 @@ int runtime::get_available_backend_ids(std::vector<int> &backend_ids) {
 #endif
 
 #ifdef ENABLE_QNN
-    // TODO: Detect
-    backend_ids.push_back(RWKV_BACKEND_QNN);
+    if (_soc_detect.get_platform_type() == PLATFORM_SNAPDRAGON) {
+        // TODO: Support more Qualcomm SoCs
+        if (_soc_detect.get_soc_name() == "8 Gen 3") {
+            backend_ids.push_back(RWKV_BACKEND_QNN);
+        }
+    }
 #endif
 
     return RWKV_SUCCESS;
