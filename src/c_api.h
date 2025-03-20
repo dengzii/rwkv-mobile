@@ -103,6 +103,13 @@ struct token_ids rwkvmobile_runtime_get_response_buffer_ids(rwkvmobile_runtime_t
 
 void rwkvmobile_runtime_free_token_ids(struct token_ids ids);
 
+// platform info
+const char * rwkvmobile_get_platform_name();
+
+const char * rwkvmobile_get_soc_name();
+
+const char * rwkvmobile_get_soc_partname();
+
 #ifdef __cplusplus
 }
 #endif

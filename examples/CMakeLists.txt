@@ -28,3 +28,6 @@ if (ENABLE_WHISPER)
     add_executable(test_whisper_encoder test_whisper_encoder.cpp ../src/c_api.cpp)
     target_link_libraries(test_whisper_encoder PUBLIC rwkv_mobile_internal)
 endif()
+
+add_executable(test_soc_detect test_soc_detect.cpp ../src/c_api.cpp)
+target_link_libraries(test_soc_detect PUBLIC rwkv_mobile_internal)

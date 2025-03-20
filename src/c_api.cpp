@@ -2,6 +2,7 @@
 #include "commondef.h"
 #include "c_api.h"
 #include "logger.h"
+#include "soc_detect.h"
 #include <cstring>
 #include <cstdlib>
 #include <thread>
@@ -467,6 +468,24 @@ void rwkvmobile_runtime_free_token_ids(struct token_ids ids) {
     free(ids.ids);
     ids.ids = nullptr;
     ids.len = 0;
+}
+
+const char * rwkvmobile_get_platform_name() {
+    soc_detect soc_detect;
+    soc_detect.detect_platform();
+    return soc_detect.get_platform_name();
+}
+
+const char * rwkvmobile_get_soc_name() {
+    soc_detect soc_detect;
+    soc_detect.detect_platform();
+    return soc_detect.get_soc_name();
+}
+
+const char * rwkvmobile_get_soc_partname() {
+    soc_detect soc_detect;
+    soc_detect.detect_platform();
+    return soc_detect.get_soc_partname();
 }
 
 } // extern "C"

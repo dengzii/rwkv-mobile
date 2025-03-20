@@ -32,6 +32,7 @@ set(RWKV_MOBILE_SRCS
     src/sampler.cpp
     src/tokenizer.cpp
     src/logger.cpp
+    src/soc_detect.cpp
 )
 
 if (ENABLE_WEBRWKV_BACKEND)

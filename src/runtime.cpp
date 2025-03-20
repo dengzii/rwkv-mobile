@@ -690,4 +690,30 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
     return RWKV_SUCCESS;
 }
 
+double runtime::get_avg_decode_speed() {
+    if (_decode_durations_ms.size() == 0) {
+        return 0.0;
+    } else {
+        double avg_time = 0.0;
+        for (auto duration : _decode_durations_ms) {
+            avg_time += duration;
+        }
+        avg_time /= _decode_durations_ms.size();
+        return 1000.0 / avg_time;
+    }
+}
+
+double runtime::get_avg_prefill_speed() {
+    if (_prefill_durations_ms.size() == 0) {
+        return 0.0;
+    } else {
+        double avg_time = 0.0;
+        for (auto duration : _prefill_durations_ms) {
+            avg_time += duration;
+        }
+        avg_time /= _prefill_durations_ms.size();
+        return 1000.0 / avg_time;
+    }
+}
+
 } // namespace rwkvmobile

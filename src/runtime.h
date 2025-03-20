@@ -8,6 +8,7 @@
 #include "backend.h"
 #include "tokenizer.h"
 #include "sampler.h"
+#include "soc_detect.h"
 
 #include "logger.h"
 
@@ -23,7 +24,9 @@ namespace rwkvmobile {
 
 class runtime {
 public:
-    runtime() {};
+    runtime() {
+        _soc_detect.detect_platform();
+    };
     ~runtime() {};
     int init(std::string backend_name);
     int init(int backend_id);
@@ -152,12 +155,35 @@ public:
     inline float get_penalty_decay() { return _penalty_decay; }
 
     inline bool is_generating() { return _is_generating; }
-    void set_is_generating(bool is_generating) {
-        _is_generating = is_generating;
-    }
+    inline void set_is_generating(bool is_generating) { _is_generating = is_generating; }
 
     std::string get_available_backends_str();
     int get_available_backend_ids(std::vector<int> &backend_ids);
+
+    double get_avg_decode_speed();
+    double get_avg_prefill_speed();
+
+    // for state management
+    struct state_node {
+        std::any state;
+        unsigned long long hash = 0;
+        struct state_node * next = nullptr;
+    } * _state_head = nullptr;
+
+    // platform info
+    const char * get_platform_name() {
+        return _soc_detect.get_platform_name();
+    }
+
+    const char * get_soc_name() {
+        return _soc_detect.get_soc_name();
+    }
+
+    const char * get_soc_partname() {
+        return _soc_detect.get_soc_partname();
+    }
+
+    // backend
     std::string backend_id_to_str(int backend_id) {
         return backend_enum_to_str(backend_id);
     }
@@ -165,6 +191,7 @@ public:
         return backend_str_to_enum(backend_str);
     }
 
+    // tokenizer
     std::vector<int> tokenizer_encode(std::string text) {
         if (_tokenizer == nullptr) {
             return {};
@@ -186,49 +213,19 @@ public:
         return _tokenizer->decode(id);
     }
 
+    // sampler
     int sampler_sample(std::vector<float> logits) {
         if (_sampler == nullptr) {
             return -1;
         }
         return _sampler->sample(logits.data(), logits.size(), _temperature, _top_k, _top_p);
     }
-
-    double get_avg_decode_speed() {
-        if (_decode_durations_ms.size() == 0) {
-            return 0.0;
-        } else {
-            double avg_time = 0.0;
-            for (auto duration : _decode_durations_ms) {
-                avg_time += duration;
-            }
-            avg_time /= _decode_durations_ms.size();
-            return 1000.0 / avg_time;
-        }
-    }
-
-    double get_avg_prefill_speed() {
-        if (_prefill_durations_ms.size() == 0) {
-            return 0.0;
-        } else {
-            double avg_time = 0.0;
-            for (auto duration : _prefill_durations_ms) {
-                avg_time += duration;
-            }
-            avg_time /= _prefill_durations_ms.size();
-            return 1000.0 / avg_time;
-        }
-    }
-
-    struct state_node {
-        std::any state;
-        unsigned long long hash = 0;
-        struct state_node * next = nullptr;
-    } * _state_head = nullptr;
-
 private:
     std::unique_ptr<execution_provider, std::function<void(execution_provider*)>> _backend;
     std::unique_ptr<tokenizer_base, std::function<void(tokenizer_base*)>> _tokenizer;
     std::unique_ptr<sampler> _sampler;
+
+    soc_detect _soc_detect;
 
     int _vocab_size = 0;
 
