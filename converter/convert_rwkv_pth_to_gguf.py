@@ -548,6 +548,9 @@ class Rwkv7Model(Model):
             # some models have dummy v0/v1/v2 on first layer while others don't
             # ignore them all since they are not used
             return
+        
+        if "ln0" in name and "layers.0" not in name:
+            return
 
         lerp_list = ["r", "w", "k", "v", "a", "g"]
 
