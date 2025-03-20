@@ -539,8 +539,10 @@ class Rwkv7Model(Model):
 
     def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:
         # unify tensor names here to make life easier
+        if name.startswith("blocks"):
+            name = name.replace("blocks", "model.blocks")
         name = name.replace("rwkv", "model").replace("blocks", "layers").replace("ffn", "feed_forward")
-        name = name.replace("pre_ln", "pre_norm")
+        name = name.replace("pre_ln", "pre_norm").replace("emb.weight", "embeddings.weight")
 
         if "attention.v" in name and "value" not in self.map_tensor_name(name) and bid == 0:
             # some models have dummy v0/v1/v2 on first layer while others don't
