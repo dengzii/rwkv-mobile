@@ -409,6 +409,8 @@ class Model:
         special_vocab = gguf.SpecialVocab(self.model_path, load_merges=False)
         special_vocab.chat_template = "rwkv-world"
         # hack: Add '\n\n' as the EOT token to make it chat normally
+        special_vocab._set_special_token("eos", 0)
+        special_vocab._set_special_token("bos", 0)
         special_vocab._set_special_token("eot", 261)
         special_vocab.add_to_gguf(self.gguf_writer)
 
