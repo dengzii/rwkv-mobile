@@ -128,6 +128,8 @@ public:
     std::string get_bos_token() { return _bos_token; }
     std::string get_eos_token() { return _eos_token; }
 
+    int get_vocab_size() { return _vocab_size; }
+
     inline std::vector<std::string> get_stop_codes() { return _stop_codes; }
     inline void set_stop_codes(std::vector<std::string> stop_codes) { _stop_codes = stop_codes; }
     inline std::vector<int> get_token_banned() { return _token_banned; }
