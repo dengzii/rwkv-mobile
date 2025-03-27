@@ -635,8 +635,15 @@ int runtime::set_audio_prompt(std::string path) {
         samples_f32[i] = static_cast<float>(samples[i]) / 32768.0f;
     }
 
+    auto start = std::chrono::high_resolution_clock::now();
     whisper_pcm_to_mel(_whisper_encoder.get(), samples_f32.data(), samples_f32.size(), 4);
+    auto end = std::chrono::high_resolution_clock::now();
+    LOGI("whisper_pcm_to_mel time: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+
+    start = std::chrono::high_resolution_clock::now();
     whisper_encode(_whisper_encoder.get(), 0, 4);
+    end = std::chrono::high_resolution_clock::now();
+    LOGI("whisper_encode time: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
     std::vector<float> logits(_vocab_size);
 

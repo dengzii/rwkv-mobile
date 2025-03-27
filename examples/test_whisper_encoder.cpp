@@ -10,10 +10,6 @@
 
 #define ENSURE_SUCCESS_OR_LOG_EXIT(x, msg) if (x != rwkvmobile::RWKV_SUCCESS) { std::cout << msg << std::endl; return 1; }
 
-void callback(const char *msg, const int) {
-    std::cout << msg;
-}
-
 int main(int argc, char **argv) {
     // set stdout to be unbuffered
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -33,11 +29,13 @@ int main(int argc, char **argv) {
 
     rwkvmobile_runtime_set_audio_prompt(runtime, argv[4]);
 
-    rwkvmobile_runtime_eval_chat(runtime, "", 100, callback, 0);
+    rwkvmobile_runtime_eval_chat(runtime, "", 100, nullptr, 0);
 
     while (rwkvmobile_runtime_is_generating(runtime)) {
         sleep(1);
     }
+
+    std::cout << rwkvmobile_runtime_get_response_buffer_content(runtime) << std::endl;
 
     rwkvmobile_runtime_release_whisper_encoder(runtime);
 
