@@ -13,15 +13,20 @@ const char * platform_name[] = {
 };
 
 snapdragon_soc_id snapdragon_soc_ids[] = {
+    {475, "SM7325", "778"},
+    {439, "SM8350", "888"},
     {457, "SM8450", "8 Gen 1"},
     {480, "SM8450_2", "8 Gen 1"},
     {482, "SM8450_3", "8 Gen 1"},
+    {497, "QCM6490", "QCM6490"},
+    {498, "QCS6490", "QCS6490"},
     {530, "SM8475", "8+ Gen 1"},
     {531, "SM8475P", "8+ Gen 1"},
     {540, "SM8475_2", "8+ Gen 1"},
     {519, "SM8550", "8 Gen 2"},
     {557, "SM8650", "8 Gen 3"},
     {614, "SM8635", "8s Gen 3"},
+    {618, "SM8750", "8 Elite"}
     // TODO: add more
 };
 
