@@ -21,8 +21,8 @@ snapdragon_soc_id snapdragon_soc_ids[] = {
     {540, "SM8475_2", "8+ Gen 1"},
     {519, "SM8550", "8 Gen 2"},
     {557, "SM8650", "8 Gen 3"},
+    {614, "SM8635", "8s Gen 3"},
     // TODO: add more
-    // TODO: find socid for 8s Gen3
 };
 
 soc_detect::soc_detect() {
