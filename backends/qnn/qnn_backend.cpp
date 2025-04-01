@@ -33,7 +33,7 @@
 #endif
 
 
-#define DEFAULT_QNN_LOGLEVEL QNN_LOG_LEVEL_INFO
+#define DEFAULT_QNN_LOGLEVEL QNN_LOG_LEVEL_ERROR
 
 namespace rwkvmobile {
 
@@ -1009,26 +1009,24 @@ int qnn_backend::release_model() {
     freeGraphsInfo(&qnnPrefillGraphsInfo, qnnPrefillGraphsCount);
     qnnPrefillGraphsInfo = nullptr;
 
-    // TODO: Why are these qnn release functions crashing?
+    if (QNN_CONTEXT_NO_ERROR !=
+        qnnFunctionPointers.qnnInterface.contextFree(qnnContextHandles[0], nullptr)) {
+        LOGE("Could not free context");
+    }
 
-    // if (QNN_CONTEXT_NO_ERROR !=
-    //     qnnFunctionPointers.qnnInterface.contextFree(qnnContextHandles[0], nullptr)) {
-    //     LOGE("Could not free context");
-    // }
+    qnn_destory_power_config_id();
 
-    // qnn_destory_power_config_id();
+    if (nullptr != qnnFunctionPointers.qnnInterface.propertyHasCapability) {
+        auto qnnDevicePropertyStatus = qnnFunctionPointers.qnnInterface.propertyHasCapability(QNN_PROPERTY_GROUP_DEVICE);
+        if (QNN_PROPERTY_NOT_SUPPORTED == qnnDevicePropertyStatus) {
+            LOGW("Device property is not supported");
+        }
 
-    // if (nullptr != qnnFunctionPointers.qnnInterface.propertyHasCapability) {
-    //     auto qnnDevicePropertyStatus = qnnFunctionPointers.qnnInterface.propertyHasCapability(QNN_PROPERTY_GROUP_DEVICE);
-    //     if (QNN_PROPERTY_NOT_SUPPORTED == qnnDevicePropertyStatus) {
-    //         LOGW("Device property is not supported");
-    //     }
-
-    //     auto qnnStatus = qnnFunctionPointers.qnnInterface.deviceFree(qnnDeviceHandle);
-    //     if (QNN_SUCCESS != qnnStatus && QNN_DEVICE_ERROR_UNSUPPORTED_FEATURE != qnnStatus) {
-    //         LOGE("Failed to free device");
-    //     }
-    // }
+        auto qnnStatus = qnnFunctionPointers.qnnInterface.deviceFree(qnnDeviceHandle);
+        if (QNN_SUCCESS != qnnStatus && QNN_DEVICE_ERROR_UNSUPPORTED_FEATURE != qnnStatus) {
+            LOGE("Failed to free device");
+        }
+    }
 
     if (qnnBackendLibraryHandle)
         pal::dynamicloading::dlClose(qnnBackendLibraryHandle);
@@ -1041,17 +1039,17 @@ int qnn_backend::release_model() {
     }
     delete graphConfigsInfo;
 
-    // if ((nullptr != qnnBackendHandle && nullptr != qnnFunctionPointers.qnnInterface.backendFree) &&
-    //     QNN_BACKEND_NO_ERROR != qnnFunctionPointers.qnnInterface.backendFree(qnnBackendHandle)) {
-    //     LOGE("Could not terminate QNN backend");
-    // }
-    // qnnBackendHandle = nullptr;
+    if ((nullptr != qnnBackendHandle && nullptr != qnnFunctionPointers.qnnInterface.backendFree) &&
+        QNN_BACKEND_NO_ERROR != qnnFunctionPointers.qnnInterface.backendFree(qnnBackendHandle)) {
+        LOGE("Could not terminate QNN backend");
+    }
+    qnnBackendHandle = nullptr;
 
-    // if (nullptr != qnnFunctionPointers.qnnInterface.logFree && nullptr != qnnLogHandle) {
-    //     if (QNN_SUCCESS != qnnFunctionPointers.qnnInterface.logFree(qnnLogHandle)) {
-    //         LOGW("Unable to terminate logging in the backend.");
-    //     }
-    // }
+    if (nullptr != qnnFunctionPointers.qnnInterface.logFree && nullptr != qnnLogHandle) {
+        if (QNN_SUCCESS != qnnFunctionPointers.qnnInterface.logFree(qnnLogHandle)) {
+            LOGW("Unable to terminate logging in the backend.");
+        }
+    }
 
     return RWKV_SUCCESS;
 }
