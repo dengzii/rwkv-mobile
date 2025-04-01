@@ -666,7 +666,13 @@ int qnn_backend::qnn_initialize_tensors() {
                     dims.push_back(*(QNN_TENSOR_GET_DIMENSIONS(outputTensors[graph_id][i]) + j));
                 }
                 void *buffer = qnnIOTensorUtils.getBuffer(&outputTensors[graph_id][i]);
-                if (QNN_TENSOR_GET_DATA_TYPE(outputTensors[graph_id][i]) == QNN_DATATYPE_FLOAT_16)
+                auto tensorName = std::string(QNN_TENSOR_GET_NAME(outputTensors[graph_id][i]));
+                int state_num = 0;
+                if (tensorName.find("state") != std::string::npos) {
+                    tensorName = std::stoi(tensorName.substr(0, tensorName.find("_")).substr(5));
+                }
+
+                if (state_num % 3 == 1 || QNN_TENSOR_GET_DATA_TYPE(outputTensors[graph_id][i]) == QNN_DATATYPE_FLOAT_16)
                     memset(buffer, 0, datautil::calculateElementCount(dims) * sizeof(uint16_t));
                 else if (QNN_TENSOR_GET_DATA_TYPE(outputTensors[graph_id][i]) == QNN_DATATYPE_FLOAT_32)
                     memset(buffer, 0, datautil::calculateElementCount(dims) * sizeof(float));
@@ -903,7 +909,13 @@ int qnn_backend::clear_state() {
                 element_count *= *(QNN_TENSOR_GET_DIMENSIONS(outputTensors[graph_id][i]) + j);
             }
             void *buffer = qnnIOTensorUtils.getBuffer(&outputTensors[graph_id][i]);
-            if (QNN_TENSOR_GET_DATA_TYPE(outputTensors[graph_id][i]) == QNN_DATATYPE_FLOAT_16)
+            auto tensorName = std::string(QNN_TENSOR_GET_NAME(outputTensors[graph_id][i]));
+            int state_num = 0;
+            if (tensorName.find("state") != std::string::npos) {
+                tensorName = std::stoi(tensorName.substr(0, tensorName.find("_")).substr(5));
+            }
+
+            if (state_num % 3 == 1 || QNN_TENSOR_GET_DATA_TYPE(outputTensors[graph_id][i]) == QNN_DATATYPE_FLOAT_16)
                 memset(buffer, 0, element_count * sizeof(uint16_t));
             else if (QNN_TENSOR_GET_DATA_TYPE(outputTensors[graph_id][i]) == QNN_DATATYPE_FLOAT_32)
                 memset(buffer, 0, element_count * sizeof(float));
