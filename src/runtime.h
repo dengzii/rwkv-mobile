@@ -259,8 +259,8 @@ private:
 
     unsigned long long hash_string(std::string str) {
         unsigned long long hash = 0, p = 13131;
-        for (auto c : str) {
-            hash = hash * p + c;
+        for (size_t i = 0; i < str.size(); i++) {
+            hash = hash * p + str[i];
         }
         return hash;
     }

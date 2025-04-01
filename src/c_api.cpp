@@ -455,7 +455,7 @@ void rwkvmobile_runtime_free_response_buffer(struct response_buffer buffer) {
     if (buffer.content == nullptr) {
         return;
     }
-    free(buffer.content);
+    free((void *)buffer.content);
 }
 
 struct token_ids rwkvmobile_runtime_get_response_buffer_ids(rwkvmobile_runtime_t runtime) {

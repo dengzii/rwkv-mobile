@@ -44,8 +44,14 @@ static void logCallback(const char* fmt,
     QnnLog_Level_t level,
     uint64_t timestamp,
     va_list argp) {
+    char buffer[1024];
 
     // TODO
+    try {
+        vsnprintf(buffer, sizeof(buffer), fmt, argp);
+        LOGI("QNN Log: %s", buffer);
+    } catch (const std::exception& e) {
+    }
 
     return; // buggy
 }
@@ -771,6 +777,7 @@ int qnn_backend::qnn_initialize_tensors() {
 
 int qnn_backend::eval(int id, std::vector<float> &logits) {
     if (!isTensorInitialized) {
+        LOGD("qnn_backend::eval() isTensorInitialized: %d", isTensorInitialized);
         return RWKV_ERROR_EVAL;
     }
     int *token_input = (int*)qnnIOTensorUtils.getBuffer(&inputTensors[0][0]);
@@ -827,10 +834,13 @@ int qnn_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
     } else {
         int *token_input = (int*)qnnIOTensorUtils.getBuffer(&inputTensorsPrefill[0][0]);
         int idx = 0;
+// temporarily disable prefilling
+#if 0
         for (; (idx + prefillSequenceLength) < ids.size(); idx += prefillSequenceLength) {
             for (int i = 0; i < prefillSequenceLength; i++) {
                 *token_input = ids[idx + i];
             }
+            LOGI("Prefilling using seq mode from %d to %d", idx, idx + prefillSequenceLength);
 
             for (int graph_id = 0; graph_id < qnnPrefillGraphsCount; graph_id++) {
                 auto graphInfo     = (*qnnPrefillGraphsInfo)[graph_id];
@@ -848,10 +858,11 @@ int qnn_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
                 }
             }
         }
+#endif
         for (; idx < ids.size(); idx++) {
             token_input = (int*)qnnIOTensorUtils.getBuffer(&inputTensors[0][0]);
             *token_input = ids[idx];
-
+            LOGI("Prefilling using decode mode at %d", idx);
             for (int graph_id = 0; graph_id < qnnDecodeGraphsCount; graph_id++) {
                 auto graphInfo     = (*qnnDecodeGraphsInfo)[graph_id];
                 auto executeStatus =
