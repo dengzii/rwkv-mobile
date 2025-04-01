@@ -13,20 +13,20 @@ const char * platform_name[] = {
 };
 
 snapdragon_soc_id snapdragon_soc_ids[] = {
-    {475, "SM7325", "778"},
-    {439, "SM8350", "888"},
-    {457, "SM8450", "8 Gen 1"},
-    {480, "SM8450_2", "8 Gen 1"},
-    {482, "SM8450_3", "8 Gen 1"},
-    {497, "QCM6490", "QCM6490"},
-    {498, "QCS6490", "QCS6490"},
-    {530, "SM8475", "8+ Gen 1"},
-    {531, "SM8475P", "8+ Gen 1"},
-    {540, "SM8475_2", "8+ Gen 1"},
-    {519, "SM8550", "8 Gen 2"},
-    {557, "SM8650", "8 Gen 3"},
-    {614, "SM8635", "8s Gen 3"},
-    {618, "SM8750", "8 Elite"}
+    {475, "SM7325", "778", "v68"},
+    {439, "SM8350", "888", "v68"},
+    {457, "SM8450", "8 Gen 1", "v69"},
+    {480, "SM8450_2", "8 Gen 1", "v69"},
+    {482, "SM8450_3", "8 Gen 1", "v69"},
+    {497, "QCM6490", "QCM6490", "v68"},
+    {498, "QCS6490", "QCS6490", "v68"},
+    {530, "SM8475", "8+ Gen 1", "v69"},
+    {531, "SM8475P", "8+ Gen 1", "v69"},
+    {540, "SM8475_2", "8+ Gen 1", "v69"},
+    {519, "SM8550", "8 Gen 2", "v73"},
+    {557, "SM8650", "8 Gen 3", "v75"},
+    {614, "SM8635", "8s Gen 3", "v73"},
+    {618, "SM8750", "8 Elite", "v79"}
     // TODO: add more
 };
 
@@ -62,6 +62,7 @@ int soc_detect::detect_platform() {
             if (snapdragon_soc_ids[i].soc_id == m_soc_id) {
                 m_soc_name = snapdragon_soc_ids[i].soc_name;
                 m_soc_partname = snapdragon_soc_ids[i].soc_partname;
+                m_htp_arch = snapdragon_soc_ids[i].htp_arch;
                 break;
             }
         }
@@ -84,6 +85,10 @@ const char * soc_detect::get_soc_name() {
 
 const char * soc_detect::get_soc_partname() {
     return m_soc_partname;
+}
+
+const char * soc_detect::get_htp_arch() {
+    return m_htp_arch;
 }
 
 } // namespace rwkvmobile

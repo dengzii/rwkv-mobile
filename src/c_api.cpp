@@ -488,5 +488,11 @@ const char * rwkvmobile_get_soc_partname() {
     return soc_detect.get_soc_partname();
 }
 
+const char * rwkvmobile_get_htp_arch() {
+    soc_detect soc_detect;
+    soc_detect.detect_platform();
+    return soc_detect.get_htp_arch();
+}
+
 } // extern "C"
 } // namespace rwkvmobile

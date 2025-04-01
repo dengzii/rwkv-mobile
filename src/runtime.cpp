@@ -250,8 +250,8 @@ int runtime::get_available_backend_ids(std::vector<int> &backend_ids) {
 
 #ifdef ENABLE_QNN
     if (_soc_detect.get_platform_type() == PLATFORM_SNAPDRAGON) {
-        // TODO: Support more Qualcomm SoCs
-        if (_soc_detect.get_soc_name() == "8 Gen 3") {
+        auto supported_soc_names = std::vector<std::string>{"SM8650", "SM8635", "SM8550", "SM8475"};
+        if (std::find(supported_soc_names.begin(), supported_soc_names.end(), _soc_detect.get_soc_partname()) != supported_soc_names.end()) {
             backend_ids.push_back(RWKV_BACKEND_QNN);
         }
     }

@@ -17,6 +17,7 @@
 #include <QnnContext.h>
 #include "qnn_backend.h"
 #include "commondef.h"
+#include "soc_detect.h"
 #endif
 
 #include "logger.h"
@@ -203,16 +204,30 @@ int qnn_backend::load_model(std::string model_path) {
 #ifdef WIN32
         // TODO
 #else
+        soc_detect soc_detect;
+        soc_detect.detect_platform();
+        std::string htp_arch = soc_detect.get_htp_arch();
+        std::string custom_op_name = "libQnnRwkvWkvOpPackage.so";
+        if (htp_arch == "v75") {
+            custom_op_name = "libQnnRwkvWkvOpPackageV75.so";
+        } else if (htp_arch == "v73") {
+            custom_op_name = "libQnnRwkvWkvOpPackageV73.so";
+        } else if (htp_arch == "v69") {
+            custom_op_name = "libQnnRwkvWkvOpPackageV69.so";
+        } else if (htp_arch == "v68") {
+            custom_op_name = "libQnnRwkvWkvOpPackageV68.so";
+        }
+
         const char* ldLibraryPath = getenv("LD_LIBRARY_PATH");
         if (ldLibraryPath) {
             std::string pathStr(ldLibraryPath);
             std::stringstream ss(pathStr);
             std::string dir;
             while (std::getline(ss, dir, ':')) {
-                std::string fullPath = dir + "/libQnnRwkvWkvOpPackage.so";
+                std::string fullPath = dir + "/" + custom_op_name;
                 std::ifstream file(fullPath);
                 if (file.good()) {
-                    LOGI("Found libQnnRwkvWkvOpPackage.so in LD_LIBRARY_PATH: %s", fullPath.c_str());
+                    LOGI("Found %s in LD_LIBRARY_PATH: %s", custom_op_name.c_str(), fullPath.c_str());
                     if (RWKV_SUCCESS != qnn_register_op_package(fullPath, "RwkvWkvOpPackageInterfaceProvider")) {
                         LOGE("Op package registration failed");
                     }

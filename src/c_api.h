@@ -110,6 +110,8 @@ const char * rwkvmobile_get_soc_name();
 
 const char * rwkvmobile_get_soc_partname();
 
+const char * rwkvmobile_get_htp_arch();
+
 #ifdef __cplusplus
 }
 #endif
