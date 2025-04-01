@@ -22,8 +22,8 @@ struct token_ids {
 };
 
 struct response_buffer {
-    const char * content;
-    const int length;
+    char * content;
+    int length;
 };
 
 #ifdef __cplusplus

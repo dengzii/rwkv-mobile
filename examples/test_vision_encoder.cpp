@@ -32,7 +32,9 @@ int main(int argc, char **argv) {
         sleep(1);
     }
 
-    std::cout << rwkvmobile_runtime_get_response_buffer_content(runtime) << std::endl;
+    struct response_buffer buffer = rwkvmobile_runtime_get_response_buffer_content(runtime);
+    std::cout << buffer.content << std::endl;
+    rwkvmobile_runtime_free_response_buffer(buffer);
 
     rwkvmobile_runtime_release_vision_encoder(runtime);
 
