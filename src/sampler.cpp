@@ -14,64 +14,56 @@ int sampler::sample(const float* logits, const size_t size, float temperature, i
     if (top_k == 1 || fabs(top_p - 0.f) < 1e-4)
         return std::max_element(logits, logits + size) - logits;
 
-    // softmax
-    float sum = 0;
-    int *index = new int[size];
-    float *probs = new float[size];
-
-    const float max_logit = *std::max_element(logits, logits + size);
-
+    if (index_buffer.size() != size) {
+        index_buffer.resize(size);
+    }
     for (int i = 0; i < size; i++) {
-        probs[i] = std::exp(logits[i] - max_logit);
-        sum += probs[i];
-        index[i] = i;
+        index_buffer[i] = i;
     }
 
     if (top_k != size)
-        std::nth_element(index, index + top_k,
-                index + size,
-                [&](int i, int j) { return probs[i] > probs[j]; });
-    std::sort(index, index + top_k,
-            [&](int i, int j) { return probs[i] > probs[j]; });
+        std::nth_element(index_buffer.begin(), index_buffer.begin() + top_k,
+                index_buffer.end(),
+                [&](int i, int j) { return logits[i] > logits[j]; });
+    std::sort(index_buffer.begin(), index_buffer.begin() + top_k,
+            [&](int i, int j) { return logits[i] > logits[j]; });
 
     int len = top_k;
+    if (probs_buffer.size() != len) {
+        probs_buffer.resize(len);
+    }
+
+    // softmax
+    float sum = 0;
+    for (int i = 0; i < len; i++) {
+        probs_buffer[i] = std::exp(logits[index_buffer[i]] / temperature);
+        sum += probs_buffer[i];
+    }
 
     // top-p
     float cumsum = 0;
     for (int i = 0; i < len; i++) {
-        probs[index[i]] /= sum;
-        cumsum += probs[index[i]];
+        probs_buffer[i] /= sum;
+        cumsum += probs_buffer[i];
         if (cumsum >= top_p) {
             len = i + 1;
             break;
         }
     }
 
-    // temperature
-    if (fabs(temperature - 1.f) > 1e-6) {
-        cumsum = 0;
-        for (int i = 0; i < len; i++) {
-            probs[index[i]] = std::pow(probs[index[i]], 1.f / temperature);
-            cumsum += probs[index[i]];
-        }
-    }
-
     // random choice
-    float random_value = 1. * (_generator() - _generator.min()) /
-                        (_generator.max() - _generator.min()) * cumsum;
+    float random_value = cumsum * (_generator() - _generator.min()) /
+                        (_generator.max() - _generator.min());
     
     int ret = -1;
     cumsum = 0;
     for (int i = 0; i < len; i++) {
-        cumsum += probs[index[i]];
+        cumsum += probs_buffer[i];
         if (cumsum >= random_value) {
-            ret = index[i];
+            ret = index_buffer[i];
             break;
         }
     }
-    
-    delete[] index;
-    delete[] probs;
     return ret;
 }
 

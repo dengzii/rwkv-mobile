@@ -16,6 +16,9 @@ public:
     void set_seed(int seed);
 private:
     std::minstd_rand0 _generator;
+
+    std::vector<float> probs_buffer;
+    std::vector<int> index_buffer;
 };
 
 }

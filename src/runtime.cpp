@@ -467,7 +467,8 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             break;
         }
 
-        std::string tmp = _response_buffer + _tokenizer->decode(idx);
+        std::string decoded = _tokenizer->decode(idx);
+        std::string tmp = _response_buffer + decoded;
         bool stopping = false;
         for (auto &stop_code : _stop_codes) {
             if (tmp.size() >= stop_code.size() &&
@@ -481,8 +482,8 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             break;
         }
 
-        _response_buffer += _tokenizer->decode(idx);
-        _response_buffer_ids.push_back(idx);
+        _response_buffer += decoded;
+        _response_buffer_ids.emplace_back(idx);
         if (i == 0 && _response_buffer[0] == ' ') {
             _response_buffer = _response_buffer.substr(1);
         }
