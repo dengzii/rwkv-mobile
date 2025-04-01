@@ -433,12 +433,29 @@ int rwkvmobile_runtime_set_thinking_token(rwkvmobile_runtime_t runtime, const ch
     return RWKV_SUCCESS;
 }
 
-const char * rwkvmobile_runtime_get_response_buffer_content(rwkvmobile_runtime_t runtime) {
+struct response_buffer rwkvmobile_runtime_get_response_buffer_content(rwkvmobile_runtime_t runtime) {
+    struct response_buffer buffer;
+    buffer.content = nullptr;
+    buffer.length = 0;
     if (runtime == nullptr) {
-        return nullptr;
+        return buffer;
     }
     auto rt = static_cast<class runtime *>(runtime);
-    return rt->get_response_buffer_content();
+    std::string content = rt->get_response_buffer_content();
+    buffer.length = content.size();
+    buffer.content = (char *)malloc(buffer.length * sizeof(char));
+    if (buffer.content == nullptr) {
+        return buffer;
+    }
+    strncpy(buffer.content, content.c_str(), buffer.length);
+    return buffer;
+}
+
+void rwkvmobile_runtime_free_response_buffer(struct response_buffer buffer) {
+    if (buffer.content == nullptr) {
+        return;
+    }
+    free(buffer.content);
 }
 
 struct token_ids rwkvmobile_runtime_get_response_buffer_ids(rwkvmobile_runtime_t runtime) {
@@ -466,8 +483,6 @@ void rwkvmobile_runtime_free_token_ids(struct token_ids ids) {
         return;
     }
     free(ids.ids);
-    ids.ids = nullptr;
-    ids.len = 0;
 }
 
 const char * rwkvmobile_get_platform_name() {

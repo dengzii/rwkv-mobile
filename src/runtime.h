@@ -50,7 +50,7 @@ public:
     int set_prompt(std::string prompt);
     std::string get_prompt();
 
-    const char * get_response_buffer_content() { return _response_buffer.c_str(); }
+    std::string get_response_buffer_content() { return _response_buffer; }
     const std::vector<int32_t> get_response_buffer_ids() { return _response_buffer_ids; }
 #ifdef ENABLE_VISION
     int set_image_prompt(std::string path);

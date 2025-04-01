@@ -21,6 +21,11 @@ struct token_ids {
     int len;
 };
 
+struct response_buffer {
+    const char * content;
+    const int length;
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -97,7 +102,9 @@ int rwkvmobile_runtime_set_response_role(rwkvmobile_runtime_t runtime, const cha
 
 int rwkvmobile_runtime_set_thinking_token(rwkvmobile_runtime_t runtime, const char * thinking_token);
 
-const char * rwkvmobile_runtime_get_response_buffer_content(rwkvmobile_runtime_t runtime);
+struct response_buffer rwkvmobile_runtime_get_response_buffer_content(rwkvmobile_runtime_t runtime);
+
+void rwkvmobile_runtime_free_response_buffer(struct response_buffer buffer);
 
 struct token_ids rwkvmobile_runtime_get_response_buffer_ids(rwkvmobile_runtime_t runtime);
 
