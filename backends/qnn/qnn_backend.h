@@ -74,6 +74,8 @@ private:
     int qnn_initialize_tensors();
 
     void fill_quantized_tensor(float value, Qnn_Tensor_t *tensor);
+
+    std::vector<float> logits_buffer;
 };
 
 }

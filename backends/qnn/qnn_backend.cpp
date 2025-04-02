@@ -775,7 +775,7 @@ int qnn_backend::qnn_initialize_tensors() {
     return RWKV_SUCCESS;
 }
 
-int qnn_backend::eval(int id, std::vector<float> &logits) {
+int qnn_backend::eval(int id, float *& logits) {
     if (!isTensorInitialized) {
         LOGD("qnn_backend::eval() isTensorInitialized: %d", isTensorInitialized);
         return RWKV_ERROR_EVAL;
@@ -800,21 +800,22 @@ int qnn_backend::eval(int id, std::vector<float> &logits) {
     }
 
     // copy logits
-    if (logits.empty()) logits = std::vector<float>(vocab_size);
+    if (logits_buffer.empty()) logits_buffer.resize(vocab_size);
 
     if (QNN_TENSOR_GET_DATA_TYPE(logitsOutputTensor) == QNN_DATATYPE_FLOAT_32) {
-        float *ptr = (float*)QNN_TENSOR_GET_CLIENT_BUF(logitsOutputTensor).data;
-        logits = std::vector<float>(ptr, ptr + vocab_size);
+        logits = (float*)QNN_TENSOR_GET_CLIENT_BUF(logitsOutputTensor).data;
     } else if (QNN_TENSOR_GET_DATA_TYPE(logitsOutputTensor) == QNN_DATATYPE_FLOAT_16) {
         half_float::half *ptr = (half_float::half*)QNN_TENSOR_GET_CLIENT_BUF(logitsOutputTensor).data;
         for (int i = 0; i < vocab_size; i++) {
-            logits[i] = ptr[i];
+            logits_buffer[i] = ptr[i];
         }
+        logits = logits_buffer.data();
     } else if (QNN_TENSOR_GET_DATA_TYPE(logitsOutputTensor) == QNN_DATATYPE_UFIXED_POINT_16) {
-        datautil::tfNToFloat<uint16_t>(logits.data(), reinterpret_cast<uint16_t*>(QNN_TENSOR_GET_CLIENT_BUF(logitsOutputTensor).data),
+        datautil::tfNToFloat<uint16_t>(logits_buffer.data(), reinterpret_cast<uint16_t*>(QNN_TENSOR_GET_CLIENT_BUF(logitsOutputTensor).data),
             QNN_TENSOR_GET_QUANT_PARAMS(logitsOutputTensor).scaleOffsetEncoding.offset,
             QNN_TENSOR_GET_QUANT_PARAMS(logitsOutputTensor).scaleOffsetEncoding.scale,
             vocab_size);
+        logits = logits_buffer.data();
     } else {
         LOGE("Unsupported data type");
         return RWKV_ERROR_IO;
@@ -823,7 +824,7 @@ int qnn_backend::eval(int id, std::vector<float> &logits) {
     return RWKV_SUCCESS;
 }
 
-int qnn_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
+int qnn_backend::eval(std::vector<int> ids, float *& logits) {
     if (ids.empty()) return RWKV_ERROR_EVAL;
     if (prefillSequenceLength == 0) {
         for (auto id : ids) {
@@ -882,21 +883,22 @@ int qnn_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
     }
 
     // copy logits
-    if (logits.empty()) logits = std::vector<float>(vocab_size);
+    if (logits_buffer.empty()) logits_buffer.resize(vocab_size);
 
     if (QNN_TENSOR_GET_DATA_TYPE(logitsOutputTensor) == QNN_DATATYPE_FLOAT_32) {
-        float *ptr = (float*)QNN_TENSOR_GET_CLIENT_BUF(logitsOutputTensor).data;
-        logits = std::vector<float>(ptr, ptr + vocab_size);
+        logits = (float*)QNN_TENSOR_GET_CLIENT_BUF(logitsOutputTensor).data;
     } else if (QNN_TENSOR_GET_DATA_TYPE(logitsOutputTensor) == QNN_DATATYPE_FLOAT_16) {
         half_float::half *ptr = (half_float::half*)QNN_TENSOR_GET_CLIENT_BUF(logitsOutputTensor).data;
         for (int i = 0; i < vocab_size; i++) {
-            logits[i] = ptr[i];
+            logits_buffer[i] = ptr[i];
         }
+        logits = logits_buffer.data();
     } else if (QNN_TENSOR_GET_DATA_TYPE(logitsOutputTensor) == QNN_DATATYPE_UFIXED_POINT_16) {
-        datautil::tfNToFloat<uint16_t>(logits.data(), reinterpret_cast<uint16_t*>(QNN_TENSOR_GET_CLIENT_BUF(logitsOutputTensor).data),
+        datautil::tfNToFloat<uint16_t>(logits_buffer.data(), reinterpret_cast<uint16_t*>(QNN_TENSOR_GET_CLIENT_BUF(logitsOutputTensor).data),
             QNN_TENSOR_GET_QUANT_PARAMS(logitsOutputTensor).scaleOffsetEncoding.offset,
             QNN_TENSOR_GET_QUANT_PARAMS(logitsOutputTensor).scaleOffsetEncoding.scale,
             vocab_size);
+        logits = logits_buffer.data();
     } else {
         LOGE("Unsupported data type");
         return RWKV_ERROR_IO;
@@ -1222,11 +1224,11 @@ int qnn_backend::load_model(std::string model_path) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 
-int qnn_backend::eval(int id, std::vector<float> &logits) {
+int qnn_backend::eval(int id, float *& logits) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 
-int qnn_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
+int qnn_backend::eval(std::vector<int> ids, float *& logits) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 
