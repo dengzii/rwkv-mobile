@@ -59,14 +59,20 @@ int backend_str_to_enum(std::string backend) {
     return -1;
 }
 
-void runtime::apply_logits_penalties(std::vector<float> &logits, float presence_penalty, float frequency_penalty, float penalty_decay) {
+void runtime::apply_logits_penalties(float * logits, int vocab_size, float presence_penalty, float frequency_penalty, float penalty_decay) {
     for (auto &[id, occurence] : _occurences) {
+        if (id >= vocab_size) {
+            continue;
+        }
         logits[id] -=
             _frequency_penalty * occurence + _presence_penalty;
         _occurences[id] *= _penalty_decay;
     }
 
     for (auto &token_banned : _token_banned) {
+        if (token_banned >= vocab_size) {
+            continue;
+        }
         logits[token_banned] = -INFINITY;
     }
 }
@@ -270,7 +276,7 @@ std::string runtime::get_available_backends_str() {
     return ret;
 }
 
-int runtime::eval_logits(int id, std::vector<float> &logits) {
+int runtime::eval_logits(int id, float *& logits) {
     if (_backend == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
@@ -284,7 +290,7 @@ int runtime::eval_logits(int id, std::vector<float> &logits) {
     return ret;
 }
 
-int runtime::eval_logits(std::vector<int> ids, std::vector<float> &logits) {
+int runtime::eval_logits(std::vector<int> ids, float *& logits) {
     if (_backend == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
@@ -298,7 +304,7 @@ int runtime::eval_logits(std::vector<int> ids, std::vector<float> &logits) {
     return ret;
 }
 
-int runtime::eval_logits_with_embeddings(const float *embeddings, int n_tokens, std::vector<float> &logits) {
+int runtime::eval_logits_with_embeddings(const float *embeddings, int n_tokens, float *& logits) {
     if (_backend == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
@@ -316,7 +322,7 @@ int runtime::chat(std::string input, const int max_length, void (*callback)(cons
         prompt = _bos_token + _user_role + ": " + prompt;
     }
     std::vector<int> ids = _tokenizer->encode(prompt);
-    std::vector<float> logits(_vocab_size);
+    float *logits = nullptr;
 
     _response_buffer = "";
     _response_buffer_ids.clear();
@@ -326,9 +332,10 @@ int runtime::chat(std::string input, const int max_length, void (*callback)(cons
     }
 
     for (int i = 0; i < max_length; i++) {
-        apply_logits_penalties(logits, _presence_penalty, _frequency_penalty, _penalty_decay);
+        apply_logits_penalties(logits, _vocab_size, _presence_penalty, _frequency_penalty, _penalty_decay);
 
-        int idx = _sampler->sample(logits.data(), logits.size(), _temperature, _top_k, _top_p);
+        int idx = _sampler->sample(logits, _vocab_size, _temperature, _top_k, _top_p);
+        _backend->free_logits_if_allocated(logits);
         if (idx == 0) {
             break;
         }
@@ -407,7 +414,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     LOGI("Loading state node %i hash %llu\n", start_idx-1, node->hash);
     _backend->set_state(node->state);
 
-    std::vector<float> logits(_vocab_size);
+    float *logits = nullptr;
     _response_buffer = "";
     _response_buffer_ids.clear();
     int ret;
@@ -460,9 +467,10 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     }
 
     for (int i = 0; i < max_length; i++) {
-        apply_logits_penalties(logits, _presence_penalty, _frequency_penalty, _penalty_decay);
+        apply_logits_penalties(logits, _vocab_size, _presence_penalty, _frequency_penalty, _penalty_decay);
 
-        int idx = _sampler->sample(logits.data(), logits.size(), _temperature, _top_k, _top_p);
+        int idx = _sampler->sample(logits, _vocab_size, _temperature, _top_k, _top_p);
+        _backend->free_logits_if_allocated(logits);
         if (idx == 0) {
             break;
         }
@@ -547,13 +555,14 @@ int runtime::set_prompt(std::string prompt) {
     if (_state_head->state.has_value()) {
         _backend->free_state(_state_head->state);
     }
-    std::vector<float> logits(_vocab_size);
+    float *logits = nullptr;
     std::vector<int> ids = _tokenizer->encode(prompt);
     int ret = eval_logits(ids, logits);
     if (ret) {
         return ret;
     }
     _backend->get_state(_state_head->state);
+    _backend->free_logits_if_allocated(logits);
     return RWKV_SUCCESS;
 }
 
@@ -587,7 +596,7 @@ int runtime::set_image_prompt(std::string path) {
     if (embd == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
-    std::vector<float> logits(_vocab_size);
+    float *logits = nullptr;
 
     int ret = eval_logits_with_embeddings(embd->embed, embd->n_image_pos, logits);
     if (ret) {
@@ -595,6 +604,7 @@ int runtime::set_image_prompt(std::string path) {
     }
     _backend->get_state(_state_head->state);
     llava_image_embed_free(embd);
+    _backend->free_logits_if_allocated(logits);
     return RWKV_SUCCESS;
 }
 #endif
@@ -646,7 +656,7 @@ int runtime::set_audio_prompt(std::string path) {
     end = std::chrono::high_resolution_clock::now();
     LOGI("whisper_encode time: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
-    std::vector<float> logits(_vocab_size);
+    float *logits = nullptr;
 
     auto embd = whisper_get_adapter_output_tensor(_whisper_encoder.get());
 
@@ -655,6 +665,7 @@ int runtime::set_audio_prompt(std::string path) {
         return ret;
     }
     _backend->get_state(_state_head->state);
+    _backend->free_logits_if_allocated(logits);
     return RWKV_SUCCESS;
 }
 #endif
@@ -666,9 +677,9 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
     set_is_generating(true);
 
     std::vector<int> ids = _tokenizer->encode(prompt);
-    std::vector<float> logits(_vocab_size);
+    float *logits = nullptr;
     int ret = eval_logits(ids, logits);
-    if (ret) {
+    if (ret || !logits) {
         set_is_generating(false);
         return ret;
     }
@@ -676,9 +687,10 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
     _response_buffer = prompt;
     _response_buffer_ids = ids;
     for (int i = 0; i < max_length; i++) {
-        apply_logits_penalties(logits, _presence_penalty, _frequency_penalty, _penalty_decay);
+        apply_logits_penalties(logits, _vocab_size, _presence_penalty, _frequency_penalty, _penalty_decay);
 
-        int idx = _sampler->sample(logits.data(), _vocab_size, _temperature, _top_k, _top_p);
+        int idx = _sampler->sample(logits, _vocab_size, _temperature, _top_k, _top_p);
+        _backend->free_logits_if_allocated(logits);
         bool stopping = (idx == stop_code);
 
         std::string next = _tokenizer->decode(idx);

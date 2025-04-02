@@ -36,9 +36,14 @@ public:
     int load_tokenizer(std::string vocab_file);
     int load_vision_encoder(std::string model_path);
     int load_whisper_encoder(std::string model_path);
-    int eval_logits(int id, std::vector<float> &logits);
-    int eval_logits(std::vector<int> ids, std::vector<float> &logits);
-    int eval_logits_with_embeddings(const float *embeddings, int n_tokens, std::vector<float> &logits);
+    int eval_logits(int id, float *& logits);
+    int eval_logits(std::vector<int> ids, float *& logits);
+    int eval_logits_with_embeddings(const float *embeddings, int n_tokens, float *& logits);
+    void free_logits_if_allocated(float *& logits) {
+        if (_backend != nullptr) {
+            _backend->free_logits_if_allocated(logits);
+        }
+    }
 
     // without history
     int chat(std::string input, const int max_length, void (*callback)(const char *, const int) = nullptr, bool enable_reasoning = false);
@@ -255,7 +260,7 @@ private:
     std::string _response_buffer;
     std::vector<int32_t> _response_buffer_ids;
 
-    void apply_logits_penalties(std::vector<float> &logits, float presence_penalty, float frequency_penalty, float penalty_decay);
+    void apply_logits_penalties(float * logits, int vocab_size, float presence_penalty, float frequency_penalty, float penalty_decay);
 
     unsigned long long hash_string(std::string str) {
         unsigned long long hash = 0, p = 13131;

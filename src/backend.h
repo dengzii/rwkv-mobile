@@ -14,9 +14,10 @@ public:
     virtual int init(void * extra) { return 0; }
     virtual int init(std::string model_path, void * extra) { return 0; }
     virtual int load_model(std::string model_path) { return RWKV_ERROR_MODEL; }
-    virtual int eval(int id, std::vector<float> &logits) { return 0; };
-    virtual int eval(std::vector<int> ids, std::vector<float> &logits) { return 0; };
-    virtual int eval_with_embeddings(const float *embeddings, int n_tokens, std::vector<float> &logits) { return RWKV_ERROR_UNSUPPORTED; };
+    virtual int eval(int id, float *& logits) { return 0; };
+    virtual int eval(std::vector<int> ids, float *& logits) { return 0; };
+    virtual int eval_with_embeddings(const float *embeddings, int n_tokens, float *& logits) { return RWKV_ERROR_UNSUPPORTED; };
+    virtual void free_logits_if_allocated(float *& logits) { return; };
     virtual int get_state(std::any &state) { return 0; }
     virtual int set_state(std::any state) { return 0; }
     virtual int free_state(std::any state) { return 0; }

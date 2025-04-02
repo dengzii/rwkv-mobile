@@ -26,13 +26,15 @@ int main(int argc, char **argv) {
     for (int i = 0; i < 512; i++) {
         prompt_ids[i] = rand() % vocab_size;
     }
-    std::vector<float> logits(vocab_size);
+    float *logits = nullptr;
     runtime.eval_logits(prompt_ids, logits);
+    runtime.free_logits_if_allocated(logits);
 
     std::cout << "Prefill speed: " << runtime.get_avg_prefill_speed() << " tokens/s" << std::endl;
 
     for (int i = 0; i < 128; i++) {
         runtime.eval_logits(rand() % vocab_size, logits);
+        runtime.free_logits_if_allocated(logits);
     }
     std::cout << "Decode speed: " << runtime.get_avg_decode_speed() << " tokens/s" << std::endl;
 

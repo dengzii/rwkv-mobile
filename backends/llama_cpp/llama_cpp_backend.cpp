@@ -43,7 +43,7 @@ int llama_cpp_backend::load_model(std::string model_path) {
     return RWKV_SUCCESS;
 }
 
-int llama_cpp_backend::eval(int id, std::vector<float> &logits) {
+int llama_cpp_backend::eval(int id, float *& logits) {
     llama_batch batch = llama_batch_get_one(&id, 1);
     llama_decode(ctx, batch);
 
@@ -51,24 +51,24 @@ int llama_cpp_backend::eval(int id, std::vector<float> &logits) {
     if (!logits_out) {
         return RWKV_ERROR_EVAL;
     }
-    logits.assign(logits_out, logits_out + vocab_size);
+    logits = logits_out;
 
     return RWKV_SUCCESS;
 }
 
-int llama_cpp_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
+int llama_cpp_backend::eval(std::vector<int> ids, float *& logits) {
     llama_batch batch = llama_batch_get_one(ids.data(), ids.size());
     llama_decode(ctx, batch);
     float * logits_out = llama_get_logits_ith(ctx, -1);
     if (!logits_out) {
         return RWKV_ERROR_EVAL;
     }
-    logits.assign(logits_out, logits_out + vocab_size);
+    logits = logits_out;
 
     return RWKV_SUCCESS;
 }
 
-int llama_cpp_backend::eval_with_embeddings(const float *embeddings, int n_tokens, std::vector<float> &logits) {
+int llama_cpp_backend::eval_with_embeddings(const float *embeddings, int n_tokens, float *& logits) {
     int n_embd = llama_model_n_embd(model);
   
     // llava_embd_batch llava_batch = llava_embd_batch(embd, n_eval, n_past, 0);
@@ -86,7 +86,7 @@ int llama_cpp_backend::eval_with_embeddings(const float *embeddings, int n_token
     if (!logits_out) {
         return RWKV_ERROR_EVAL;
     }
-    logits.assign(logits_out, logits_out + vocab_size);
+    logits = logits_out;
 
     return RWKV_SUCCESS;
 }
@@ -149,11 +149,11 @@ int llama_cpp_backend::load_model(std::string model_path) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 
-int llama_cpp_backend::eval(int id, std::vector<float> &logits) {
+int llama_cpp_backend::eval(int id, float *& logits) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 
-int llama_cpp_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
+int llama_cpp_backend::eval(std::vector<int> ids, float *& logits) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 

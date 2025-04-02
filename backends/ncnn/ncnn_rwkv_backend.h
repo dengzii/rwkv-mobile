@@ -11,8 +11,11 @@ class ncnn_rwkv_backend : public execution_provider {
 public:
     int init(void * extra) override;
     int load_model(std::string model_path) override;
-    int eval(int id, std::vector<float> &logits) override;
-    int eval(std::vector<int> ids, std::vector<float> &logits) override;
+    int eval(int id, float *& logits) override;
+    int eval(std::vector<int> ids, float *& logits) override;
+    void free_logits_if_allocated(float *& logits) override {
+        return;
+    };
     bool is_available() override;
     int get_state(std::any &state) override;
     int set_state(std::any state) override;
@@ -24,6 +27,7 @@ public:
 private:
     ncnn::Net net;
     std::vector<ncnn::Mat> states;
+    ncnn::Mat logits_mat;
 };
 
 }

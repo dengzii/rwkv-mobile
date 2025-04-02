@@ -61,7 +61,7 @@ int ncnn_rwkv_backend::load_model(std::string model_path) {
     return RWKV_SUCCESS;
 }
 
-int ncnn_rwkv_backend::eval(int id, std::vector<float> &logits) {
+int ncnn_rwkv_backend::eval(int id, float *& logits) {
     int token = id;
     ncnn::Mat input = ncnn::Mat(1, &token);
     ncnn::Extractor ex = net.create_extractor();
@@ -78,14 +78,14 @@ int ncnn_rwkv_backend::eval(int id, std::vector<float> &logits) {
         ex.extract(("state_" + std::to_string(3 * i + 1) + "_out").c_str(), states[i * 3 + 1]);
         ex.extract(("state_" + std::to_string(3 * i + 2) + "_out").c_str(), states[i * 3 + 2]);
     }
-    ncnn::Mat logits_mat;
+
     ex.extract("logits", logits_mat);
-    memcpy(logits.data(), logits_mat.channel(0), logits.size() * sizeof(float));
+    logits = logits_mat.channel(0);
 
     return RWKV_SUCCESS;
 }
 
-int ncnn_rwkv_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
+int ncnn_rwkv_backend::eval(std::vector<int> ids, float *& logits) {
     // TODO: sequential prefill
     for (int i = 0; i < ids.size(); i++) {
         int id = ids[i];
@@ -102,7 +102,7 @@ int ncnn_rwkv_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
         if (i == ids.size() - 1) {
             ncnn::Mat logits_mat;
             ex.extract("logits", logits_mat);
-            memcpy(logits.data(), logits_mat.channel(0), logits.size() * sizeof(float));
+            logits = logits_mat.channel(0);
         }
         for (int i = 0; i < n_layers; i++) {
             ex.extract(("state_" + std::to_string(3 * i) + "_out").c_str(), states[i * 3]);
@@ -174,11 +174,11 @@ int ncnn_rwkv_backend::load_model(std::string model_path) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 
-int ncnn_rwkv_backend::eval(int id, std::vector<float> &logits) {
+int ncnn_rwkv_backend::eval(int id, float *& logits) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 
-int ncnn_rwkv_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
+int ncnn_rwkv_backend::eval(std::vector<int> ids, float *& logits) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 

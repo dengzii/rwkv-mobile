@@ -61,8 +61,14 @@ int rwkvmobile_runtime_eval_logits(rwkvmobile_runtime_t handle, const int * ids,
     }
     auto rt = static_cast<class runtime *>(handle);
     std::vector<int> ids_vec(ids, ids + ids_len);
-    std::vector<float> logits_vec(logits, logits + logits_len);
-    return rt->eval_logits(ids_vec, logits_vec);
+    float *logits_ret = nullptr;
+    auto ret = rt->eval_logits(ids_vec, logits_ret);
+    if (ret != RWKV_SUCCESS) {
+        return ret;
+    }
+    memcpy(logits, logits_ret, logits_len * sizeof(float));
+    rt->free_logits_if_allocated(logits_ret);
+    return RWKV_SUCCESS;
 }
 
 int rwkvmobile_runtime_eval_chat(

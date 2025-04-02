@@ -48,32 +48,41 @@ int web_rwkv_backend::load_model(std::string model_path) {
     return RWKV_SUCCESS;
 }
 
-int web_rwkv_backend::eval(int id, std::vector<float> &logits) {
+int web_rwkv_backend::eval(int id, float *& logits) {
     std::vector<uint16_t> ids = {(uint16_t)id};
     auto ret = infer_raw_last(ids.data(), ids.size());
     if (!ret.len || !ret.logits) {
         return RWKV_ERROR_EVAL;
     }
-    if (logits.size() != ret.len) {
-        logits.resize(ret.len);
+    if (ret.len != vocab_size) {
+        return RWKV_ERROR_EVAL;
     }
-    logits.assign(ret.logits, ret.logits + ret.len);
-    ::free_raw(ret);
+    logits = ret.logits;
     return RWKV_SUCCESS;
 }
 
-int web_rwkv_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
+int web_rwkv_backend::eval(std::vector<int> ids, float *& logits) {
     std::vector<uint16_t> ids_u16(ids.begin(), ids.end());
     auto ret = infer_raw_last(ids_u16.data(), ids_u16.size());
     if (!ret.len || !ret.logits) {
         return RWKV_ERROR_EVAL;
     }
-    if (logits.size() != ret.len) {
-        logits.resize(ret.len);
+    if (ret.len != vocab_size) {
+        return RWKV_ERROR_EVAL;
     }
-    logits.assign(ret.logits, ret.logits + ret.len);
-    ::free_raw(ret);
+    logits = ret.logits;
     return RWKV_SUCCESS;
+}
+
+void web_rwkv_backend::free_logits_if_allocated(float *& logits) {
+    if (logits) {
+        ModelOutput output = {
+            .len = vocab_size,
+            .logits = logits,
+        };
+        ::free_raw(output);
+        logits = nullptr;
+    }
 }
 
 bool web_rwkv_backend::is_available() {
@@ -138,12 +147,16 @@ int web_rwkv_backend::load_model(std::string model_path) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 
-int web_rwkv_backend::eval(int id, std::vector<float> &logits) {
+int web_rwkv_backend::eval(int id, float *& logits) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 
-int web_rwkv_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
+int web_rwkv_backend::eval(std::vector<int> ids, float *& logits) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+}
+
+void web_rwkv_backend::free_logits_if_allocated(float *& logits) {
+    return;
 }
 
 int web_rwkv_backend::clear_state() {

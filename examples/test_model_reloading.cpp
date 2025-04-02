@@ -8,6 +8,10 @@
 
 #define ENSURE_SUCCESS_OR_LOG_EXIT(x, msg) if (x != rwkvmobile::RWKV_SUCCESS) { std::cout << msg << std::endl; return 1; }
 
+char msg0[] = "Hello!";
+char msg1[] = "Hello! I'm your AI assistant. I'm here to help you with various tasks, such as answering questions, brainstorming ideas, drafting emails, writing code, providing advice, and much more.";
+char msg2[] = "What's the weather like today?";
+
 std::string response;
 void callback(const char *msg, const int) {
     // std::cout << "Callback: " << msg << std::endl;
@@ -28,9 +32,9 @@ int main(int argc, char **argv) {
     auto backend = argv[4];
 
     char *input_list[] = {
-        "Hello!",
-        "Hello! I'm your AI assistant. I'm here to help you with various tasks, such as answering questions, brainstorming ideas, drafting emails, writing code, providing advice, and much more.",
-        "What's the weather like today?",
+        msg0,
+        msg1,
+        msg2,
     };
 
     rwkvmobile_runtime_t runtime = rwkvmobile_runtime_init_with_name(backend);
