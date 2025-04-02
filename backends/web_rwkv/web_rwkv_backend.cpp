@@ -77,7 +77,7 @@ int web_rwkv_backend::eval(std::vector<int> ids, float *& logits) {
 void web_rwkv_backend::free_logits_if_allocated(float *& logits) {
     if (logits) {
         ModelOutput output = {
-            .len = vocab_size,
+            .len = (uintptr_t)vocab_size,
             .logits = logits,
         };
         ::free_raw(output);
