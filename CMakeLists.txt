@@ -65,7 +65,7 @@ if (ENABLE_NCNN_BACKEND)
     FetchContent_Declare(
         ncnn
         GIT_REPOSITORY https://github.com/Tencent/ncnn
-        GIT_TAG 20240820
+        GIT_TAG 20241226
     )
     include(disable_unused_ncnn_layers)
     option(NCNN_BUILD_TOOLS "" OFF)
