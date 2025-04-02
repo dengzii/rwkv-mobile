@@ -840,7 +840,7 @@ int qnn_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
             for (int i = 0; i < prefillSequenceLength; i++) {
                 *token_input = ids[idx + i];
             }
-            LOGI("Prefilling using seq mode from %d to %d", idx, idx + prefillSequenceLength);
+            LOGD("Prefilling using seq mode from %d to %d", idx, idx + prefillSequenceLength);
 
             for (int graph_id = 0; graph_id < qnnPrefillGraphsCount; graph_id++) {
                 auto graphInfo     = (*qnnPrefillGraphsInfo)[graph_id];
@@ -862,7 +862,7 @@ int qnn_backend::eval(std::vector<int> ids, std::vector<float> &logits) {
         for (; idx < ids.size(); idx++) {
             token_input = (int*)qnnIOTensorUtils.getBuffer(&inputTensors[0][0]);
             *token_input = ids[idx];
-            LOGI("Prefilling using decode mode at %d", idx);
+            LOGD("Prefilling using decode mode at %d", idx);
             for (int graph_id = 0; graph_id < qnnDecodeGraphsCount; graph_id++) {
                 auto graphInfo     = (*qnnDecodeGraphsInfo)[graph_id];
                 auto executeStatus =
