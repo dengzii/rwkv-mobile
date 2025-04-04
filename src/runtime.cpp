@@ -27,6 +27,7 @@
 
 #ifdef ENABLE_WHISPER
 #include "whisper.h"
+#include "audio.h"
 #endif
 
 namespace rwkvmobile {
@@ -631,23 +632,11 @@ int runtime::set_audio_prompt(std::string path) {
         _backend->free_state(_state_head->state);
     }
 
-    std::ifstream file(path, std::ios::binary);
-    if (!file.is_open()) {
-        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
-    }
-    file.seekg(0, std::ios::end);
-    size_t size = (size_t)file.tellg() - 78;
-    file.seekg(78, std::ios::beg);
-    std::vector<int16_t> samples(size);
-    file.read(reinterpret_cast<char*>(samples.data()), size * sizeof(int16_t));
-
-    std::vector<float> samples_f32(samples.size());
-    for (size_t i = 0; i < samples.size(); i++) {
-        samples_f32[i] = static_cast<float>(samples[i]) / 32768.0f;
-    }
+    wav_file wav;
+    wav.load(path);
 
     auto start = std::chrono::high_resolution_clock::now();
-    whisper_pcm_to_mel(_whisper_encoder.get(), samples_f32.data(), samples_f32.size(), 4);
+    whisper_pcm_to_mel(_whisper_encoder.get(), wav.samples.data(), wav.samples.size(), 4);
     auto end = std::chrono::high_resolution_clock::now();
     LOGI("whisper_pcm_to_mel time: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
@@ -742,3 +731,4 @@ double runtime::get_avg_prefill_speed() {
 }
 
 } // namespace rwkvmobile
+

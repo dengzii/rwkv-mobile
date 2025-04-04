@@ -13,6 +13,7 @@ option(ENABLE_QNN_BACKEND "Enable QNN backend" OFF)
 
 option(ENABLE_VISION "Enable vision" ON)
 option(ENABLE_WHISPER "Enable whisper" ON)
+option(ENABLE_TTS "Enable TTS" ON)
 
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_STATIC_LIB "Build static library" OFF)
@@ -109,6 +110,10 @@ if (ENABLE_QNN_BACKEND)
     set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/qnn/qnn_backend.cpp)
 endif()
 
+if (ENABLE_WHISPER)
+    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/multimodal/utils/audio.cpp)
+endif()
+
 add_library(rwkv_mobile_internal STATIC ${RWKV_MOBILE_SRCS})
 target_include_directories(rwkv_mobile_internal PUBLIC src)
 
@@ -158,7 +163,7 @@ if (ENABLE_LLAMACPP_BACKEND)
     endif()
 
     if (ENABLE_WHISPER)
-        target_include_directories(rwkv_mobile_internal PUBLIC src/multimodal/whisper)
+        target_include_directories(rwkv_mobile_internal PUBLIC src/multimodal/whisper src/multimodal/utils)
         target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_WHISPER)
     endif()
 

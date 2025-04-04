@@ -2317,7 +2317,6 @@ static struct ggml_cgraph * whisper_build_graph_adapter(
     ggml_cgraph * gf = ggml_new_graph(ctx0);
 
     int attention_mask = std::ceil(static_cast<double>(wctx.model.hparams.n_audio_ctx) * wstate.n_sample / (WHISPER_SAMPLE_RATE * 30)) + 1;
-    attention_mask = std::round(attention_mask / 2.0) + 1;
 
     struct ggml_tensor * cur = ggml_view_tensor(ctx0, wstate.embd_enc);
     if (attention_mask != 0) {
@@ -3209,7 +3208,7 @@ static bool log_mel_spectrogram(
     // Initialize a vector and copy data from C array to it.
     std::vector<float> samples_padded;
     samples_padded.resize(stage_1_pad);
-    std::fill(samples_padded.begin(), samples_padded.end(), 0);
+    std::fill(samples_padded.begin() + n_samples, samples_padded.end(), 0);
     std::copy(samples, samples + n_samples, samples_padded.begin());
 
     mel.n_mel     = n_mel;
