@@ -12,6 +12,11 @@ void callback(const char *msg, const int) {
     response = std::string(msg);
 };
 
+char msg0[] = "Hello!";
+char msg1[] = "Hello! I'm your AI assistant. I'm here to help you with various tasks, such as answering questions, brainstorming ideas, drafting emails, writing code, providing advice, and much more.";
+char msg2[] = "What's the weather like today?";
+char msg3[] = "Write me a poem";
+
 int main(int argc, char **argv) {
     // set stdout to be unbuffered
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -27,9 +32,9 @@ int main(int argc, char **argv) {
 
     std::cout << "Testing original input list" << std::endl;
     char *input_list[] = {
-        "Hello!",
-        "Hello! I'm your AI assistant. I'm here to help you with various tasks, such as answering questions, brainstorming ideas, drafting emails, writing code, providing advice, and much more.",
-        "What's the weather like today?",
+        msg0,
+        msg1,
+        msg2
     };
 
     rwkvmobile_runtime_eval_chat_with_history(runtime, (const char **)input_list, 3, 50, callback, 0);
@@ -39,7 +44,7 @@ int main(int argc, char **argv) {
     }
     std::cout << "Response: " << response << std::endl;
 
-    input_list[2] = "Write me a poem";
+    input_list[2] = msg3;
     rwkvmobile_runtime_eval_chat_with_history(runtime, (const char **)input_list, 3, 50, callback, 0);
     while (rwkvmobile_runtime_is_generating(runtime)) {
         std::cout << "Waiting for generation to finish..." << std::endl;
@@ -47,7 +52,7 @@ int main(int argc, char **argv) {
     }
     std::cout << "Response: " << response << std::endl;
 
-    input_list[2] = "What's the weather like today?";
+    input_list[2] = msg2;
     rwkvmobile_runtime_eval_chat_with_history(runtime, (const char **)input_list, 3, 50, callback, 0);
     while (rwkvmobile_runtime_is_generating(runtime)) {
         std::cout << "Waiting for generation to finish..." << std::endl;
