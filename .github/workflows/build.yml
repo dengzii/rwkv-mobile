@@ -63,42 +63,43 @@ jobs:
         name: ${{ env.PACKAGENAME }}-debug
         path: ${{ env.PACKAGENAME }}-debug.zip
   
-  build-macos-library-x64:
-    needs: [setup]
-    runs-on: macos-13
-    env:
-      PACKAGENAME: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-x64
-    steps:
-    - uses: actions/checkout@v4
-    - name: build-x64
-      run: |
-        rm -rf build-x64 build-x64-debug
-        mkdir build-x64 && cd build-x64
-        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DCMAKE_BUILD_TYPE=Release
-        cmake --build . -j 8
-        cd ..
-        mkdir build-x64-debug && cd build-x64-debug
-        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DCMAKE_BUILD_TYPE=Debug
-        cmake --build . -j 8
+  # build-macos-library-x64:
+  #   needs: [setup]
+  #   runs-on: macos-13
+  #   env:
+  #     PACKAGENAME: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-x64
+  #   steps:
+  #   - uses: actions/checkout@v4
+  #   - name: build-x64
+  #     run: |
+  #       rm -rf build-x64 build-x64-debug
+  #       mkdir build-x64 && cd build-x64
+  #       cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DCMAKE_BUILD_TYPE=Release
+  #       cmake --build . -j 8
+  #       cd ..
+  #       mkdir build-x64-debug && cd build-x64-debug
+  #       cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DCMAKE_BUILD_TYPE=Debug
+  #       cmake --build . -j 8
 
-    - name: package
-      run: |
-        pushd build-x64
-        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.dylib
-        popd
-        pushd build-x64-debug
-        zip -9 -y -r ../${{ env.PACKAGENAME }}-debug.zip librwkv_mobile.dylib
-        popd
-    - name: upload-zip
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.PACKAGENAME }}
-        path: ${{ env.PACKAGENAME }}.zip
-    - name: upload-zip-debug
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.PACKAGENAME }}-debug
-        path: ${{ env.PACKAGENAME }}-debug.zip
+  #   - name: package
+  #     run: |
+  #       pushd build-x64
+  #       zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.dylib
+  #       popd
+  #       pushd build-x64-debug
+  #       zip -9 -y -r ../${{ env.PACKAGENAME }}-debug.zip librwkv_mobile.dylib
+  #       popd
+  #   - name: upload-zip
+  #     uses: actions/upload-artifact@v4
+  #     with:
+  #       name: ${{ env.PACKAGENAME }}
+  #       path: ${{ env.PACKAGENAME }}.zip
+  #   - name: upload-zip-debug
+  #     uses: actions/upload-artifact@v4
+  #     with:
+  #       name: ${{ env.PACKAGENAME }}-debug
+  #       path: ${{ env.PACKAGENAME }}-debug.zip
+
   build-macos-library-aarch64:
     needs: [setup]
     runs-on: macos-14
@@ -135,65 +136,65 @@ jobs:
         name: ${{ env.PACKAGENAME }}-debug
         path: ${{ env.PACKAGENAME }}-debug.zip
 
-  pack-macos-library-universal:
-    needs: [setup, build-macos-library-x64, build-macos-library-aarch64]
-    runs-on: macos-14
-    env:
-      PACKAGENAME: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos
-    steps:
-    - name: download-macos-x64
-      uses: actions/download-artifact@v4
-      with:
-        name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-x64
-    - name: download-macos-x64-debug
-      uses: actions/download-artifact@v4
-      with:
-        name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-x64-debug
-    - name: download-macos-aarch64
-      uses: actions/download-artifact@v4
-      with:
-        name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64
-    - name: download-macos-aarch64-debug
-      uses: actions/download-artifact@v4
-      with:
-        name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64-debug
-    - name: create-universal
-      run: |
-        rm -rf build-universal build-x64 build-arm64 build-x64-debug build-arm64-debug build-universal-debug
-        mkdir build-x64 && cd build-x64
-        unzip ../librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-x64.zip
-        cd ..
-        mkdir build-arm64 && cd build-arm64
-        unzip ../librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64.zip
-        cd ..
-        mkdir build-x64-debug && cd build-x64-debug
-        unzip ../librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-x64-debug.zip
-        cd ..
-        mkdir build-arm64-debug && cd build-arm64-debug
-        unzip ../librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64-debug.zip
-        cd ..
-        mkdir build-universal && cd build-universal
-        lipo -create ../build-x64/librwkv_mobile.dylib ../build-arm64/librwkv_mobile.dylib -output librwkv_mobile.dylib
-        cd .. && mkdir build-universal-debug && cd build-universal-debug
-        lipo -create ../build-x64-debug/librwkv_mobile.dylib ../build-arm64-debug/librwkv_mobile.dylib -output librwkv_mobile.dylib
-    - name: package
-      run: |
-        pushd build-universal
-        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.dylib
-        popd
-        pushd build-universal-debug
-        zip -9 -y -r ../${{ env.PACKAGENAME }}-debug.zip librwkv_mobile.dylib
-        popd
-    - name: upload-zip
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.PACKAGENAME }}
-        path: ${{ env.PACKAGENAME }}.zip
-    - name: upload-zip-debug
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.PACKAGENAME }}-debug
-        path: ${{ env.PACKAGENAME }}-debug.zip
+  # pack-macos-library-universal:
+  #   needs: [setup, build-macos-library-x64, build-macos-library-aarch64]
+  #   runs-on: macos-14
+  #   env:
+  #     PACKAGENAME: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos
+  #   steps:
+  #   - name: download-macos-x64
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-x64
+  #   - name: download-macos-x64-debug
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-x64-debug
+  #   - name: download-macos-aarch64
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64
+  #   - name: download-macos-aarch64-debug
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64-debug
+  #   - name: create-universal
+  #     run: |
+  #       rm -rf build-universal build-x64 build-arm64 build-x64-debug build-arm64-debug build-universal-debug
+  #       mkdir build-x64 && cd build-x64
+  #       unzip ../librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-x64.zip
+  #       cd ..
+  #       mkdir build-arm64 && cd build-arm64
+  #       unzip ../librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64.zip
+  #       cd ..
+  #       mkdir build-x64-debug && cd build-x64-debug
+  #       unzip ../librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-x64-debug.zip
+  #       cd ..
+  #       mkdir build-arm64-debug && cd build-arm64-debug
+  #       unzip ../librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64-debug.zip
+  #       cd ..
+  #       mkdir build-universal && cd build-universal
+  #       lipo -create ../build-x64/librwkv_mobile.dylib ../build-arm64/librwkv_mobile.dylib -output librwkv_mobile.dylib
+  #       cd .. && mkdir build-universal-debug && cd build-universal-debug
+  #       lipo -create ../build-x64-debug/librwkv_mobile.dylib ../build-arm64-debug/librwkv_mobile.dylib -output librwkv_mobile.dylib
+  #   - name: package
+  #     run: |
+  #       pushd build-universal
+  #       zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.dylib
+  #       popd
+  #       pushd build-universal-debug
+  #       zip -9 -y -r ../${{ env.PACKAGENAME }}-debug.zip librwkv_mobile.dylib
+  #       popd
+  #   - name: upload-zip
+  #     uses: actions/upload-artifact@v4
+  #     with:
+  #       name: ${{ env.PACKAGENAME }}
+  #       path: ${{ env.PACKAGENAME }}.zip
+  #   - name: upload-zip-debug
+  #     uses: actions/upload-artifact@v4
+  #     with:
+  #       name: ${{ env.PACKAGENAME }}-debug
+  #       path: ${{ env.PACKAGENAME }}-debug.zip
 
   build-android-library:
     needs: [setup]
@@ -299,7 +300,7 @@ jobs:
         path: ${{ env.PACKAGENAME }}.zip
 
   upload-dev-release:
-    needs: [setup, build-ios-library, build-android-library, pack-macos-library-universal]
+    needs: [setup, build-ios-library, build-android-library, build-macos-library-aarch64]
     runs-on: ubuntu-latest
     steps:
       - name: download-ios
@@ -314,11 +315,11 @@ jobs:
       - name: download-macos
         uses: actions/download-artifact@v4
         with:
-          name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos
+          name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64
       - name: download-macos-debug
         uses: actions/download-artifact@v4
         with:
-          name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-debug
+          name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64-debug
 
       - name: download-android
         uses: actions/download-artifact@v4
@@ -344,8 +345,8 @@ jobs:
         run: |
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static.zip librwkv_mobile-dev-latest-ios-static.zip
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static-debug.zip librwkv_mobile-dev-latest-ios-static-debug.zip
-          mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos.zip librwkv_mobile-dev-latest-macos.zip
-          mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-debug.zip librwkv_mobile-dev-latest-macos-debug.zip
+          mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64.zip librwkv_mobile-dev-latest-macos.zip
+          mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64-debug.zip librwkv_mobile-dev-latest-macos-debug.zip
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c.zip librwkv_mobile-dev-latest-aarch64-android-ndk-r25c.zip
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c-debug.zip librwkv_mobile-dev-latest-aarch64-android-ndk-r25c-debug.zip
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-linux-x86_64.zip librwkv_mobile-dev-latest-linux-x86_64.zip
