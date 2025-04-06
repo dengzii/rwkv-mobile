@@ -36,21 +36,21 @@ jobs:
           -GXcode -DCMAKE_TOOLCHAIN_FILE=../cmake/ios.toolchain.cmake -DPLATFORM=OS64 -DARCHS="arm64" \
           -DDEPLOYMENT_TARGET=$IOS_DEPLOYMENT_TARGET -DENABLE_BITCODE=$ENABLE_BITCODE -DENABLE_ARC=$ENABLE_ARC -DENABLE_VISIBILITY=$ENABLE_VISIBILITY
         cmake --build . --config Release -j 8
+        mkdir ../release-build ../debug-build
+        cp librwkv_mobile.a ../release-build/librwkv_mobile.a
+        rm librwkv_mobile.a
         cmake --build . --config Debug -j 8
+        cp librwkv_mobile.a ../debug-build/librwkv_mobile.a
+        rm librwkv_mobile.a
         cd ..
-        mkdir release-build debug-build
-        cp build-arm64/Release-iphoneos/librwkv_mobile.a release-build/librwkv_mobile.a
-        cp build-arm64/Debug-iphoneos/librwkv_mobile.a debug-build/librwkv_mobile.a
-        cp build-arm64/Release/cargo/build/aarch64-apple-ios/release/libweb_rwkv_ffi.a release-build/libweb_rwkv_ffi.a
-        cp build-arm64/Debug/cargo/build/aarch64-apple-ios/debug/libweb_rwkv_ffi.a debug-build/libweb_rwkv_ffi.a
 
     - name: package
       run: |
         pushd release-build
-        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.a libweb_rwkv_ffi.a
+        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.a
         popd
         pushd debug-build
-        zip -9 -y -r ../${{ env.PACKAGENAME }}-debug.zip librwkv_mobile.a libweb_rwkv_ffi.a
+        zip -9 -y -r ../${{ env.PACKAGENAME }}-debug.zip librwkv_mobile.a
         popd
     - name: upload-zip
       uses: actions/upload-artifact@v4

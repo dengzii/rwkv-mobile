@@ -227,26 +227,23 @@ if (DEFINED ANDROID_NDK)
 endif()
 
 if (BUILD_STATIC_LIB)
-    add_library(rwkv_mobile STATIC src/c_api.cpp ${RWKV_MOBILE_SRCS})
-    target_include_directories(rwkv_mobile PUBLIC src)
+    add_library(rwkv_mobile_static STATIC src/c_api.cpp)
+    target_include_directories(rwkv_mobile_static PUBLIC src)
+    target_link_libraries(rwkv_mobile_static PRIVATE rwkv_mobile_internal)
     if (ENABLE_WEBRWKV_BACKEND)
-        target_compile_definitions(rwkv_mobile PUBLIC ENABLE_WEBRWKV)
-        target_include_directories(rwkv_mobile PUBLIC backends/web_rwkv ${web_rwkv_ffi_SOURCE_DIR}/include)
-        target_link_libraries(rwkv_mobile PRIVATE web_rwkv_ffi ${WEBRWKV_EXTRA_LIBS})
+        target_link_libraries(rwkv_mobile_static PRIVATE web_rwkv_ffi ${WEBRWKV_EXTRA_LIBS})
     endif()
 
-    if (ENABLE_NCNN_BACKEND)
-        target_compile_definitions(rwkv_mobile PUBLIC ENABLE_NCNN)
-        target_include_directories(rwkv_mobile PUBLIC backends/ncnn)
-    endif()
+    add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/librwkv_mobile.a
+        COMMAND libtool -static -o ${CMAKE_BINARY_DIR}/librwkv_mobile.a $<TARGET_FILE:rwkv_mobile_static> $<TARGET_FILE:rwkv_mobile_internal> ${CMAKE_BINARY_DIR}/Release/cargo/build/${Rust_CARGO_TARGET}/release/libweb_rwkv_ffi.a
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        COMMENT "Combining static libraries for rwkv_mobile"
+    )
+    add_custom_target(rwkv_mobile ALL DEPENDS ${CMAKE_BINARY_DIR}/librwkv_mobile.a)
 else()
     add_library(rwkv_mobile SHARED src/c_api.cpp)
     target_link_libraries(rwkv_mobile PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,rwkv_mobile_internal>")
     if (ENABLE_WEBRWKV_BACKEND)
         target_link_libraries(rwkv_mobile PRIVATE web_rwkv_ffi ${WEBRWKV_EXTRA_LIBS})
     endif()
-
-    # if (ENABLE_NCNN_BACKEND)
-    #     target_link_libraries(rwkv_mobile PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,ncnn>")
-    # endif()
 endif()
