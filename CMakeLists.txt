@@ -133,13 +133,23 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     set(EIGEN_BUILD_PKGCONFIG OFF)
     set(EIGEN_BUILD_DOC OFF)
     FetchContent_MakeAvailable(Eigen)
+
+    FetchContent_Declare(
+        libsoxr
+        GIT_REPOSITORY https://github.com/chirlu/soxr.git
+        GIT_TAG 0.1.3
+    )
+
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_BINARY_DIR}/_deps/libsoxr-src/cmake/Modules")
+    option(BUILD_SHARED_LIBS "" OFF)
+    FetchContent_MakeAvailable(libsoxr)
 endif()
 
 add_library(rwkv_mobile_internal STATIC ${RWKV_MOBILE_SRCS})
 target_include_directories(rwkv_mobile_internal PUBLIC src)
 
 if (ENABLE_WHISPER OR ENABLE_TTS)
-    target_link_libraries(rwkv_mobile_internal PUBLIC Eigen3::Eigen)
+    target_link_libraries(rwkv_mobile_internal PUBLIC Eigen3::Eigen soxr)
     target_include_directories(rwkv_mobile_internal PUBLIC ${Eigen_SOURCE_DIR})
 endif()
 
@@ -230,12 +240,20 @@ if (BUILD_STATIC_LIB)
     add_library(rwkv_mobile_static STATIC src/c_api.cpp)
     target_include_directories(rwkv_mobile_static PUBLIC src)
     target_link_libraries(rwkv_mobile_static PRIVATE rwkv_mobile_internal)
+
+    set (STATIC_LIBS_LIST $<TARGET_FILE:rwkv_mobile_static> $<TARGET_FILE:rwkv_mobile_internal>)
+
     if (ENABLE_WEBRWKV_BACKEND)
         target_link_libraries(rwkv_mobile_static PRIVATE web_rwkv_ffi ${WEBRWKV_EXTRA_LIBS})
+        set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST} ${CMAKE_BINARY_DIR}/Release/cargo/build/${Rust_CARGO_TARGET}/release/libweb_rwkv_ffi.a)
+    endif()
+
+    if (ENABLE_WHISPER OR ENABLE_TTS)
+        set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST} $<TARGET_FILE:soxr>)
     endif()
 
     add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/librwkv_mobile.a
-        COMMAND libtool -static -o ${CMAKE_BINARY_DIR}/librwkv_mobile.a $<TARGET_FILE:rwkv_mobile_static> $<TARGET_FILE:rwkv_mobile_internal> ${CMAKE_BINARY_DIR}/Release/cargo/build/${Rust_CARGO_TARGET}/release/libweb_rwkv_ffi.a
+        COMMAND libtool -static -o ${CMAKE_BINARY_DIR}/librwkv_mobile.a ${STATIC_LIBS_LIST}
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         COMMENT "Combining static libraries for rwkv_mobile"
     )

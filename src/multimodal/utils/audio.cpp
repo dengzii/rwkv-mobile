@@ -2,7 +2,7 @@
 #include "logger.h"
 #include <fstream>
 #include <cstdint>
-// #include "librosa.h"
+#include "librosa.h"
 namespace rwkvmobile {
 
 static int16_t twoBytesToInt16(const char* bytes) {
@@ -93,6 +93,13 @@ bool wav_file::load(const std::string& path) {
     file.close();
 
     return true;
+}
+
+void testmel(librosa::Vectorf &x, int sr, int n_fft, int n_hop,
+                        const std::string &win, bool center,
+                        const std::string &mode, float power,
+                        int n_mels, int fmin, int fmax) {
+    librosa::internal::melspectrogram(x, sr, n_fft, n_hop, win, center, mode, power, n_mels, fmin, fmax);
 }
 
 }
