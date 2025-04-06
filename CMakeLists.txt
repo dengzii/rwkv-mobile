@@ -142,6 +142,10 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
 
     list(APPEND CMAKE_MODULE_PATH "${CMAKE_BINARY_DIR}/_deps/libsoxr-src/cmake/Modules")
     option(BUILD_SHARED_LIBS "" OFF)
+    if (APPLE AND NOT IOS)
+        option(WITH_CR32S "" OFF)
+        option(WITH_CR64S "" OFF)
+    endif()
     FetchContent_MakeAvailable(libsoxr)
 endif()
 
