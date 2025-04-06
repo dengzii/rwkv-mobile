@@ -2,7 +2,7 @@
 #include "logger.h"
 #include <fstream>
 #include <cstdint>
-#include "librosa.h"
+// #include "librosa.h"
 namespace rwkvmobile {
 
 static int16_t twoBytesToInt16(const char* bytes) {

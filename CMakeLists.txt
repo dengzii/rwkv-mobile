@@ -32,31 +32,33 @@ set(RWKV_MOBILE_SRCS
     src/runtime.cpp
     src/sampler.cpp
     src/tokenizer.cpp
-    src/logger.cpp
+    # src/logger.cpp
     src/soc_detect.cpp
 )
 
 if (ENABLE_WEBRWKV_BACKEND)
     set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/web_rwkv/web_rwkv_backend.cpp)
 
-    if (NOT IOS)
-        FetchContent_Declare(
-            Corrosion
-            GIT_REPOSITORY https://github.com/corrosion-rs/corrosion.git
-            GIT_TAG v0.5
-        )
-        FetchContent_MakeAvailable(Corrosion)
-
-        FetchContent_Declare(
-            web_rwkv_ffi
-            GIT_REPOSITORY https://github.com/MollySophia/web-rwkv-ffi.git
-            GIT_TAG main
-        )
-        FetchContent_MakeAvailable(web_rwkv_ffi)
-
-        corrosion_import_crate(MANIFEST_PATH ${web_rwkv_ffi_SOURCE_DIR}/Cargo.toml
-            CRATE_TYPES staticlib)
+    if (IOS)
+        set(Rust_CARGO_TARGET "aarch64-apple-ios")
     endif()
+
+    FetchContent_Declare(
+        Corrosion
+        GIT_REPOSITORY https://github.com/corrosion-rs/corrosion.git
+        GIT_TAG v0.5
+    )
+    FetchContent_MakeAvailable(Corrosion)
+
+    FetchContent_Declare(
+        web_rwkv_ffi
+        GIT_REPOSITORY https://github.com/MollySophia/web-rwkv-ffi.git
+        GIT_TAG main
+    )
+    FetchContent_MakeAvailable(web_rwkv_ffi)
+
+    corrosion_import_crate(MANIFEST_PATH ${web_rwkv_ffi_SOURCE_DIR}/Cargo.toml
+        CRATE_TYPES staticlib)
 
 endif()
 
@@ -139,9 +141,6 @@ target_include_directories(rwkv_mobile_internal PUBLIC src)
 if (ENABLE_WHISPER OR ENABLE_TTS)
     target_link_libraries(rwkv_mobile_internal PUBLIC Eigen3::Eigen)
     target_include_directories(rwkv_mobile_internal PUBLIC ${Eigen_SOURCE_DIR})
-    if (IOS)
-        target_compile_options(rwkv_mobile_internal PUBLIC "-I${Eigen_SOURCE_DIR}")
-    endif()
 endif()
 
 if (ENABLE_WEBRWKV_BACKEND)
@@ -152,6 +151,9 @@ if (ENABLE_WEBRWKV_BACKEND)
     endif()
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_WEBRWKV)
     target_include_directories(rwkv_mobile_internal PUBLIC backends/web_rwkv ${web_rwkv_ffi_SOURCE_DIR}/include)
+    if (IOS)
+        target_compile_options(rwkv_mobile_internal PUBLIC "-I${web_rwkv_ffi_SOURCE_DIR}/include")
+    endif()
     target_link_libraries(rwkv_mobile_internal PUBLIC web_rwkv_ffi ${WEBRWKV_EXTRA_LIBS})
 endif()
 
