@@ -110,12 +110,39 @@ if (ENABLE_QNN_BACKEND)
     set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/qnn/qnn_backend.cpp)
 endif()
 
-if (ENABLE_WHISPER)
+if (ENABLE_WHISPER OR ENABLE_TTS)
     set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/multimodal/utils/audio.cpp)
+    message(CHECK_START "Fetching Eigen3")
+
+    FetchContent_Declare(
+        Eigen
+        GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+        GIT_TAG master
+        GIT_SHALLOW TRUE
+        GIT_PROGRESS TRUE
+    )
+    # note: To disable eigen tests,
+    # you should put this code in a add_subdirectory to avoid to change
+    # BUILD_TESTING for your own project too since variables are directory
+    # scoped
+    set(BUILD_TESTING OFF)
+    set(EIGEN_BUILD_TESTING OFF)
+    set(EIGEN_MPL2_ONLY ON)
+    set(EIGEN_BUILD_PKGCONFIG OFF)
+    set(EIGEN_BUILD_DOC OFF)
+    FetchContent_MakeAvailable(Eigen)
 endif()
 
 add_library(rwkv_mobile_internal STATIC ${RWKV_MOBILE_SRCS})
 target_include_directories(rwkv_mobile_internal PUBLIC src)
+
+if (ENABLE_WHISPER OR ENABLE_TTS)
+    target_link_libraries(rwkv_mobile_internal PUBLIC Eigen3::Eigen)
+    target_include_directories(rwkv_mobile_internal PUBLIC ${Eigen_SOURCE_DIR})
+    if (IOS)
+        target_compile_options(rwkv_mobile_internal PUBLIC "-I${Eigen_SOURCE_DIR}")
+    endif()
+endif()
 
 if (ENABLE_WEBRWKV_BACKEND)
     if (APPLE)
