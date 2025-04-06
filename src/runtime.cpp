@@ -61,6 +61,9 @@ int backend_str_to_enum(std::string backend) {
 }
 
 void runtime::apply_logits_penalties(float * logits, int vocab_size, float presence_penalty, float frequency_penalty, float penalty_decay) {
+    if (!logits) {
+        return;
+    }
     for (auto &[id, occurence] : _occurences) {
         if (id >= vocab_size) {
             continue;
@@ -428,17 +431,26 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
                 prompt = inputs[i] + _eos_token;
             }
         } else {
-            prompt = _response_role + ": " + inputs[i] + _eos_token;
+            if (i == inputs.size() - 1) {
+                prompt = _response_role + ": " + inputs[i];
+            } else {
+                prompt = _response_role + ": " + inputs[i] + _eos_token;
+            }
         }
         LOGD("Processing history %i: \"%s\"\n", i, prompt.c_str());
         if (i == inputs.size() - 1) {
-            if (enable_reasoning) {
-                prompt += _response_role + ": " + _thinking_token;
-                _response_buffer += " " + _thinking_token;
-                auto tmp_ids = _tokenizer->encode(" " + _thinking_token);
-                _response_buffer_ids.insert(_response_buffer_ids.end(), tmp_ids.begin(), tmp_ids.end());
+            if (i % 2 == 0) {
+                if (enable_reasoning) {
+                    prompt += _response_role + ": " + _thinking_token;
+                    _response_buffer += " " + _thinking_token;
+                    auto tmp_ids = _tokenizer->encode(" " + _thinking_token);
+                    _response_buffer_ids.insert(_response_buffer_ids.end(), tmp_ids.begin(), tmp_ids.end());
+                } else {
+                    prompt += _response_role + ":";
+                }
             } else {
-                prompt += _response_role + ":";
+                _response_buffer = inputs[i];
+                _response_buffer_ids = _tokenizer->encode(inputs[i]);
             }
         }
         std::vector<int> ids = _tokenizer->encode(prompt);
@@ -465,6 +477,16 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
                 _occurences[id]++;
             }
         }
+    }
+
+    bool resuming = false;
+    if (!edited && inputs.size() % 2 == 0) {
+        // case that resume generation from the last assistant message
+        _response_buffer = inputs[inputs.size() - 1];
+        _response_buffer_ids = _tokenizer->encode(inputs[inputs.size() - 1]);
+        auto ret = eval_logits(_response_buffer_ids.back(), logits);
+        if (ret) return ret;
+        resuming = true;
     }
 
     for (int i = 0; i < max_length; i++) {
@@ -506,16 +528,21 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         if (ret) return ret;
     }
 
-    ret = eval_logits(_tokenizer->encode(_stop_codes[0]), logits);
-    if (ret) return ret;
+    // only eval stop code if generation is not forced to stop
+    if (_is_generating) {
+        ret = eval_logits(_tokenizer->encode(_stop_codes[0]), logits);
+        if (ret) return ret;
+    }
 
     LOGD("Response: \"%s\"\n", _response_buffer.c_str());
 
-    node->next = new state_node;
-    if (node->next == nullptr) {
-        return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
+    if (!resuming) {
+        node->next = new state_node;
+        if (node->next == nullptr) {
+            return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
+        }
+        node = node->next;
     }
-    node = node->next;
     node->hash = hash_string(_response_buffer);
     _backend->get_state(node->state);
     start_idx = -1;
