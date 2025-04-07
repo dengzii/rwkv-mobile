@@ -155,7 +155,7 @@ target_include_directories(rwkv_mobile_internal PUBLIC src)
 if (ENABLE_WHISPER OR ENABLE_TTS)
     target_link_libraries(rwkv_mobile_internal PUBLIC Eigen3::Eigen)
     target_link_libraries(rwkv_mobile_internal PRIVATE $<TARGET_OBJECTS:soxr>)
-    target_include_directories(rwkv_mobile_internal PUBLIC ${Eigen_SOURCE_DIR})
+    target_include_directories(rwkv_mobile_internal PUBLIC ${Eigen_SOURCE_DIR} ${libsoxr_SOURCE_DIR}/src)
 endif()
 
 if (ENABLE_WEBRWKV_BACKEND)
