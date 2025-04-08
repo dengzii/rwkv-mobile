@@ -110,6 +110,7 @@ int rwkvmobile_runtime_eval_chat_with_history(
 
     auto rt = static_cast<class runtime *>(handle);
     rt->set_is_generating(true);
+    rt->set_stop_signal(false);
     std::vector<std::string> inputs_vec;
     for (int i = 0; i < num_inputs; i++) {
         inputs_vec.push_back(std::string(inputs[i]));
@@ -141,6 +142,7 @@ int rwkvmobile_runtime_gen_completion(
 
     auto rt = static_cast<class runtime *>(handle);
     rt->set_is_generating(true);
+    rt->set_stop_signal(false);
     std::thread generation_thread([=]() {
         int ret = rt->gen_completion(
             std::string(prompt),
@@ -178,7 +180,7 @@ int rwkvmobile_runtime_stop_generation(rwkvmobile_runtime_t runtime) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
     auto rt = static_cast<class runtime *>(runtime);
-    rt->set_is_generating(false);
+    rt->set_stop_signal(true);
     return RWKV_SUCCESS;
 }
 

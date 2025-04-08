@@ -320,7 +320,7 @@ int runtime::chat(std::string input, const int max_length, void (*callback)(cons
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
     set_is_generating(true);
-
+    _stop_signal = false;
     std::string prompt = input + _eos_token + _response_role + ":";
     if (!_user_role.empty()) {
         prompt = _bos_token + _user_role + ": " + prompt;
@@ -363,12 +363,15 @@ int runtime::chat(std::string input, const int max_length, void (*callback)(cons
         ret = eval_logits(idx, logits);
         if (ret) return ret;
         if (stopping) break;
-        if (!_is_generating) break;
+        if (_stop_signal) break;
     }
-    set_is_generating(false);
+
     if (callback) {
         callback(_response_buffer.c_str(), 0);
     }
+
+    set_is_generating(false);
+    _stop_signal = false;
     return RWKV_SUCCESS;
 }
 
@@ -377,6 +380,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
     set_is_generating(true);
+    _stop_signal = false;
 
     struct state_node *node = _state_head;
     int start_idx = 0;
@@ -509,7 +513,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             }
         }
 
-        if (stopping || !_is_generating) {
+        if (stopping || _stop_signal) {
             break;
         }
 
@@ -529,7 +533,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     }
 
     // only eval stop code if generation is not forced to stop
-    if (_is_generating) {
+    if (!_stop_signal) {
         ret = eval_logits(_tokenizer->encode(_stop_codes[0]), logits);
         if (ret) return ret;
     }
@@ -552,11 +556,12 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         node = node->next;
     }
     LOGD("New state node %i hash %llu\n", start_idx, node->hash);
-    set_is_generating(false);
     if (callback) {
         callback(_response_buffer.c_str(), 0);
     }
 
+    set_is_generating(false);
+    _stop_signal = false;
     return RWKV_SUCCESS;
 }
 
@@ -691,6 +696,7 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
     set_is_generating(true);
+    _stop_signal = false;
 
     std::vector<int> ids = _tokenizer->encode(prompt);
     float *logits = nullptr;
@@ -717,17 +723,18 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
             callback(_response_buffer.c_str(), idx);
         }
 
-        if (stopping || !_is_generating) {
+        if (stopping || _stop_signal) {
             break;
         }
 
         _occurences[idx]++;
     }
 
-    set_is_generating(false);
     if (callback) {
         callback(_response_buffer.c_str(), 0);
     }
+    set_is_generating(false);
+    _stop_signal = false;
     return RWKV_SUCCESS;
 }
 

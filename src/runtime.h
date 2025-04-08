@@ -164,6 +164,9 @@ public:
     inline bool is_generating() { return _is_generating; }
     inline void set_is_generating(bool is_generating) { _is_generating = is_generating; }
 
+    inline bool get_stop_signal() { return _stop_signal; }
+    inline void set_stop_signal(bool stop_signal) { _stop_signal = stop_signal; }
+
     std::string get_available_backends_str();
     int get_available_backend_ids(std::vector<int> &backend_ids);
 
@@ -249,6 +252,7 @@ private:
     std::string _thinking_token = "<think";
 
     bool _is_generating = false;
+    bool _stop_signal = false;
 
     std::vector<std::string> _stop_codes = {"\n\n", "\nUser:", "User:"};
     std::vector<int> _token_banned = {};
