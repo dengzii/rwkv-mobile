@@ -24,13 +24,13 @@ enum {
 #else
 #include <cstdio>
 #define LOGI(...) \
-    { if (DEFAULT_LOG_LEVEL <= RWKV_LOG_LEVEL_INFO) { printf("[INFO]: " __VA_ARGS__); printf("\n"); } }
+    { if (DEFAULT_LOG_LEVEL <= RWKV_LOG_LEVEL_INFO) { printf("[INFO] " __VA_ARGS__); printf("\n"); } }
 #define LOGD(...) \
-    { if (DEFAULT_LOG_LEVEL <= RWKV_LOG_LEVEL_DEBUG) { printf("[DEBUG]: " __VA_ARGS__); printf("\n"); } }
+    { if (DEFAULT_LOG_LEVEL <= RWKV_LOG_LEVEL_DEBUG) { printf("[DEBUG] " __VA_ARGS__); printf("\n"); } }
 #define LOGW(...) \
-    { if (DEFAULT_LOG_LEVEL <= RWKV_LOG_LEVEL_WARN) { printf("[WARN]: " __VA_ARGS__); printf("\n"); } }
+    { if (DEFAULT_LOG_LEVEL <= RWKV_LOG_LEVEL_WARN) { printf("[WARN] " __VA_ARGS__); printf("\n"); } }
 #define LOGE(...) \
-    { if (DEFAULT_LOG_LEVEL <= RWKV_LOG_LEVEL_ERROR) { printf("[ERROR]: " __VA_ARGS__); printf("\n"); } }
+    { if (DEFAULT_LOG_LEVEL <= RWKV_LOG_LEVEL_ERROR) { printf("[ERROR] " __VA_ARGS__); printf("\n"); } }
 #endif
 
 #endif

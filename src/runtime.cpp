@@ -432,9 +432,9 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             }
         } else {
             if (i == inputs.size() - 1) {
-                prompt = _response_role + ": " + inputs[i];
+                prompt = _bos_token + _response_role + ": " + inputs[i];
             } else {
-                prompt = _response_role + ": " + inputs[i] + _eos_token;
+                prompt = _bos_token + _response_role + ": " + inputs[i] + _eos_token;
             }
         }
         LOGD("Processing history %i: \"%s\"\n", i, prompt.c_str());
