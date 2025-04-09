@@ -113,7 +113,7 @@ if (ENABLE_QNN_BACKEND)
 endif()
 
 if (ENABLE_WHISPER OR ENABLE_TTS)
-    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/multimodal/utils/audio.cpp)
+    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/multimodal/utils/audio.cpp src/multimodal/tts/frontend.cpp)
     message(CHECK_START "Fetching Eigen3")
 
     FetchContent_Declare(
@@ -155,7 +155,7 @@ target_include_directories(rwkv_mobile_internal PUBLIC src)
 if (ENABLE_WHISPER OR ENABLE_TTS)
     target_link_libraries(rwkv_mobile_internal PUBLIC Eigen3::Eigen)
     target_link_libraries(rwkv_mobile_internal PRIVATE $<TARGET_OBJECTS:soxr>)
-    target_include_directories(rwkv_mobile_internal PUBLIC ${Eigen_SOURCE_DIR} ${libsoxr_SOURCE_DIR}/src)
+    target_include_directories(rwkv_mobile_internal PUBLIC ${Eigen_SOURCE_DIR} ${libsoxr_SOURCE_DIR}/src src/multimodal/tts src/multimodal/utils)
 endif()
 
 if (ENABLE_WEBRWKV_BACKEND)

@@ -248,7 +248,7 @@ public:
                                               float power, int n_mels, int fmin, int fmax,
                                               int n_mfcc, bool norm, int type) {
     Vectorf map_x = Eigen::Map<Vectorf>(x.data(), x.size());
-    Matrixf mel = internal::melspectrogram(map_x, sr, n_fft, n_hop, win, center, mode, power, n_mels, fmin, fmax).transpose();
+    Matrixf mel = internal::melspectrogram(map_x, sr, n_fft, n_hop, win, center, mode, power, n_mels, fmin, fmax);
     Matrixf mel_db = internal::power2db(mel);
     Matrixf dct = internal::dct(mel_db, norm, type).leftCols(n_mfcc);
     std::vector<std::vector<float>> mfcc_vector(dct.rows(), std::vector<float>(dct.cols(), 0.f));

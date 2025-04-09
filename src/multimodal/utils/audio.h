@@ -30,4 +30,6 @@ public:
     int32_t num_samples;
 };
 
+std::vector<std::vector<float>> logMelSpectrogram(std::vector<float>& audio, int sample_rate, int n_fft, int n_hop, int n_mel, int fmin, int fmax);
+
 }

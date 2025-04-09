@@ -2,8 +2,10 @@
 #include "logger.h"
 #include <fstream>
 #include <cstdint>
-#include "librosa.h"
 #include "soxr.h"
+#include "librosa.h"
+#include <cmath>
+
 namespace rwkvmobile {
 
 static int16_t twoBytesToInt16(const char* bytes) {
@@ -12,13 +14,6 @@ static int16_t twoBytesToInt16(const char* bytes) {
     }
     return reinterpret_cast<const int16_t*>(bytes)[0];
 }
-
-// static uint16_t twoBytesToUint16(const char* bytes) {
-//     if (bytes == nullptr) {
-//         return 0;
-//     }
-//     return reinterpret_cast<const uint16_t*>(bytes)[0];
-// }
 
 static int32_t fourBytesToInt32(const char* bytes) {
     if (bytes == nullptr) {
@@ -142,13 +137,6 @@ bool wav_file::save(const std::string& path) {
     return true;
 }
 
-void testmel(librosa::Vectorf &x, int sr, int n_fft, int n_hop,
-                        const std::string &win, bool center,
-                        const std::string &mode, float power,
-                        int n_mels, int fmin, int fmax) {
-    librosa::internal::melspectrogram(x, sr, n_fft, n_hop, win, center, mode, power, n_mels, fmin, fmax);
-}
-
 void wav_file::resample(int new_sample_rate) {
     if (samples.empty()) {
         LOGE("samples is empty");
@@ -170,6 +158,27 @@ void wav_file::resample(int new_sample_rate) {
     samples = resampled_samples;
     sample_rate = new_sample_rate;
     num_samples = resampled_samples.size();
+}
+
+std::vector<std::vector<float>> logMelSpectrogram(std::vector<float>& audio, int sample_rate, int n_fft, int n_hop, int n_mel, int fmin, int fmax) {
+    std::vector<std::vector<float>> mels = librosa::Feature::melspectrogram(audio,
+        sample_rate, n_fft, n_hop, "hann", true, "reflect", 2.0, n_mel, fmin, fmax);
+
+    float max_val = -1e20;
+    for (int i = 0; i < mels.size(); i++) {
+        for (int j = 0; j < mels[i].size(); j++) {
+            mels[i][j] = log10f(std::max(mels[i][j], 1e-10f));
+            max_val = std::max(max_val, mels[i][j]);
+        }
+    }
+
+    for (int i = 0; i < mels.size(); i++) {
+        for (int j = 0; j < mels[i].size(); j++) {
+            mels[i][j] = std::max(mels[i][j], max_val - 8.0f);
+            mels[i][j] = (mels[i][j] + 4.0f) / 4.0f;
+        }
+    }
+    return mels;
 }
 
 }
