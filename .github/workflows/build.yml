@@ -200,19 +200,19 @@ jobs:
     needs: [setup]
     runs-on: ubuntu-latest
     env:
-      PACKAGENAME: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c
+      PACKAGENAME: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r27c
     steps:
     - uses: actions/checkout@v4
     - name: Install Ninja
       run: |
         sudo apt-get install ninja-build
-    - name: ndk-r25c
+    - name: ndk-r27c
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
         sudo apt-get update
-        wget -q https://dl.google.com/android/repository/android-ndk-r25c-linux.zip -O $GITHUB_WORKSPACE/android-ndk-r25c-linux.zip
-        cd $GITHUB_WORKSPACE && unzip -q android-ndk-r25c-linux.zip
+        wget -q https://dl.google.com/android/repository/android-ndk-r27c-linux.zip -O $GITHUB_WORKSPACE/android-ndk-r27c-linux.zip
+        cd $GITHUB_WORKSPACE && unzip -q android-ndk-r27c-linux.zip
     - name: build
       run: |
         wget -q https://huggingface.co/csukuangfj/onnxruntime-libs/resolve/main/onnxruntime-android-arm64-v8a-static_lib-1.20.2.zip
@@ -225,16 +225,16 @@ jobs:
         mkdir build && cd build
         cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_QNN_BACKEND=ON \
           -DENABLE_TTS=ON -DENABLE_VISION=ON -DENABLE_WHISPER=ON \
-          -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-28 -DANDROID_NDK=$GITHUB_WORKSPACE/android-ndk-r25c \
-          -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/android-ndk-r25c/build/cmake/android.toolchain.cmake -DCMAKE_BUILD_TYPE=Release \
+          -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-28 -DANDROID_NDK=$GITHUB_WORKSPACE/android-ndk-r27c \
+          -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/android-ndk-r27c/build/cmake/android.toolchain.cmake -DCMAKE_BUILD_TYPE=Release \
           -G Ninja
         ninja
         cd ..
         mkdir build-debug && cd build-debug
         cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_QNN_BACKEND=ON \
           -DENABLE_TTS=ON -DENABLE_VISION=ON -DENABLE_WHISPER=ON \
-          -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-28 -DANDROID_NDK=$GITHUB_WORKSPACE/android-ndk-r25c \
-          -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/android-ndk-r25c/build/cmake/android.toolchain.cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-28 -DANDROID_NDK=$GITHUB_WORKSPACE/android-ndk-r27c \
+          -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/android-ndk-r27c/build/cmake/android.toolchain.cmake -DCMAKE_BUILD_TYPE=Debug \
           -G Ninja
         ninja
     - name: package
@@ -331,11 +331,11 @@ jobs:
       - name: download-android
         uses: actions/download-artifact@v4
         with:
-          name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c
+          name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r27c
       - name: download-android-debug
         uses: actions/download-artifact@v4
         with:
-          name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c-debug
+          name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r27c-debug
 
       - name: download-linux-x64
         uses: actions/download-artifact@v4
@@ -354,8 +354,8 @@ jobs:
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static-debug.zip librwkv_mobile-dev-latest-ios-static-debug.zip
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64.zip librwkv_mobile-dev-latest-macos.zip
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64-debug.zip librwkv_mobile-dev-latest-macos-debug.zip
-          mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c.zip librwkv_mobile-dev-latest-aarch64-android-ndk-r25c.zip
-          mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c-debug.zip librwkv_mobile-dev-latest-aarch64-android-ndk-r25c-debug.zip
+          mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r27c.zip librwkv_mobile-dev-latest-aarch64-android-ndk-r27c.zip
+          mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r27c-debug.zip librwkv_mobile-dev-latest-aarch64-android-ndk-r27c-debug.zip
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-linux-x86_64.zip librwkv_mobile-dev-latest-linux-x86_64.zip
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-linux-aarch64.zip librwkv_mobile-dev-latest-linux-aarch64.zip
       - uses: "marvinpinto/action-automatic-releases@latest"
@@ -370,8 +370,8 @@ jobs:
             librwkv_mobile-dev-latest-ios-static-debug.zip
             librwkv_mobile-dev-latest-macos.zip
             librwkv_mobile-dev-latest-macos-debug.zip
-            librwkv_mobile-dev-latest-aarch64-android-ndk-r25c.zip
-            librwkv_mobile-dev-latest-aarch64-android-ndk-r25c-debug.zip
+            librwkv_mobile-dev-latest-aarch64-android-ndk-r27c.zip
+            librwkv_mobile-dev-latest-aarch64-android-ndk-r27c-debug.zip
             librwkv_mobile-dev-latest-linux-x86_64.zip
             librwkv_mobile-dev-latest-linux-aarch64.zip
       - uses: "marvinpinto/action-automatic-releases@latest"
@@ -384,7 +384,7 @@ jobs:
             librwkv_mobile-dev-latest-ios-static-debug.zip
             librwkv_mobile-dev-latest-macos.zip
             librwkv_mobile-dev-latest-macos-debug.zip
-            librwkv_mobile-dev-latest-aarch64-android-ndk-r25c.zip
-            librwkv_mobile-dev-latest-aarch64-android-ndk-r25c-debug.zip
+            librwkv_mobile-dev-latest-aarch64-android-ndk-r27c.zip
+            librwkv_mobile-dev-latest-aarch64-android-ndk-r27c-debug.zip
             librwkv_mobile-dev-latest-linux-x86_64.zip
             librwkv_mobile-dev-latest-linux-aarch64.zip
