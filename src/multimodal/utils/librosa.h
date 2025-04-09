@@ -75,7 +75,7 @@ static Vectorf pad(Vectorf &x, int left, int right, const std::string &mode, flo
   return x_paded;
 }
 
-static Matrixcf stft(Vectorf &x, int n_fft, int n_hop, const std::string &win, bool center, const std::string &mode){
+static Matrixcf stft(Vectorf &x, int n_fft, int n_hop, const std::string &win, bool center, const std::string &mode, bool return_magnitude = false){
   // hanning
   Vectorf window = 0.5*(1.f-(Vectorf::LinSpaced(n_fft, 0.f, static_cast<float>(n_fft-1))*2.f*M_PI/n_fft).array().cos());
 
@@ -83,13 +83,17 @@ static Matrixcf stft(Vectorf &x, int n_fft, int n_hop, const std::string &win, b
   Vectorf x_paded = pad(x, pad_len, pad_len, mode, 0.f);
 
   int n_f = n_fft/2+1;
-  int n_frames = 1+(x_paded.size()-n_fft) / n_hop;
+  int n_frames = (x_paded.size()-n_fft) / n_hop;
   Matrixcf X(n_frames, n_fft);
   Eigen::FFT<float> fft;
 
   for (int i = 0; i < n_frames; ++i){
     Vectorf x_frame = window.array()*x_paded.segment(i*n_hop, n_fft).array();
     X.row(i) = fft.fwd(x_frame);
+  }
+
+  if (return_magnitude) {
+    return (X.leftCols(n_f).array().pow(2) + X.rightCols(n_f).array().pow(2) + 1e-9).sqrt();
   }
   return X.leftCols(n_f);
 }
@@ -145,7 +149,7 @@ static Matrixf melfilter(int sr, int n_fft, int n_mels, int fmin, int fmax){
 static Matrixf melspectrogram(Vectorf &x, int sr, int n_fft, int n_hop,
                         const std::string &win, bool center,
                         const std::string &mode, float power,
-                        int n_mels, int fmin, int fmax){
+                        int n_mels, int fmin, int fmax, bool return_magnitude = false){
   Matrixcf X = stft(x, n_fft, n_hop, win, center, mode);
   Matrixf mel_basis = melfilter(sr, n_fft, n_mels, fmin, fmax);
   Matrixf sp = spectrogram(X, power);
@@ -216,9 +220,9 @@ public:
   /// \return     mel spectrogram matrix
   static std::vector<std::vector<float>> melspectrogram(std::vector<float> &x, int sr, 
                                                         int n_fft, int n_hop, const std::string &win, bool center, const std::string &mode,
-                                                        float power, int n_mels, int fmin, int fmax){
+                                                        float power, int n_mels, int fmin, int fmax, bool return_magnitude = false){
     Vectorf map_x = Eigen::Map<Vectorf>(x.data(), x.size());
-    Matrixf mel = internal::melspectrogram(map_x, sr, n_fft, n_hop, win, center, mode, power, n_mels, fmin, fmax).transpose();
+    Matrixf mel = internal::melspectrogram(map_x, sr, n_fft, n_hop, win, center, mode, power, n_mels, fmin, fmax, return_magnitude);
     std::vector<std::vector<float>> mel_vector(mel.rows(), std::vector<float>(mel.cols(), 0.f));
     for (int i = 0; i < mel.rows(); ++i){
       auto &row = mel_vector[i];

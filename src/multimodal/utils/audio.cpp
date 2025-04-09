@@ -160,9 +160,12 @@ void wav_file::resample(int new_sample_rate) {
     num_samples = resampled_samples.size();
 }
 
-std::vector<std::vector<float>> logMelSpectrogram(std::vector<float>& audio, int sample_rate, int n_fft, int n_hop, int n_mel, int fmin, int fmax) {
-    std::vector<std::vector<float>> mels = librosa::Feature::melspectrogram(audio,
-        sample_rate, n_fft, n_hop, "hann", true, "reflect", 2.0, n_mel, fmin, fmax);
+std::vector<std::vector<float>> melSpectrogram(std::vector<float>& audio, int sample_rate, int n_fft, int n_hop, int n_mel, int fmin, int fmax, float power, bool center, bool return_magnitude) {
+    return librosa::Feature::melspectrogram(audio, sample_rate, n_fft, n_hop, "hann", center, "reflect", power, n_mel, fmin, fmax, return_magnitude);
+}
+
+std::vector<std::vector<float>> logMelSpectrogram(std::vector<float>& audio, int sample_rate, int n_fft, int n_hop, int n_mel, int fmin, int fmax, float power, bool center, bool return_magnitude) {
+    std::vector<std::vector<float>> mels = melSpectrogram(audio, sample_rate, n_fft, n_hop, n_mel, fmin, fmax, power, center, return_magnitude);
 
     float max_val = -1e20;
     for (int i = 0; i < mels.size(); i++) {
@@ -179,6 +182,14 @@ std::vector<std::vector<float>> logMelSpectrogram(std::vector<float>& audio, int
         }
     }
     return mels;
+}
+
+void dynamic_range_compression(std::vector<std::vector<float>>& features) {
+    for (int i = 0; i < features.size(); i++) {
+        for (int j = 0; j < features[i].size(); j++) {
+            features[i][j] = log(std::max(1e-5f, features[i][j]));
+        }
+    }
 }
 
 }

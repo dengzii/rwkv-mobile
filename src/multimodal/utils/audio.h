@@ -30,6 +30,9 @@ public:
     int32_t num_samples;
 };
 
-std::vector<std::vector<float>> logMelSpectrogram(std::vector<float>& audio, int sample_rate, int n_fft, int n_hop, int n_mel, int fmin, int fmax);
+std::vector<std::vector<float>> melSpectrogram(std::vector<float>& audio, int sample_rate, int n_fft, int n_hop, int n_mel, int fmin, int fmax, float power, bool center, bool return_magnitude);
+std::vector<std::vector<float>> logMelSpectrogram(std::vector<float>& audio, int sample_rate, int n_fft, int n_hop, int n_mel, int fmin, int fmax, float power, bool center, bool return_magnitude);
+
+void dynamic_range_compression(std::vector<std::vector<float>>& features);
 
 }

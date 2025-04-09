@@ -37,3 +37,8 @@ target_link_libraries(test_soc_detect PUBLIC rwkv_mobile_internal)
 
 add_executable(simple_benchmark simple_benchmark.cpp)
 target_link_libraries(simple_benchmark PUBLIC rwkv_mobile_internal)
+
+if (ENABLE_TTS)
+    add_executable(test_tts test_tts.cpp)
+    target_link_libraries(test_tts PUBLIC rwkv_mobile_internal)
+endif()
