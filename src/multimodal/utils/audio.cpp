@@ -43,26 +43,26 @@ bool wav_file::load(const std::string& path) {
     file.read(info, 4); // fmt size
     file.read(info, 2); // audio format
     audio_format = twoBytesToInt16(info);
-    LOGI("audio_format: %d", audio_format);
+    LOGI("[WAV] audio_format: %d", audio_format);
     file.read(info, 2); // num channels
     num_channels = twoBytesToInt16(info);
-    LOGI("num_channels: %d", num_channels);
+    LOGI("[WAV] num_channels: %d", num_channels);
 
     file.read(info, 4); // sample rate
     sample_rate = fourBytesToInt32(info);
-    LOGI("sample_rate: %d", sample_rate);
+    LOGI("[WAV] sample_rate: %d", sample_rate);
 
     file.read(info, 4); // byte rate
     byte_rate = fourBytesToInt32(info);
-    LOGI("byte_rate: %d", byte_rate);
+    LOGI("[WAV] byte_rate: %d", byte_rate);
 
     file.read(info, 2); // block align
     block_align = twoBytesToInt16(info);
-    LOGI("block_align: %d", block_align);
+    LOGI("[WAV] block_align: %d", block_align);
 
     file.read(info, 2); // bit depth
     bit_depth = twoBytesToInt16(info);
-    LOGI("bit_depth: %d", bit_depth);
+    LOGI("[WAV] bit_depth: %d", bit_depth);
 
     file.read(info, 4); // chunk name
     std::string chunk_name(info, 4);
@@ -77,7 +77,7 @@ bool wav_file::load(const std::string& path) {
     }
     file.read(info, 4); // data size
     num_samples = fourBytesToInt32(info) / (bit_depth / 8);
-    LOGI("num_samples: %d", num_samples);
+    LOGI("[WAV] num_samples: %d", num_samples);
 
     if (bit_depth == 16) {
         std::vector<int16_t> samples_int16(num_samples);
@@ -94,7 +94,7 @@ bool wav_file::load(const std::string& path) {
             samples[i] = static_cast<float>(samples_int8[i]) / 128.0f;
         }
     } else {
-        LOGE("Unsupported bit depth yet: %d", bit_depth);
+        LOGE("[WAV] Unsupported bit depth yet: %d", bit_depth);
         return false;
     }
     file.close();
@@ -139,20 +139,20 @@ bool wav_file::save(const std::string& path) {
 
 void wav_file::resample(int new_sample_rate) {
     if (samples.empty()) {
-        LOGE("samples is empty");
+        LOGE("[WAV] samples is empty");
         return;
     }
     if (sample_rate == new_sample_rate) {
         return;
     }
-    LOGI("resampling from %d to %d", sample_rate, new_sample_rate);
-    LOGI("origin num_samples: %d", num_samples);
-    LOGI("new num_samples: %d", num_samples / sample_rate * new_sample_rate);
+    LOGI("[WAV] resampling from %d to %d", sample_rate, new_sample_rate);
+    LOGD("[WAV] origin num_samples: %d", num_samples);
+    LOGD("[WAV] new num_samples: %d", num_samples / sample_rate * new_sample_rate);
 
     std::vector<float> resampled_samples(num_samples / sample_rate * new_sample_rate);
     auto soxr_ret = soxr_oneshot(sample_rate, new_sample_rate, num_channels, samples.data(), samples.size(), NULL, resampled_samples.data(), resampled_samples.size(), NULL, NULL, NULL, NULL);
     if (soxr_ret != 0) {
-        LOGE("soxr_oneshot failed");
+        LOGE("[WAV] soxr_oneshot failed");
         return;
     }
     samples = resampled_samples;

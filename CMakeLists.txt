@@ -151,6 +151,23 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
         option(WITH_CR64S "" OFF)
     endif()
     FetchContent_MakeAvailable(libsoxr)
+
+    FetchContent_Declare(
+        kaldi_native_fbank
+        GIT_REPOSITORY https://github.com/csukuangfj/kaldi-native-fbank/
+        GIT_TAG master
+    )
+    option(KALDI_NATIVE_FBANK_BUILD_PYTHON "" OFF)
+    option(KALDI_NATIVE_FBANK_BUILD_TESTS "" OFF)
+    FetchContent_MakeAvailable(kaldi_native_fbank)
+
+    FetchContent_Declare(
+        WeTextProcessing
+        GIT_REPOSITORY https://github.com/MollySophia/WeTextProcessing
+        GIT_TAG master
+    )
+    FetchContent_MakeAvailable(WeTextProcessing)
+    add_subdirectory(${CMAKE_BINARY_DIR}/_deps/wetextprocessing-src/runtime)
 endif()
 
 add_library(rwkv_mobile_internal STATIC ${RWKV_MOBILE_SRCS})
@@ -161,12 +178,12 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     target_link_libraries(rwkv_mobile_internal PRIVATE $<TARGET_OBJECTS:soxr>)
     if (ENABLE_TTS)
         if (ANDROID)
-            # find_library(LIBONNXRUNTIME onnxruntime src/multimodal/utils/onnxruntime/obj/aarch64-android/)
             target_link_directories(rwkv_mobile_internal PUBLIC src/multimodal/utils/onnxruntime/obj/aarch64-android/)
         elseif (LINUX)
             target_link_directories(rwkv_mobile_internal PUBLIC src/multimodal/utils/onnxruntime/obj/x86_64-linux/)
         endif()
-        target_link_libraries(rwkv_mobile_internal PUBLIC onnxruntime)
+        target_link_libraries(rwkv_mobile_internal PUBLIC onnxruntime $<TARGET_OBJECTS:kaldi-native-fbank-core> wetext_utils wetext_processor)
+        target_include_directories(rwkv_mobile_internal PUBLIC ${kaldi_native_fbank_SOURCE_DIR})
     endif()
     target_include_directories(rwkv_mobile_internal PUBLIC ${Eigen_SOURCE_DIR} ${libsoxr_SOURCE_DIR}/src 
         src/multimodal/tts src/multimodal/utils 

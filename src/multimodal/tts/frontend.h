@@ -18,6 +18,10 @@ public:
 
     std::vector<int> extract_speech_tokens(std::vector<float> audio_samples, int sample_rate);
 
+    std::vector<float> extract_speech_embedding(std::vector<float> audio_samples, int sample_rate);
+
+    // std::string normalize_text(std::string text);
+
 private:
     Ort::Env *env = nullptr;
     Ort::Session *speech_tokenizer_session = nullptr;
