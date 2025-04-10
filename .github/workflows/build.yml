@@ -262,7 +262,7 @@ jobs:
       run: |
         rm -rf build
         mkdir build && cd build
-        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_LLAMACPP_BACKEND=ON -DENABLE_VISION=ON -DENABLE_WHISPER=ON
+        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_LLAMACPP_BACKEND=ON -DENABLE_VISION=ON -DENABLE_WHISPER=ON -DENABLE_TTS=ON
         cmake --build . -j 8
         mv librwkv_mobile.so librwkv_mobile-linux-x86_64.so
     - name: package
@@ -287,7 +287,7 @@ jobs:
       run: |
         rm -rf build
         mkdir build && cd build
-        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_LLAMACPP_BACKEND=ON -DENABLE_VISION=ON -DENABLE_WHISPER=ON
+        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_LLAMACPP_BACKEND=ON -DENABLE_VISION=ON -DENABLE_WHISPER=ON -DENABLE_TTS=ON
         cmake --build . -j 8
         mv librwkv_mobile.so librwkv_mobile-linux-aarch64.so
     - name: package
