@@ -239,11 +239,37 @@ bool frontend::process_zeroshot(const std::string tts_text, const std::string pr
     end = std::chrono::high_resolution_clock::now();
     LOGI("[TTS] extract_speech_embedding duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
+    auto tts_text_normalized = normalize_text(tts_text);
+    auto prompt_text_new = prompt_text + "<|endofprompt|>";
+    LOGI("[TTS] tts_text_normalized: %s", tts_text_normalized.c_str());
+    LOGI("[TTS] prompt_text_new: %s", prompt_text_new.c_str());
+
     return true;
 }
 
-// std::string frontend::normalize_text(std::string text) {
+std::string frontend::normalize_text(std::string text) {
+    auto replace = [](std::string &text, const std::string &from, const std::string &to) {
+        while (text.find(from) != std::string::npos) {
+            text.replace(text.find(from), from.length(), to);
+        }
+    };
 
-// }
+    replace(text, "\n", "");
+
+    // remove blank between chinese characters
+    // TODO
+
+    replace(text, "²", "平方");
+    replace(text, "³", "立方");
+    replace(text, "（", "");
+    replace(text, "）", "");
+    replace(text, "【", "");
+    replace(text, "】", "");
+    replace(text, "`", "");
+    replace(text, "”", "");
+    replace(text, "——", " ");
+
+    return text;
+}
 
 }
