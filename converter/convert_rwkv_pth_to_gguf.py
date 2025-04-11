@@ -380,28 +380,30 @@ class Model:
 
     def _set_vocab_rwkv_world(self):
         assert (self.vocab_path).is_file()
-        vocab_size = 65536
+        # vocab_size = 65536
 
         tokens: list[bytes] = ['<s>'.encode("utf-8")]
         toktypes: list[int] = [gguf.TokenType.CONTROL]
 
         with open(self.vocab_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
+            vocab_size = len(lines) + 1
+            print(f"vocab_size: {vocab_size}")
             for line in lines:
                 parts = line.split(' ')
                 assert len(parts) >= 3
                 token, token_len = ast.literal_eval(' '.join(parts[1:-1])), int(parts[-1])
                 token = token.encode("utf-8") if isinstance(token, str) else token
                 assert isinstance(token, bytes)
-                assert len(token) == token_len
+                assert len(token) == token_len, f"token: {token}, token_len: {token_len}, len(token): {len(token)}"
                 token_text: str = repr(token)[2:-1]  # "b'\xff'" -> "\xff"
                 tokens.append(token_text.encode("utf-8"))
                 toktypes.append(gguf.TokenType.NORMAL)
         remainder = vocab_size - len(tokens)
-        assert remainder >= 0
-        for i in range(len(tokens), vocab_size):
-            tokens.append(f"[PAD{i}]".encode("utf-8"))
-            toktypes.append(gguf.TokenType.UNUSED)
+        if remainder >= 0:
+            for i in range(len(tokens), vocab_size):
+                tokens.append(f"[PAD{i}]".encode("utf-8"))
+                toktypes.append(gguf.TokenType.UNUSED)
 
         self.gguf_writer.add_tokenizer_model("rwkv")
         self.gguf_writer.add_token_list(tokens)
@@ -562,7 +564,7 @@ class Rwkv7Model(Model):
             if all(f"model.layers.{bid}.attention.x_{i}" in self.lerp_weights[bid].keys() for i in lerp_list):
                 new_name = f"blk.{bid}.time_mix_lerp_fused.weight"
                 data = torch.stack([self.lerp_weights[bid][f"model.layers.{bid}.attention.x_{i}"] for i in lerp_list], dim=0)
-                yield (new_name, data)
+                yield (new_name, data.reshape(len(lerp_list), 1, 1, -1))
             return
         else:
             data_torch = data_torch.squeeze()

@@ -177,7 +177,7 @@ std::vector<float> frontend::extract_speech_embedding(std::vector<float> audio_s
     return output_vector;
 }
 
-bool frontend::process_zeroshot(const std::vector<int> tts_tokens, const std::vector<int> prompt_tokens, const std::string prompt_audio_path, const int resample_rate) {
+bool frontend::process_zeroshot(const std::string prompt_audio_path, std::vector<int> &speech_tokens, std::vector<std::vector<float>> &speech_features, std::vector<float> &speech_embedding, const int resample_rate) {
     if (speech_tokenizer_session == nullptr) {
         LOGE("[TTS] Speech tokenizer is not loaded");
         return false;
@@ -201,7 +201,7 @@ bool frontend::process_zeroshot(const std::vector<int> tts_tokens, const std::ve
 
     auto samples_16k = prompt_audio.samples;
     auto start = std::chrono::high_resolution_clock::now();
-    auto speech_tokens = extract_speech_tokens(samples_16k, 16000);
+    speech_tokens = extract_speech_tokens(samples_16k, 16000);
     auto end = std::chrono::high_resolution_clock::now();
     LOGI("[TTS] extract_speech_tokens duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
@@ -217,37 +217,35 @@ bool frontend::process_zeroshot(const std::vector<int> tts_tokens, const std::ve
     int n_hop = 480;
     int n_mel = 80;
     start = std::chrono::high_resolution_clock::now();
-    std::vector<std::vector<float>> features = melSpectrogram(prompt_audio.samples, resample_rate, n_fft, n_hop, n_mel, fmin, fmax, 1.0, true, true);
-    dynamic_range_compression(features);
+    speech_features = melSpectrogram(prompt_audio.samples, resample_rate, n_fft, n_hop, n_mel, fmin, fmax, 1.0, true, true);
+    dynamic_range_compression(speech_features);
     end = std::chrono::high_resolution_clock::now();
     LOGI("[TTS] feat_extractor duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
-    debug_print_mean_std_2d(features, "features");
+    debug_print_mean_std_2d(speech_features, "speech_features");
 
     if (resample_rate == 24000) {
-        int token_length = std::min(features[0].size() / 2, speech_tokens.size());
-        for (int i = 0; i < features.size(); i++) {
-            features[i].resize(token_length * 2);
+        int token_length = std::min(speech_features[0].size() / 2, speech_tokens.size());
+        for (int i = 0; i < speech_features.size(); i++) {
+            speech_features[i].resize(token_length * 2);
         }
         speech_tokens.resize(token_length);
     }
-    LOGD("[TTS] features.size(): %dx%d", features.size(), features[0].size());
+    LOGD("[TTS] speech_features.size(): %dx%d", speech_features.size(), speech_features[0].size());
     LOGD("[TTS] speech_tokens.size(): %d", speech_tokens.size());
 
     start = std::chrono::high_resolution_clock::now();
-    auto speech_embedding = extract_speech_embedding(samples_16k, 16000);
+    speech_embedding = extract_speech_embedding(samples_16k, 16000);
     end = std::chrono::high_resolution_clock::now();
     LOGI("[TTS] extract_speech_embedding duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
+    return true;
+}
+
+std::vector<int> frontend::get_llm_tokens(const std::vector<int> tts_tokens, const std::vector<int> prompt_tokens, int &min_len, int &max_len) {
     std::vector<int> tokens(tts_tokens.size() + prompt_tokens.size());
     std::copy(prompt_tokens.begin(), prompt_tokens.end(), tokens.begin());
     std::copy(tts_tokens.begin(), tts_tokens.end(), tokens.begin() + prompt_tokens.size());
-
-    std::string debug_msg = "tokens: [";
-    for (int i = 0; i < tokens.size(); i++) {
-        debug_msg += std::to_string(tokens[i]) + ", ";
-    }
-    LOGI("[TTS] %s]", debug_msg.c_str());
 
     int content_length = tts_tokens.size();
     for (int i = 0; i < tokens.size(); i++) {
@@ -261,11 +259,55 @@ bool frontend::process_zeroshot(const std::vector<int> tts_tokens, const std::ve
 
     float max_token_text_ratio = 20;
     float min_token_text_ratio = 2;
-    int min_len = content_length * min_token_text_ratio;
-    int max_len = content_length * max_token_text_ratio;
+    min_len = content_length * min_token_text_ratio;
+    max_len = content_length * max_token_text_ratio;
     LOGI("[TTS] min_len: %d, max_len: %d", min_len, max_len);
 
-    return true;
+    int sos_eos_token = 72110;
+    int task_token = 72111;
+    tokens.insert(tokens.begin(), sos_eos_token);
+    tokens.push_back(task_token);
+
+    std::string debug_msg = "tokens: [";
+    for (int i = 0; i < tokens.size(); i++) {
+        debug_msg += std::to_string(tokens[i]) + ", ";
+    }
+    LOGI("[TTS] %s]", debug_msg.c_str());
+
+    return tokens;
+}
+
+int frontend::speech_token_sampler(float *logits, size_t size, std::vector<int> &decoded_tokens, bool ignore_eos) {
+    if (logits == nullptr) {
+        return 0;
+    }
+
+    int num_trials = 0, max_trials = 100;
+    const int eos_token = 72109;
+    int token_id = eos_token;
+    int top_k = 25;
+    float top_p = 0.8;
+    float tau_r = 0.1;
+    int win_size = 10;
+    while (num_trials < max_trials) {
+        token_id = _sampler.sample(logits, size, 1.0, top_k, top_p);
+        int rep_num = 0;
+        for (int i = 0; i < win_size; i++) {
+            if (decoded_tokens[decoded_tokens.size() - win_size + i] == token_id) {
+                rep_num++;
+            }
+        }
+        if (rep_num >= win_size * tau_r) {
+            token_id = _sampler.sample(logits, size, 1.0, 1, top_p);
+        }
+
+        if (!ignore_eos || token_id != eos_token) {
+            break;
+        }
+        num_trials++;
+    }
+    decoded_tokens.push_back(token_id);
+    return token_id;
 }
 
 std::string frontend::normalize_text(std::string text) {

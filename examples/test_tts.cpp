@@ -20,6 +20,7 @@ int main(int argc, char **argv) {
     rwkvmobile::runtime runtime;
     runtime.init("llama.cpp");
     runtime.load_tokenizer("assets/b_rwkv_vocab_v20230424_tts.txt");
+    runtime.load_model("test.gguf");
 
     rwkvmobile::frontend frontend;
     frontend.load_speech_tokenizer("speech_tokenizer_v2.onnx");
@@ -31,7 +32,22 @@ int main(int argc, char **argv) {
     std::vector<int> tts_tokens = runtime.tokenizer_encode(tts_text);
     std::vector<int> prompt_tokens = runtime.tokenizer_encode(instruction_text + "<|endofprompt|>");
 
-    frontend.process_zeroshot(tts_tokens, prompt_tokens, "jfk.wav", 24000);
+    int min_len, max_len;
+    std::vector<int> llm_tokens = frontend.get_llm_tokens(tts_tokens, prompt_tokens, min_len, max_len);
+    std::vector<int> speech_tokens;
+    std::vector<std::vector<float>> speech_features;
+    std::vector<float> speech_embedding;
+    frontend.process_zeroshot("jfk.wav", speech_tokens, speech_features, speech_embedding, 24000);
+
+    float *logits = nullptr;
+    runtime.eval_logits(llm_tokens, logits);
+    const int speech_vocab_size = 6562;
+    const int speech_vocab_offset = 65548;
+
+    std::vector<int> decoded_tokens;
+
+    runtime.free_logits_if_allocated(logits);
+    runtime.release();
 
     return 0;
 }
