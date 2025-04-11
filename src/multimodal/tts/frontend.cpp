@@ -177,7 +177,7 @@ std::vector<float> frontend::extract_speech_embedding(std::vector<float> audio_s
     return output_vector;
 }
 
-bool frontend::process_zeroshot(const std::string tts_text, const std::string prompt_text, const std::string prompt_audio_path, const int resample_rate) {
+bool frontend::process_zeroshot(const std::vector<int> tts_tokens, const std::vector<int> prompt_tokens, const std::string prompt_audio_path, const int resample_rate) {
     if (speech_tokenizer_session == nullptr) {
         LOGE("[TTS] Speech tokenizer is not loaded");
         return false;
@@ -239,10 +239,31 @@ bool frontend::process_zeroshot(const std::string tts_text, const std::string pr
     end = std::chrono::high_resolution_clock::now();
     LOGI("[TTS] extract_speech_embedding duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
-    auto tts_text_normalized = normalize_text(tts_text);
-    auto prompt_text_new = prompt_text + "<|endofprompt|>";
-    LOGI("[TTS] tts_text_normalized: %s", tts_text_normalized.c_str());
-    LOGI("[TTS] prompt_text_new: %s", prompt_text_new.c_str());
+    std::vector<int> tokens(tts_tokens.size() + prompt_tokens.size());
+    std::copy(prompt_tokens.begin(), prompt_tokens.end(), tokens.begin());
+    std::copy(tts_tokens.begin(), tts_tokens.end(), tokens.begin() + prompt_tokens.size());
+
+    std::string debug_msg = "tokens: [";
+    for (int i = 0; i < tokens.size(); i++) {
+        debug_msg += std::to_string(tokens[i]) + ", ";
+    }
+    LOGI("[TTS] %s]", debug_msg.c_str());
+
+    int content_length = tts_tokens.size();
+    for (int i = 0; i < tokens.size(); i++) {
+        if (tokens[i] == 65531) {
+            // end_of_prompt_index = i;
+            content_length = content_length - (i + 1);
+            break;
+        }
+    }
+    LOGI("[TTS] content_length: %d", content_length);
+
+    float max_token_text_ratio = 20;
+    float min_token_text_ratio = 2;
+    int min_len = content_length * min_token_text_ratio;
+    int max_len = content_length * max_token_text_ratio;
+    LOGI("[TTS] min_len: %d, max_len: %d", min_len, max_len);
 
     return true;
 }

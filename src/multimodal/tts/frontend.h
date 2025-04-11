@@ -14,7 +14,7 @@ public:
 
     bool load_campplus(const std::string model_path);
 
-    bool process_zeroshot(const std::string tts_text, const std::string prompt_text, const std::string prompt_audio_path, const int resample_rate = 24000);
+    bool process_zeroshot(const std::vector<int> tts_tokens, const std::vector<int> prompt_tokens, const std::string prompt_audio_path, const int resample_rate = 24000);
 
     std::vector<int> extract_speech_tokens(std::vector<float> audio_samples, int sample_rate);
 
