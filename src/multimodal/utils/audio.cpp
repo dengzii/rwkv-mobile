@@ -66,9 +66,9 @@ bool wav_file::load(const std::string& path) {
 
     file.read(info, 4); // chunk name
     std::string chunk_name(info, 4);
-    file.read(info, 4); // chunk size
-    int32_t chunk_size = fourBytesToInt32(info);
     while (chunk_name != "data") {
+        file.read(info, 4); // chunk size
+        int32_t chunk_size = fourBytesToInt32(info);
         for (int32_t i = 0; i < chunk_size / 2; i++) {
             file.read(info, 2);
         }
