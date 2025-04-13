@@ -117,7 +117,7 @@ if (ENABLE_QNN_BACKEND)
 endif()
 
 if (ENABLE_WHISPER OR ENABLE_TTS)
-    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/multimodal/utils/audio.cpp src/multimodal/tts/frontend.cpp)
+    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/multimodal/utils/audio.cpp src/multimodal/tts/cosyvoice.cpp)
     message(CHECK_START "Fetching Eigen3")
 
     FetchContent_Declare(

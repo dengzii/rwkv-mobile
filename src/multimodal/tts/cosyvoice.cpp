@@ -1,4 +1,4 @@
-#include "frontend.h"
+#include "cosyvoice.h"
 #include "audio.h"
 #include "logger.h"
 #include "librosa.h"
@@ -9,7 +9,7 @@
 #include "kaldi-native-fbank/csrc/online-feature.h"
 #include "kaldi-native-fbank/csrc/istft.h"
 
-#define PRINT_FEATURE_INFO 1
+#define PRINT_FEATURE_INFO 0
 
 static void debug_print_mean_std(std::vector<float> feat, std::string name) {
 #if PRINT_FEATURE_INFO
@@ -51,7 +51,7 @@ static void debug_print_mean_std_2d(std::vector<std::vector<float>> feat, std::s
 
 namespace rwkvmobile {
 
-bool frontend::load_speech_tokenizer(const std::string model_path) {
+bool cosyvoice::load_speech_tokenizer(const std::string model_path) {
     if (env == nullptr) {
         env = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, "rwkv_mobile");
     }
@@ -61,7 +61,7 @@ bool frontend::load_speech_tokenizer(const std::string model_path) {
     return true;
 }
 
-bool frontend::load_campplus(const std::string model_path) {
+bool cosyvoice::load_campplus(const std::string model_path) {
     if (env == nullptr) {
         env = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, "rwkv_mobile");
     }
@@ -71,7 +71,7 @@ bool frontend::load_campplus(const std::string model_path) {
     return true;
 }
 
-bool frontend::load_flow_encoder(const std::string model_path) {
+bool cosyvoice::load_flow_encoder(const std::string model_path) {
     if (env == nullptr) {
         env = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, "rwkv_mobile");
     }
@@ -81,7 +81,7 @@ bool frontend::load_flow_encoder(const std::string model_path) {
     return true;
 }
 
-bool frontend::load_flow_decoder_estimator(const std::string model_path) {
+bool cosyvoice::load_flow_decoder_estimator(const std::string model_path) {
     if (env == nullptr) {
         env = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, "rwkv_mobile");
     }
@@ -91,7 +91,7 @@ bool frontend::load_flow_decoder_estimator(const std::string model_path) {
     return true;
 }
 
-bool frontend::load_hift_generator(const std::string model_path) {
+bool cosyvoice::load_hift_generator(const std::string model_path) {
     if (env == nullptr) {
         env = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, "rwkv_mobile");
     }
@@ -101,7 +101,7 @@ bool frontend::load_hift_generator(const std::string model_path) {
     return true;
 }
 
-std::vector<int> frontend::extract_speech_tokens(std::vector<float> audio_samples, int sample_rate) {
+std::vector<int> cosyvoice::extract_speech_tokens(std::vector<float> audio_samples, int sample_rate) {
     if (speech_tokenizer_session == nullptr) {
         LOGE("[TTS] speech_tokenizer model not loaded.")
         return std::vector<int>();
@@ -148,7 +148,7 @@ std::vector<int> frontend::extract_speech_tokens(std::vector<float> audio_sample
     return output_vector;
 }
 
-std::vector<float> frontend::extract_speech_embedding(std::vector<float> audio_samples, int sample_rate) {
+std::vector<float> cosyvoice::extract_speech_embedding(std::vector<float> audio_samples, int sample_rate) {
     if (campplus_session == nullptr) {
         LOGE("[TTS] speech_tokenizer model not loaded.")
         return std::vector<float>();
@@ -209,7 +209,7 @@ std::vector<float> frontend::extract_speech_embedding(std::vector<float> audio_s
     return output_vector;
 }
 
-bool frontend::process_zeroshot(const std::string prompt_audio_path, std::vector<int> &speech_tokens, std::vector<std::vector<float>> &speech_features, std::vector<float> &speech_embedding, const int resample_rate) {
+bool cosyvoice::process_zeroshot(const std::string prompt_audio_path, std::vector<int> &speech_tokens, std::vector<std::vector<float>> &speech_features, std::vector<float> &speech_embedding, const int resample_rate) {
     if (speech_tokenizer_session == nullptr) {
         LOGE("[TTS] Speech tokenizer is not loaded");
         return false;
@@ -287,7 +287,7 @@ bool frontend::process_zeroshot(const std::string prompt_audio_path, std::vector
     return true;
 }
 
-std::vector<int> frontend::get_llm_tokens(const std::vector<int> tts_tokens, const std::vector<int> prompt_tokens, int &min_len, int &max_len) {
+std::vector<int> cosyvoice::get_llm_tokens(const std::vector<int> tts_tokens, const std::vector<int> prompt_tokens, int &min_len, int &max_len) {
     std::vector<int> tokens(tts_tokens.size() + prompt_tokens.size());
     for (int i = 0; i < prompt_tokens.size(); i++) {
         tokens[i] = prompt_tokens[i];
@@ -324,7 +324,7 @@ std::vector<int> frontend::get_llm_tokens(const std::vector<int> tts_tokens, con
     return tokens;
 }
 
-bool frontend::speech_token_to_wav(const std::vector<int> tokens, const std::vector<std::vector<float>> speech_features, const std::vector<float> speech_embedding, const std::string output_path) {
+bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::vector<std::vector<float>> speech_features, const std::vector<float> speech_embedding, const std::string output_path) {
     if (flow_encoder_session == nullptr) {
         LOGE("[TTS] Flow encoder is not loaded");
         return false;
@@ -340,9 +340,9 @@ bool frontend::speech_token_to_wav(const std::vector<int> tokens, const std::vec
         return false;
     }
 
-    LOGI("[TTS] tokens.size(): %d", tokens.size());
-    LOGI("[TTS] speech_features.size(): %dx%d", speech_features.size(), speech_features[0].size());
-    LOGI("[TTS] speech_embedding.size(): %d", speech_embedding.size());
+    LOGD("[TTS] tokens.size(): %d", tokens.size());
+    LOGD("[TTS] speech_features.size(): %dx%d", speech_features.size(), speech_features[0].size());
+    LOGD("[TTS] speech_embedding.size(): %d", speech_embedding.size());
 
     // Flow encoder
 
@@ -374,13 +374,13 @@ bool frontend::speech_token_to_wav(const std::vector<int> tokens, const std::vec
     auto mu = encoder_output[0].GetTensorMutableData<float>();
     auto embedding_out = encoder_output[1].GetTensorMutableData<float>();
     auto conds = encoder_output[2].GetTensorMutableData<float>();
-    LOGI("[TTS] mu size: %dx%dx%d", encoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[0], encoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[1], encoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[2]);
-    LOGI("[TTS] embedding_out size: %dx%d", encoder_output[1].GetTensorTypeAndShapeInfo().GetShape()[0], encoder_output[1].GetTensorTypeAndShapeInfo().GetShape()[1]);
-    LOGI("[TTS] conds size: %dx%dx%d", encoder_output[2].GetTensorTypeAndShapeInfo().GetShape()[0], encoder_output[2].GetTensorTypeAndShapeInfo().GetShape()[1], encoder_output[2].GetTensorTypeAndShapeInfo().GetShape()[2]);
+    LOGD("[TTS] mu size: %dx%dx%d", encoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[0], encoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[1], encoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[2]);
+    LOGD("[TTS] embedding_out size: %dx%d", encoder_output[1].GetTensorTypeAndShapeInfo().GetShape()[0], encoder_output[1].GetTensorTypeAndShapeInfo().GetShape()[1]);
+    LOGD("[TTS] conds size: %dx%dx%d", encoder_output[2].GetTensorTypeAndShapeInfo().GetShape()[0], encoder_output[2].GetTensorTypeAndShapeInfo().GetShape()[1], encoder_output[2].GetTensorTypeAndShapeInfo().GetShape()[2]);
 
     int mel_len1 = speech_features[0].size();
     int mel_len2 = encoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[2] - mel_len1;
-    LOGI("[TTS] mel_len1: %d, mel_len2: %d", mel_len1, mel_len2);
+    LOGD("[TTS] mel_len1: %d, mel_len2: %d", mel_len1, mel_len2);
 
     // Flow decoder
     const int n_timesteps = 10;
@@ -455,7 +455,7 @@ bool frontend::speech_token_to_wav(const std::vector<int> tokens, const std::vec
 
         auto decoder_output = flow_decoder_estimator_session->Run(run_options, input_names_estimator.data(), inputs_estimator.data(), 6, output_names_estimator.data(), 1);
         auto dphi_dt = decoder_output[0].GetTensorMutableData<float>();
-        LOGI("[TTS] dphi_dt size: %dx%dx%d", decoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[0], decoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[1], decoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[2]);
+        // LOGI("[TTS] dphi_dt size: %dx%dx%d", decoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[0], decoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[1], decoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[2]);
 
         for (int j = 0; j < len_mu; j++) {
             float dphi_dt_val = (1.0 + inference_cfg_rate) * dphi_dt[j] - inference_cfg_rate * dphi_dt[j + len_mu];
@@ -483,8 +483,8 @@ bool frontend::speech_token_to_wav(const std::vector<int> tokens, const std::vec
     auto hift_output = hift_generator_session->Run(run_options, input_names_hift.data(), inputs_hift.data(), 1, output_names_hift.data(), 2);
     auto real = hift_output[0].GetTensorMutableData<float>();
     auto imag = hift_output[1].GetTensorMutableData<float>();
-    LOGI("[TTS] real size: %dx%dx%d", hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[0], hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[1], hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[2]);
-    LOGI("[TTS] img size: %dx%dx%d", hift_output[1].GetTensorTypeAndShapeInfo().GetShape()[0], hift_output[1].GetTensorTypeAndShapeInfo().GetShape()[1], hift_output[1].GetTensorTypeAndShapeInfo().GetShape()[2]);
+    LOGD("[TTS] real size: %dx%dx%d", hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[0], hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[1], hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[2]);
+    LOGD("[TTS] img size: %dx%dx%d", hift_output[1].GetTensorTypeAndShapeInfo().GetShape()[0], hift_output[1].GetTensorTypeAndShapeInfo().GetShape()[1], hift_output[1].GetTensorTypeAndShapeInfo().GetShape()[2]);
     std::vector<float> real_vector(real, real + hift_output[0].GetTensorTypeAndShapeInfo().GetElementCount());
     std::vector<float> imag_vector(imag, imag + hift_output[1].GetTensorTypeAndShapeInfo().GetElementCount());
     debug_print_mean_std(real_vector, "real_vector");
@@ -527,7 +527,7 @@ bool frontend::speech_token_to_wav(const std::vector<int> tokens, const std::vec
     return true;
 }
 
-int frontend::speech_token_sampler(float *logits, size_t size, std::vector<int> decoded_tokens, bool ignore_eos) {
+int cosyvoice::speech_token_sampler(float *logits, size_t size, std::vector<int> decoded_tokens, bool ignore_eos) {
     if (logits == nullptr) {
         return 0;
     }
@@ -560,7 +560,7 @@ int frontend::speech_token_sampler(float *logits, size_t size, std::vector<int> 
     return token_id;
 }
 
-std::string frontend::normalize_text(std::string text) {
+std::string cosyvoice::normalize_text(std::string text) {
     auto replace = [](std::string &text, const std::string &from, const std::string &to) {
         while (text.find(from) != std::string::npos) {
             text.replace(text.find(from), from.length(), to);

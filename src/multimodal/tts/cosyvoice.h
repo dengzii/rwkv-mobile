@@ -6,11 +6,30 @@
 
 namespace rwkvmobile {
 
-class frontend {
+class cosyvoice {
 public:
-    frontend() {};
+    cosyvoice() {};
 
-    ~frontend() {};
+    ~cosyvoice() {
+        if (speech_tokenizer_session) {
+            delete speech_tokenizer_session;
+        }
+        if (campplus_session) {
+            delete campplus_session;
+        }
+        if (flow_encoder_session) {
+            delete flow_encoder_session;
+        }
+        if (flow_decoder_estimator_session) {
+            delete flow_decoder_estimator_session;
+        }
+        if (hift_generator_session) {
+            delete hift_generator_session;
+        }
+        if (env) {
+            delete env;
+        }
+    };
 
     bool load_speech_tokenizer(const std::string model_path);
 
