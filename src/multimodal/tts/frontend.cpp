@@ -492,7 +492,7 @@ bool frontend::speech_token_to_wav(const std::vector<int> tokens, const std::vec
     knf::StftResult stft_result = {
         .real = real_vector,
         .imag = imag_vector,
-        .num_frames = hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[1]
+        .num_frames = static_cast<int32_t>(hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[1])
     };
 
     int istft_n_fft = 16;
