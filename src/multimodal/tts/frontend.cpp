@@ -7,6 +7,7 @@
 #include "onnxruntime_cxx_api.h"
 #include "kaldi-native-fbank/csrc/feature-fbank.h"
 #include "kaldi-native-fbank/csrc/online-feature.h"
+#include "kaldi-native-fbank/csrc/istft.h"
 
 #define PRINT_FEATURE_INFO 1
 
@@ -87,6 +88,16 @@ bool frontend::load_flow_decoder_estimator(const std::string model_path) {
     Ort::SessionOptions session_options;
     session_options.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
     flow_decoder_estimator_session = new Ort::Session(*env, model_path.c_str(), session_options);
+    return true;
+}
+
+bool frontend::load_hift_generator(const std::string model_path) {
+    if (env == nullptr) {
+        env = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, "rwkv_mobile");
+    }
+    Ort::SessionOptions session_options;
+    session_options.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
+    hift_generator_session = new Ort::Session(*env, model_path.c_str(), session_options);
     return true;
 }
 
@@ -222,6 +233,13 @@ bool frontend::process_zeroshot(const std::string prompt_audio_path, std::vector
             return false;
         }
     }
+    prompt_audio.bit_depth = 16;
+    prompt_audio.num_channels = 1;
+    prompt_audio.byte_rate = 16000 * 16 / 8;
+    prompt_audio.block_align = 2;
+    prompt_audio.audio_format = 1;
+    prompt_audio.num_samples = prompt_audio.samples.size();
+    prompt_audio.save("prompt_audio_16k.wav");
 
     auto samples_16k = prompt_audio.samples;
     auto start = std::chrono::high_resolution_clock::now();
@@ -271,18 +289,20 @@ bool frontend::process_zeroshot(const std::string prompt_audio_path, std::vector
 
 std::vector<int> frontend::get_llm_tokens(const std::vector<int> tts_tokens, const std::vector<int> prompt_tokens, int &min_len, int &max_len) {
     std::vector<int> tokens(tts_tokens.size() + prompt_tokens.size());
-    std::copy(prompt_tokens.begin(), prompt_tokens.end(), tokens.begin());
-    std::copy(tts_tokens.begin(), tts_tokens.end(), tokens.begin() + prompt_tokens.size());
+    for (int i = 0; i < prompt_tokens.size(); i++) {
+        tokens[i] = prompt_tokens[i];
+    }
+    for (int i = 0; i < tts_tokens.size(); i++) {
+        tokens[prompt_tokens.size() + i] = tts_tokens[i];
+    }
 
-    int content_length = tts_tokens.size();
+    int content_length = tokens.size();
     for (int i = 0; i < tokens.size(); i++) {
         if (tokens[i] == 65531) {
-            // end_of_prompt_index = i;
             content_length = content_length - (i + 1);
             break;
         }
     }
-    LOGI("[TTS] content_length: %d", content_length);
 
     float max_token_text_ratio = 20;
     float min_token_text_ratio = 2;
@@ -304,7 +324,7 @@ std::vector<int> frontend::get_llm_tokens(const std::vector<int> tts_tokens, con
     return tokens;
 }
 
-bool frontend::speech_token_to_wav(const std::vector<int> tokens, const std::vector<std::vector<float>> speech_features, const std::vector<float> speech_embedding) {
+bool frontend::speech_token_to_wav(const std::vector<int> tokens, const std::vector<std::vector<float>> speech_features, const std::vector<float> speech_embedding, const std::string output_path) {
     if (flow_encoder_session == nullptr) {
         LOGE("[TTS] Flow encoder is not loaded");
         return false;
@@ -312,6 +332,11 @@ bool frontend::speech_token_to_wav(const std::vector<int> tokens, const std::vec
 
     if (flow_decoder_estimator_session == nullptr) {
         LOGE("[TTS] Flow decoder estimator is not loaded");
+        return false;
+    }
+
+    if (hift_generator_session == nullptr) {
+        LOGE("[TTS] Hift generator is not loaded");
         return false;
     }
 
@@ -443,13 +468,61 @@ bool frontend::speech_token_to_wav(const std::vector<int> tokens, const std::vec
     auto end = std::chrono::high_resolution_clock::now();
     LOGI("[TTS] flow_decoder_estimator diffusion duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
-    debug_print_mean_std(x, "x");
-    std::vector<float> output_feat(80 * mel_len2);
+    // Hift generator
+    std::vector<int64_t> speech_feat_shape = {1, 80, mel_len2};
+    Ort::Value speech_feat_input = Ort::Value::CreateTensor<float>(allocator, speech_feat_shape.data(), speech_feat_shape.size());
     for (int i = 0; i < 80; i++) {
-        memcpy(output_feat.data() + i * mel_len2, x.data() + i * (mel_len1 + mel_len2) + mel_len1, mel_len2 * sizeof(float));
+        memcpy(speech_feat_input.GetTensorMutableData<float>() + i * mel_len2, x.data() + i * (mel_len1 + mel_len2) + mel_len1, mel_len2 * sizeof(float));
     }
-    LOGI("[TTS] output_feat.size(): %d", output_feat.size());
-    debug_print_mean_std(output_feat, "output_feat");
+
+    std::vector<const char*> input_names_hift = {"speech_feat"};
+    std::vector<const char*> output_names_hift = {"real", "img"};
+    std::vector<Ort::Value> inputs_hift;
+    inputs_hift.push_back(std::move(speech_feat_input));
+
+    auto hift_output = hift_generator_session->Run(run_options, input_names_hift.data(), inputs_hift.data(), 1, output_names_hift.data(), 2);
+    auto real = hift_output[0].GetTensorMutableData<float>();
+    auto imag = hift_output[1].GetTensorMutableData<float>();
+    LOGI("[TTS] real size: %dx%dx%d", hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[0], hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[1], hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[2]);
+    LOGI("[TTS] img size: %dx%dx%d", hift_output[1].GetTensorTypeAndShapeInfo().GetShape()[0], hift_output[1].GetTensorTypeAndShapeInfo().GetShape()[1], hift_output[1].GetTensorTypeAndShapeInfo().GetShape()[2]);
+    std::vector<float> real_vector(real, real + hift_output[0].GetTensorTypeAndShapeInfo().GetElementCount());
+    std::vector<float> imag_vector(imag, imag + hift_output[1].GetTensorTypeAndShapeInfo().GetElementCount());
+    debug_print_mean_std(real_vector, "real_vector");
+    debug_print_mean_std(imag_vector, "imag_vector");
+    knf::StftResult stft_result = {
+        .real = real_vector,
+        .imag = imag_vector,
+        .num_frames = hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[1]
+    };
+
+    int istft_n_fft = 16;
+    int istft_hop_length = 4;
+
+    // istft
+    knf::StftConfig stft_config;
+    stft_config.n_fft = istft_n_fft;
+    stft_config.hop_length = istft_hop_length;
+    stft_config.window_type = "hann";
+    stft_config.win_length = istft_n_fft;
+    knf::IStft istft(stft_config);
+    std::vector<float> speech_output_istft = istft.Compute(stft_result);
+    float max_val = 0.0f;
+    for (int i = 0; i < speech_output_istft.size(); i++) {
+        max_val = std::max(max_val, std::abs(speech_output_istft[i]));
+    }
+    for (int i = 0; i < speech_output_istft.size(); i++) {
+        speech_output_istft[i] = speech_output_istft[i] / max_val;
+    }
+    wav_file wav_file;
+    wav_file.sample_rate = 24000;
+    wav_file.num_channels = 1;
+    wav_file.num_samples = speech_output_istft.size();
+    wav_file.bit_depth = 16;
+    wav_file.audio_format = 1;
+    wav_file.byte_rate = 24000 * 16 / 8;
+    wav_file.block_align = 2;
+    wav_file.samples = speech_output_istft;
+    wav_file.save(output_path);
 
     return true;
 }

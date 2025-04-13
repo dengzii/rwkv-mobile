@@ -1,10 +1,11 @@
 #include "audio.h"
 #include "logger.h"
-#include <fstream>
-#include <cstdint>
 #include "soxr.h"
 #include "librosa.h"
+#include <fstream>
+#include <cstdint>
 #include <cmath>
+#include <cstring>
 
 namespace rwkvmobile {
 
@@ -92,6 +93,19 @@ bool wav_file::load(const std::string& path) {
         samples.resize(num_samples);
         for (int i = 0; i < num_samples; i++) {
             samples[i] = static_cast<float>(samples_int8[i]) / 128.0f;
+        }
+    } else if (bit_depth == 24) {
+        std::vector<int8_t> data_int24(num_samples * 3);
+        file.read(reinterpret_cast<char*>(data_int24.data()), num_samples * 3 * sizeof(int8_t));
+        samples.resize(num_samples);
+        for (int i = 0; i < num_samples; i++) {
+            int32_t value;
+            memcpy(&value, data_int24.data() + i * 3, 3);
+
+            if (value & 0x800000) {
+                value |= 0xFF000000;
+            }
+            samples[i] = static_cast<float>(value) / 8388608.0f;
         }
     } else {
         LOGE("[WAV] Unsupported bit depth yet: %d", bit_depth);
