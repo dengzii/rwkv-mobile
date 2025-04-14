@@ -5,8 +5,8 @@
 #include "commondef.h"
 #include "runtime.h"
 #include "c_api.h"
-
 #include "cosyvoice.h"
+#include "logger.h"
 
 #define ENSURE_SUCCESS_OR_LOG_EXIT(x, msg) if (x != rwkvmobile::RWKV_SUCCESS) { std::cout << msg << std::endl; return 1; }
 
@@ -78,6 +78,8 @@ int main(int argc, char **argv) {
         std::cout << decoded_tokens[i] << ", ";
     }
     std::cout << std::endl;
+    LOGI("[TTS] llm prefill speed: %f tokens/s", runtime.get_avg_prefill_speed());
+    LOGI("[TTS] llm decode speed: %f tokens/s", runtime.get_avg_decode_speed());
     decoded_tokens.insert(decoded_tokens.begin(), speech_tokens.begin(), speech_tokens.end());
     cosyvoice.speech_token_to_wav(decoded_tokens, speech_features, speech_embedding, "test.wav");
 

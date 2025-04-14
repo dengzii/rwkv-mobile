@@ -222,7 +222,7 @@ bool cosyvoice::process_zeroshot(const std::string prompt_audio_path, std::vecto
         return false;
     }
     auto original_sample_rate = prompt_audio.sample_rate;
-    auto original_samples = prompt_audio.samples;
+    std::vector<float> original_samples(prompt_audio.samples);
     auto original_num_samples = prompt_audio.num_samples;
 
     if (prompt_audio.sample_rate != 16000) {
@@ -241,13 +241,13 @@ bool cosyvoice::process_zeroshot(const std::string prompt_audio_path, std::vecto
     prompt_audio.num_samples = prompt_audio.samples.size();
     prompt_audio.save("prompt_audio_16k.wav");
 
-    auto samples_16k = prompt_audio.samples;
+    std::vector<float> samples_16k(prompt_audio.samples);
     auto start = std::chrono::high_resolution_clock::now();
     speech_tokens = extract_speech_tokens(samples_16k, 16000);
     auto end = std::chrono::high_resolution_clock::now();
     LOGI("[TTS] extract_speech_tokens duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
-    prompt_audio.samples = original_samples;
+    prompt_audio.samples.assign(original_samples.begin(), original_samples.end());
     prompt_audio.sample_rate = original_sample_rate;
     prompt_audio.num_samples = original_num_samples;
     prompt_audio.resample(resample_rate);
@@ -346,6 +346,7 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
 
     // Flow encoder
 
+    auto start = std::chrono::high_resolution_clock::now();
     Ort::RunOptions run_options;
     Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
     Ort::AllocatorWithDefaultOptions allocator;
@@ -381,6 +382,8 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
     int mel_len1 = speech_features[0].size();
     int mel_len2 = encoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[2] - mel_len1;
     LOGD("[TTS] mel_len1: %d, mel_len2: %d", mel_len1, mel_len2);
+    auto end = std::chrono::high_resolution_clock::now();
+    LOGI("[TTS] flow_encoder duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
     // Flow decoder
     const int n_timesteps = 10;
@@ -422,15 +425,13 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
     }
 
     memcpy(mu_input.GetTensorMutableData<float>(), mu, len_mu * sizeof(float));
-    memcpy(mu_input.GetTensorMutableData<float>() + len_mu, mu, len_mu * sizeof(float));
+    memset(mu_input.GetTensorMutableData<float>() + len_mu, 0, len_mu * sizeof(float));
 
-    memset(spks_input.GetTensorMutableData<float>(), 0, spks_input.GetTensorTypeAndShapeInfo().GetElementCount() * sizeof(float));
+    memcpy(spks_input.GetTensorMutableData<float>(), embedding_out, 80 * sizeof(float));
+    memset(spks_input.GetTensorMutableData<float>() + 80, 0, 80 * sizeof(float));
 
     memcpy(cond_input.GetTensorMutableData<float>(), conds, len_mu * sizeof(float));
-    memcpy(cond_input.GetTensorMutableData<float>() + len_mu, conds, len_mu * sizeof(float));
-
-    std::vector<float> x(len_mu);
-    memcpy(x.data(), random_noise.data(), len_mu * sizeof(float));
+    memset(cond_input.GetTensorMutableData<float>() + len_mu, 0, len_mu * sizeof(float));
 
     std::vector<const char*> input_names_estimator = {"x", "mask", "mu", "t", "spks", "cond"};
     std::vector<const char*> output_names_estimator = {"dphi_dt"};
@@ -445,11 +446,10 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
 
     const float inference_cfg_rate = 0.7;
 
-    auto start = std::chrono::high_resolution_clock::now();
+    start = std::chrono::high_resolution_clock::now();
+    memcpy(inputs_estimator[0].GetTensorMutableData<float>(), random_noise.data(), len_mu * sizeof(float));
+    memcpy(inputs_estimator[0].GetTensorMutableData<float>() + len_mu, random_noise.data(), len_mu * sizeof(float));
     for (int i = 1; i <= n_timesteps; i++) {
-        memcpy(inputs_estimator[0].GetTensorMutableData<float>(), x.data(), len_mu * sizeof(float));
-        memcpy(inputs_estimator[0].GetTensorMutableData<float>() + len_mu, x.data(), len_mu * sizeof(float));
-
         inputs_estimator[3].GetTensorMutableData<float>()[0] = t;
         inputs_estimator[3].GetTensorMutableData<float>()[1] = t;
 
@@ -459,20 +459,22 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
 
         for (int j = 0; j < len_mu; j++) {
             float dphi_dt_val = (1.0 + inference_cfg_rate) * dphi_dt[j] - inference_cfg_rate * dphi_dt[j + len_mu];
-            x[j] += dphi_dt_val * dt;
+            inputs_estimator[0].GetTensorMutableData<float>()[j] += dphi_dt_val * dt;
+            inputs_estimator[0].GetTensorMutableData<float>()[j + len_mu] += dphi_dt_val * dt;
         }
 
         t += dt;
         dt = t_span[i + 1] - t;
     }
-    auto end = std::chrono::high_resolution_clock::now();
+    end = std::chrono::high_resolution_clock::now();
     LOGI("[TTS] flow_decoder_estimator diffusion duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
     // Hift generator
+    start = std::chrono::high_resolution_clock::now();
     std::vector<int64_t> speech_feat_shape = {1, 80, mel_len2};
     Ort::Value speech_feat_input = Ort::Value::CreateTensor<float>(allocator, speech_feat_shape.data(), speech_feat_shape.size());
     for (int i = 0; i < 80; i++) {
-        memcpy(speech_feat_input.GetTensorMutableData<float>() + i * mel_len2, x.data() + i * (mel_len1 + mel_len2) + mel_len1, mel_len2 * sizeof(float));
+        memcpy(speech_feat_input.GetTensorMutableData<float>() + i * mel_len2, inputs_estimator[0].GetTensorMutableData<float>() + i * (mel_len1 + mel_len2) + mel_len1, mel_len2 * sizeof(float));
     }
 
     std::vector<const char*> input_names_hift = {"speech_feat"};
@@ -513,6 +515,7 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
     for (int i = 0; i < speech_output_istft.size(); i++) {
         speech_output_istft[i] = speech_output_istft[i] / max_val;
     }
+
     wav_file wav_file;
     wav_file.sample_rate = 24000;
     wav_file.num_channels = 1;
@@ -523,6 +526,8 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
     wav_file.block_align = 2;
     wav_file.samples = speech_output_istft;
     wav_file.save(output_path);
+    end = std::chrono::high_resolution_clock::now();
+    LOGI("[TTS] istft and audio saving duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
     return true;
 }
