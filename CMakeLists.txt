@@ -186,6 +186,9 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
         target_link_libraries(rwkv_mobile_internal PUBLIC onnxruntime $<TARGET_OBJECTS:kaldi-native-fbank-core>
             # wetext_utils wetext_processor
         )
+        if (ANDROID)
+            target_link_libraries(rwkv_mobile_internal PUBLIC onnxruntime_providers_nnapi)
+        endif()
         target_include_directories(rwkv_mobile_internal PUBLIC ${kaldi_native_fbank_SOURCE_DIR})
     endif()
     target_include_directories(rwkv_mobile_internal PUBLIC ${Eigen_SOURCE_DIR} ${libsoxr_SOURCE_DIR}/src 
