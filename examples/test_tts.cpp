@@ -13,21 +13,22 @@
 int main(int argc, char **argv) {
     // set stdout to be unbuffered
     setvbuf(stdout, NULL, _IONBF, 0);
-    // if (argc != 6) {
-    //     std::cerr << "Usage: " << argv[0] << " <model_file> <encoder_file> <tokenizer_file> <wav_file> <backend>" << std::endl;
-    //     return 1;
-    // }
+    if (argc != 6) {
+        std::cerr << "Usage: " << argv[0] << " <model_file> <backend> <encoder_path> <tokenizer_file> <wav_file>" << std::endl;
+        return 1;
+    }
     rwkvmobile::runtime runtime;
-    runtime.init("llama.cpp");
-    runtime.load_tokenizer("assets/b_rwkv_vocab_v20230424_tts.txt");
-    runtime.load_model("test.gguf");
+    runtime.init(argv[2]);
+    runtime.load_tokenizer(argv[4]);
+    runtime.load_model(argv[1]);
 
+    std::string encoder_path = argv[3];
     rwkvmobile::cosyvoice cosyvoice;
-    cosyvoice.load_speech_tokenizer("speech_tokenizer_v2.onnx");
-    cosyvoice.load_campplus("campplus.onnx");
-    cosyvoice.load_flow_encoder("flow_encoder.fp16.onnx");
-    cosyvoice.load_flow_decoder_estimator("flow.decoder.estimator.fp32.onnx");
-    cosyvoice.load_hift_generator("hift.onnx");
+    cosyvoice.load_speech_tokenizer(encoder_path + "speech_tokenizer_v2.onnx");
+    cosyvoice.load_campplus(encoder_path + "campplus.onnx");
+    cosyvoice.load_flow_encoder(encoder_path + "flow_encoder.fp16.onnx");
+    cosyvoice.load_flow_decoder_estimator(encoder_path + "flow.decoder.estimator.fp32.onnx");
+    cosyvoice.load_hift_generator(encoder_path + "hift.onnx");
 
     std::string tts_text = "Make America great again!";
     tts_text = cosyvoice.normalize_text(tts_text);
@@ -50,7 +51,7 @@ int main(int argc, char **argv) {
     std::vector<int> speech_tokens;
     std::vector<std::vector<float>> speech_features;
     std::vector<float> speech_embedding;
-    cosyvoice.process_zeroshot("Trump.wav", speech_tokens, speech_features, speech_embedding, 24000);
+    cosyvoice.process_zeroshot(argv[5], speech_tokens, speech_features, speech_embedding, 24000);
 
     float *logits = nullptr;
     runtime.eval_logits(llm_tokens, logits);
