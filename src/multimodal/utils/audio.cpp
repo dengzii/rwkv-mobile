@@ -99,7 +99,7 @@ bool wav_file::load(const std::string& path) {
         file.read(reinterpret_cast<char*>(data_int24.data()), num_samples * 3 * sizeof(int8_t));
         samples.resize(num_samples);
         for (int i = 0; i < num_samples; i++) {
-            int32_t value;
+            int32_t value = 0;
             memcpy(&value, data_int24.data() + i * 3, 3);
 
             if (value & 0x800000) {
