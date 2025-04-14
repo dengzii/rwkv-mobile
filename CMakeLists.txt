@@ -101,7 +101,7 @@ if (ENABLE_LLAMACPP_BACKEND)
     FetchContent_Declare(
         llama_cpp
         GIT_REPOSITORY https://github.com/mollysophia/llama.cpp
-        GIT_TAG master
+        GIT_TAG rwkv-mobile
     )
 
     option(LLAMA_STANDALONE "" OFF)
