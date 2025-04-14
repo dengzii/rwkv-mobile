@@ -691,6 +691,76 @@ int runtime::set_audio_prompt(std::string path) {
 }
 #endif
 
+#ifdef ENABLE_TTS
+int runtime::cosyvoice_load_models(
+    std::string speech_tokenizer_path,
+    std::string campplus_path,
+    std::string flow_encoder_path,
+    std::string flow_decoder_estimator_path,
+    std::string hift_generator_path,
+    std::string tts_tokenizer_path
+) {
+    _cosyvoice = std::make_unique<cosyvoice>();
+    _cosyvoice->load_speech_tokenizer(speech_tokenizer_path);
+    _cosyvoice->load_campplus(campplus_path);
+    _cosyvoice->load_flow_encoder(flow_encoder_path);
+    _cosyvoice->load_flow_decoder_estimator(flow_decoder_estimator_path);
+    _cosyvoice->load_hift_generator(hift_generator_path);
+
+    _tokenizer = std::unique_ptr<tokenizer_base, std::function<void(tokenizer_base*)>>(new trie_tokenizer,
+        [](tokenizer_base *p) {
+            delete (trie_tokenizer*)p;
+        });
+    if (_tokenizer == nullptr) {
+        return RWKV_ERROR_TOKENIZER;
+    }
+    return _tokenizer->load(tts_tokenizer_path);
+}
+
+int runtime::cosyvoice_release_models() {
+    _cosyvoice = nullptr;
+    return RWKV_SUCCESS;
+}
+
+int runtime::tts_zero_shot(std::string tts_text, std::string instruction_text, std::string prompt_wav_path, std::string output_wav_path) {
+    if (_cosyvoice == nullptr) {
+        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    tts_text = _cosyvoice->normalize_text(tts_text);
+    std::vector<int> tts_tokens = _tokenizer->encode(tts_text);
+    std::vector<int> prompt_tokens = _tokenizer->encode(instruction_text + "<|endofprompt|>");
+    int min_len, max_len;
+    std::vector<int> llm_tokens = _cosyvoice->get_llm_tokens(tts_tokens, prompt_tokens, min_len, max_len);
+    std::vector<int> speech_tokens;
+    std::vector<std::vector<float>> speech_features;
+    std::vector<float> speech_embedding;
+    _cosyvoice->process_zeroshot(prompt_wav_path, speech_tokens, speech_features, speech_embedding, 24000);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    float *logits = nullptr;
+    eval_logits(llm_tokens, logits);
+    const int speech_vocab_size = 6562;
+    const int speech_vocab_offset = 65548;
+    std::vector<int> decoded_tokens;
+    for (int i = 0; i < max_len; i++) {
+        int token_id = _cosyvoice->speech_token_sampler(logits, speech_vocab_size, decoded_tokens, (i < min_len));
+        free_logits_if_allocated(logits);
+        if (token_id == speech_vocab_size - 1) {
+            break;
+        }
+        decoded_tokens.push_back(token_id);
+        eval_logits(token_id + speech_vocab_offset, logits);
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    LOGI("[TTS] llm decode time: %f ms", std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000.0);
+
+    decoded_tokens.insert(decoded_tokens.begin(), speech_tokens.begin(), speech_tokens.end());
+    _cosyvoice->speech_token_to_wav(decoded_tokens, speech_features, speech_embedding, output_wav_path);
+
+    return RWKV_SUCCESS;
+}
+#endif
+
 int runtime::gen_completion(std::string prompt, int max_length, int stop_code, void (*callback)(const char *, const int)) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;

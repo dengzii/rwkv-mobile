@@ -175,6 +175,7 @@ add_library(rwkv_mobile_internal STATIC ${RWKV_MOBILE_SRCS})
 target_include_directories(rwkv_mobile_internal PUBLIC src)
 
 if (ENABLE_WHISPER OR ENABLE_TTS)
+    target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_TTS)
     target_link_libraries(rwkv_mobile_internal PUBLIC Eigen3::Eigen)
     target_link_libraries(rwkv_mobile_internal PRIVATE $<TARGET_OBJECTS:soxr>)
     if (ENABLE_TTS)

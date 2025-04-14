@@ -493,6 +493,48 @@ void rwkvmobile_runtime_free_token_ids(struct token_ids ids) {
     free(ids.ids);
 }
 
+int rwkvmobile_runtime_cosyvoice_load_models(rwkvmobile_runtime_t runtime, const char * speech_tokenizer_path, const char * campplus_path, const char * flow_encoder_path, const char * flow_decoder_estimator_path, const char * hift_generator_path, const char * tts_tokenizer_path) {
+#if ENABLE_TTS
+    if (runtime == nullptr || speech_tokenizer_path == nullptr || campplus_path == nullptr || flow_encoder_path == nullptr || flow_decoder_estimator_path == nullptr || hift_generator_path == nullptr || tts_tokenizer_path == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->cosyvoice_load_models(speech_tokenizer_path, campplus_path, flow_encoder_path, flow_decoder_estimator_path, hift_generator_path, tts_tokenizer_path);
+#else
+    return RWKV_ERROR_UNSUPPORTED;
+#endif
+}
+
+int rwkvmobile_runtime_cosyvoice_release_models(rwkvmobile_runtime_t runtime) {
+#if ENABLE_TTS
+    if (runtime == nullptr) {
+        return RWKV_SUCCESS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->cosyvoice_release_models();
+#else
+    return RWKV_ERROR_UNSUPPORTED;
+#endif
+}
+
+int rwkvmobile_runtime_tts_zero_shot(rwkvmobile_runtime_t runtime, const char * tts_text, const char * instruction_text, const char * prompt_wav_path, const char * output_wav_path) {
+#if ENABLE_TTS
+    if (runtime == nullptr || tts_text == nullptr || prompt_wav_path == nullptr || output_wav_path == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    std::string instruction_text_str;
+    if (instruction_text == nullptr) {
+        instruction_text_str = "";
+    } else {
+        instruction_text_str = std::string(instruction_text);
+    }
+    return rt->tts_zero_shot(tts_text, instruction_text_str, prompt_wav_path, output_wav_path);
+#else
+    return RWKV_ERROR_UNSUPPORTED;
+#endif
+}
+
 const char * rwkvmobile_get_platform_name() {
     soc_detect soc_detect;
     soc_detect.detect_platform();

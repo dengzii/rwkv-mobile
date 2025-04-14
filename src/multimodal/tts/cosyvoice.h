@@ -2,6 +2,7 @@
 
 #include <string>
 #include "sampler.h"
+#include "tokenizer.h"
 #include "onnxruntime_cxx_api.h"
 
 namespace rwkvmobile {
@@ -67,6 +68,7 @@ private:
     std::vector<float> t_span;
 
     sampler _sampler;
+    std::unique_ptr<tokenizer_base, std::function<void(tokenizer_base*)>> _tokenizer;
 };
 
 }

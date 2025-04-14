@@ -5,11 +5,14 @@
 #include <chrono>
 #include <random>
 #include "onnxruntime_cxx_api.h"
+// #include "nnapi_provider_factory.h"
+// #include "onnxruntime_session_options_config_keys.h"
 #include "kaldi-native-fbank/csrc/feature-fbank.h"
 #include "kaldi-native-fbank/csrc/online-feature.h"
 #include "kaldi-native-fbank/csrc/istft.h"
 
 #define PRINT_FEATURE_INFO 0
+#define ORT_LOGGING_LEVEL ORT_LOGGING_LEVEL_WARNING
 
 static void debug_print_mean_std(std::vector<float> feat, std::string name) {
 #if PRINT_FEATURE_INFO
@@ -56,47 +59,42 @@ bool cosyvoice::load_speech_tokenizer(const std::string model_path) {
         env = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, "rwkv_mobile");
     }
     Ort::SessionOptions session_options;
-    session_options.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
     speech_tokenizer_session = new Ort::Session(*env, model_path.c_str(), session_options);
     return true;
 }
 
 bool cosyvoice::load_campplus(const std::string model_path) {
     if (env == nullptr) {
-        env = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, "rwkv_mobile");
+        env = new Ort::Env(ORT_LOGGING_LEVEL, "RWKV-MOBILE");
     }
     Ort::SessionOptions session_options;
-    session_options.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
     campplus_session = new Ort::Session(*env, model_path.c_str(), session_options);
     return true;
 }
 
 bool cosyvoice::load_flow_encoder(const std::string model_path) {
     if (env == nullptr) {
-        env = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, "rwkv_mobile");
+        env = new Ort::Env(ORT_LOGGING_LEVEL, "RWKV-MOBILE");
     }
     Ort::SessionOptions session_options;
-    session_options.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
     flow_encoder_session = new Ort::Session(*env, model_path.c_str(), session_options);
     return true;
 }
 
 bool cosyvoice::load_flow_decoder_estimator(const std::string model_path) {
     if (env == nullptr) {
-        env = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, "rwkv_mobile");
+        env = new Ort::Env(ORT_LOGGING_LEVEL, "RWKV-MOBILE");
     }
     Ort::SessionOptions session_options;
-    session_options.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
     flow_decoder_estimator_session = new Ort::Session(*env, model_path.c_str(), session_options);
     return true;
 }
 
 bool cosyvoice::load_hift_generator(const std::string model_path) {
     if (env == nullptr) {
-        env = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, "rwkv_mobile");
+        env = new Ort::Env(ORT_LOGGING_LEVEL, "RWKV-MOBILE");
     }
     Ort::SessionOptions session_options;
-    session_options.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
     hift_generator_session = new Ort::Session(*env, model_path.c_str(), session_options);
     return true;
 }

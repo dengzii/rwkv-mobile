@@ -20,6 +20,10 @@
 #include "whisper.h"
 #endif
 
+#ifdef ENABLE_TTS
+#include "cosyvoice.h"
+#endif
+
 namespace rwkvmobile {
 
 class runtime {
@@ -63,6 +67,20 @@ public:
 
 #ifdef ENABLE_WHISPER
     int set_audio_prompt(std::string path);
+#endif
+
+#ifdef ENABLE_TTS
+    int cosyvoice_load_models(
+        std::string speech_tokenizer_path,
+        std::string campplus_path,
+        std::string flow_encoder_path,
+        std::string flow_decoder_estimator_path,
+        std::string hift_generator_path,
+        std::string tts_tokenizer_path
+    );
+
+    int cosyvoice_release_models();
+    int tts_zero_shot(std::string tts_text, std::string instruction_text, std::string prompt_wav_path, std::string output_wav_path);
 #endif
 
     int clear_state() {
@@ -286,6 +304,10 @@ private:
 
 #ifdef ENABLE_WHISPER
     std::unique_ptr<whisper_context, std::function<void(whisper_context*)>> _whisper_encoder;
+#endif
+
+#ifdef ENABLE_TTS
+    std::unique_ptr<cosyvoice> _cosyvoice;
 #endif
 };
 

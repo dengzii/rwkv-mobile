@@ -110,6 +110,13 @@ struct token_ids rwkvmobile_runtime_get_response_buffer_ids(rwkvmobile_runtime_t
 
 void rwkvmobile_runtime_free_token_ids(struct token_ids ids);
 
+// tts
+int rwkvmobile_runtime_cosyvoice_load_models(rwkvmobile_runtime_t runtime, const char * speech_tokenizer_path, const char * campplus_path, const char * flow_encoder_path, const char * flow_decoder_estimator_path, const char * hift_generator_path, const char * tts_tokenizer_path);
+
+int rwkvmobile_runtime_cosyvoice_release_models(rwkvmobile_runtime_t runtime);
+
+int rwkvmobile_runtime_tts_zero_shot(rwkvmobile_runtime_t runtime, const char * tts_text, const char * instruction_text, const char * prompt_wav_path, const char * output_wav_path);
+
 // platform info
 const char * rwkvmobile_get_platform_name();
 
