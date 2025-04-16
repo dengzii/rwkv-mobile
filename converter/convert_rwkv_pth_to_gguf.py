@@ -388,6 +388,8 @@ class Model:
         with open(self.vocab_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
             vocab_size = len(lines) + 1
+            if vocab_size == 65530:
+                vocab_size = 65536
             print(f"vocab_size: {vocab_size}")
             for line in lines:
                 parts = line.split(' ')
