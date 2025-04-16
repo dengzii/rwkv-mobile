@@ -76,11 +76,15 @@ public:
         std::string flow_encoder_path,
         std::string flow_decoder_estimator_path,
         std::string hift_generator_path,
-        std::string tts_tokenizer_path
+        std::string tts_tokenizer_path,
+        std::string spk_info_path
     );
 
     int cosyvoice_release_models();
-    int tts_zero_shot(std::string tts_text, std::string instruction_text, std::string prompt_wav_path, std::string output_wav_path);
+    int run_tts(std::string tts_text, std::string instruction_text, std::string prompt_wav_path, std::string output_wav_path);
+    int run_tts_with_predefined_spks(std::string tts_text, std::string instruction_text, std::string spks_name, std::string output_wav_path);
+
+    std::string cosyvoice_get_spk_names();
 #endif
 
     int clear_state() {

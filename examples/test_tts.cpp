@@ -30,14 +30,18 @@ int main(int argc, char **argv) {
         encoder_path + "flow_encoder.fp16.onnx",
         encoder_path + "flow.decoder.estimator.fp32.onnx",
         encoder_path + "hift.onnx",
-        encoder_path + std::string(argv[4])
+        encoder_path + std::string(argv[4]),
+        encoder_path + "spk_info.msgpack"
     );
 
-    std::string tts_text = "Make America great again!";
-    // std::string instruction_text = "请用正常的语速说。";
-    std::string instruction_text = ""; // empty string means no instruction
+    std::string tts_text = "要陪我去拍照吗";
+    std::string instruction_text = "请用快速激动的语气说。";
+    // std::string instruction_text = ""; // empty string means no instruction
 
-    runtime.tts_zero_shot(tts_text, instruction_text, argv[5], "test.wav");
+    // std::cout << runtime.cosyvoice_get_spk_names() << std::endl;
+
+    // runtime.run_tts(tts_text, instruction_text, argv[5], "test.wav");
+    runtime.run_tts_with_predefined_spks(tts_text, instruction_text, "March 7th_Chinese(PRC)", "test.wav");
 
     runtime.release();
 

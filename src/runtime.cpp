@@ -698,7 +698,8 @@ int runtime::cosyvoice_load_models(
     std::string flow_encoder_path,
     std::string flow_decoder_estimator_path,
     std::string hift_generator_path,
-    std::string tts_tokenizer_path
+    std::string tts_tokenizer_path,
+    std::string spk_info_path
 ) {
     _cosyvoice = std::make_unique<cosyvoice>();
     _cosyvoice->load_speech_tokenizer(speech_tokenizer_path);
@@ -706,6 +707,7 @@ int runtime::cosyvoice_load_models(
     _cosyvoice->load_flow_encoder(flow_encoder_path);
     _cosyvoice->load_flow_decoder_estimator(flow_decoder_estimator_path);
     _cosyvoice->load_hift_generator(hift_generator_path);
+    _cosyvoice->load_spk_info(spk_info_path);
 
     _tokenizer = std::unique_ptr<tokenizer_base, std::function<void(tokenizer_base*)>>(new trie_tokenizer,
         [](tokenizer_base *p) {
@@ -722,13 +724,16 @@ int runtime::cosyvoice_release_models() {
     return RWKV_SUCCESS;
 }
 
-int runtime::tts_zero_shot(std::string tts_text, std::string instruction_text, std::string prompt_wav_path, std::string output_wav_path) {
+int runtime::run_tts(std::string tts_text, std::string instruction_text, std::string prompt_wav_path, std::string output_wav_path) {
     if (_cosyvoice == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
     tts_text = _cosyvoice->normalize_text(tts_text);
     std::vector<int> tts_tokens = _tokenizer->encode(tts_text);
-    std::vector<int> prompt_tokens = _tokenizer->encode(instruction_text + "<|endofprompt|>");
+    std::vector<int> prompt_tokens;
+    if (!instruction_text.empty()) {
+        prompt_tokens = _tokenizer->encode(instruction_text + "<|endofprompt|>");
+    }
     int min_len, max_len;
     std::vector<int> llm_tokens = _cosyvoice->get_llm_tokens(tts_tokens, prompt_tokens, min_len, max_len);
     std::vector<int> speech_tokens;
@@ -758,6 +763,53 @@ int runtime::tts_zero_shot(std::string tts_text, std::string instruction_text, s
     _cosyvoice->speech_token_to_wav(decoded_tokens, speech_features, speech_embedding, output_wav_path);
 
     return RWKV_SUCCESS;
+}
+
+int runtime::run_tts_with_predefined_spks(std::string tts_text, std::string instruction_text, std::string spks_name, std::string output_wav_path) {
+    if (_cosyvoice == nullptr) {
+        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    tts_text = _cosyvoice->normalize_text(tts_text);
+    std::vector<int> tts_tokens = _tokenizer->encode(tts_text);
+    std::vector<int> prompt_tokens;
+    if (!instruction_text.empty()) {
+        prompt_tokens = _tokenizer->encode(instruction_text + "<|endofprompt|>");
+    }
+    int min_len, max_len;
+    std::vector<int> llm_tokens = _cosyvoice->get_llm_tokens(tts_tokens, prompt_tokens, min_len, max_len);
+    std::vector<float> speech_embedding = _cosyvoice->get_spk_embedding(spks_name);
+    if (speech_embedding.empty()) {
+        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+    }
+
+    auto start = std::chrono::high_resolution_clock::now();
+    float *logits = nullptr;
+    eval_logits(llm_tokens, logits);
+    const int speech_vocab_size = 6562;
+    const int speech_vocab_offset = 65548;
+    std::vector<int> decoded_tokens;
+    for (int i = 0; i < max_len; i++) {
+        int token_id = _cosyvoice->speech_token_sampler(logits, speech_vocab_size, decoded_tokens, (i < min_len));
+        free_logits_if_allocated(logits);
+        if (token_id == speech_vocab_size - 1) {
+            break;
+        }
+        decoded_tokens.push_back(token_id);
+        eval_logits(token_id + speech_vocab_offset, logits);
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    LOGI("[TTS] llm decode time: %f ms", std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000.0);
+
+    _cosyvoice->speech_token_to_wav(decoded_tokens, std::vector<std::vector<float>>(80), speech_embedding, output_wav_path);
+
+    return RWKV_SUCCESS;
+}
+
+std::string runtime::cosyvoice_get_spk_names() {
+    if (_cosyvoice == nullptr) {
+        return "";
+    }
+    return _cosyvoice->get_spk_names();
 }
 #endif
 

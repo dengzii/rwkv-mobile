@@ -493,6 +493,7 @@ ffi.Pointer<ffi.Char> flow_encoder_path,
 ffi.Pointer<ffi.Char> flow_decoder_estimator_path,
 ffi.Pointer<ffi.Char> hift_generator_path,
 ffi.Pointer<ffi.Char> tts_tokenizer_path,
+ffi.Pointer<ffi.Char> spk_info_path,
 ) {
   return _rwkvmobile_runtime_cosyvoice_load_models(runtime,
 speech_tokenizer_path,
@@ -501,12 +502,13 @@ flow_encoder_path,
 flow_decoder_estimator_path,
 hift_generator_path,
 tts_tokenizer_path,
+spk_info_path,
 );
 }
 
 late final _rwkvmobile_runtime_cosyvoice_load_modelsPtr = _lookup<
-    ffi.NativeFunction<ffi.Int Function(rwkvmobile_runtime_t , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> )>>('rwkvmobile_runtime_cosyvoice_load_models');
-late final _rwkvmobile_runtime_cosyvoice_load_models = _rwkvmobile_runtime_cosyvoice_load_modelsPtr.asFunction<int Function(rwkvmobile_runtime_t , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> )>();
+    ffi.NativeFunction<ffi.Int Function(rwkvmobile_runtime_t , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> )>>('rwkvmobile_runtime_cosyvoice_load_models');
+late final _rwkvmobile_runtime_cosyvoice_load_models = _rwkvmobile_runtime_cosyvoice_load_modelsPtr.asFunction<int Function(rwkvmobile_runtime_t , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> )>();
 
 int rwkvmobile_runtime_cosyvoice_release_models(rwkvmobile_runtime_t runtime,
 ) {
@@ -518,13 +520,13 @@ late final _rwkvmobile_runtime_cosyvoice_release_modelsPtr = _lookup<
     ffi.NativeFunction<ffi.Int Function(rwkvmobile_runtime_t )>>('rwkvmobile_runtime_cosyvoice_release_models');
 late final _rwkvmobile_runtime_cosyvoice_release_models = _rwkvmobile_runtime_cosyvoice_release_modelsPtr.asFunction<int Function(rwkvmobile_runtime_t )>();
 
-int rwkvmobile_runtime_tts_zero_shot(rwkvmobile_runtime_t runtime,
+int rwkvmobile_runtime_run_tts(rwkvmobile_runtime_t runtime,
 ffi.Pointer<ffi.Char> tts_text,
 ffi.Pointer<ffi.Char> instruction_text,
 ffi.Pointer<ffi.Char> prompt_wav_path,
 ffi.Pointer<ffi.Char> output_wav_path,
 ) {
-  return _rwkvmobile_runtime_tts_zero_shot(runtime,
+  return _rwkvmobile_runtime_run_tts(runtime,
 tts_text,
 instruction_text,
 prompt_wav_path,
@@ -532,9 +534,37 @@ output_wav_path,
 );
 }
 
-late final _rwkvmobile_runtime_tts_zero_shotPtr = _lookup<
-    ffi.NativeFunction<ffi.Int Function(rwkvmobile_runtime_t , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> )>>('rwkvmobile_runtime_tts_zero_shot');
-late final _rwkvmobile_runtime_tts_zero_shot = _rwkvmobile_runtime_tts_zero_shotPtr.asFunction<int Function(rwkvmobile_runtime_t , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> )>();
+late final _rwkvmobile_runtime_run_ttsPtr = _lookup<
+    ffi.NativeFunction<ffi.Int Function(rwkvmobile_runtime_t , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> )>>('rwkvmobile_runtime_run_tts');
+late final _rwkvmobile_runtime_run_tts = _rwkvmobile_runtime_run_ttsPtr.asFunction<int Function(rwkvmobile_runtime_t , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> )>();
+
+int rwkvmobile_runtime_run_tts_with_predefined_spks(rwkvmobile_runtime_t runtime,
+ffi.Pointer<ffi.Char> tts_text,
+ffi.Pointer<ffi.Char> instruction_text,
+ffi.Pointer<ffi.Char> spk_name,
+ffi.Pointer<ffi.Char> output_wav_path,
+) {
+  return _rwkvmobile_runtime_run_tts_with_predefined_spks(runtime,
+tts_text,
+instruction_text,
+spk_name,
+output_wav_path,
+);
+}
+
+late final _rwkvmobile_runtime_run_tts_with_predefined_spksPtr = _lookup<
+    ffi.NativeFunction<ffi.Int Function(rwkvmobile_runtime_t , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> )>>('rwkvmobile_runtime_run_tts_with_predefined_spks');
+late final _rwkvmobile_runtime_run_tts_with_predefined_spks = _rwkvmobile_runtime_run_tts_with_predefined_spksPtr.asFunction<int Function(rwkvmobile_runtime_t , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> )>();
+
+ffi.Pointer<ffi.Char> rwkvmobile_runtime_cosyvoice_get_spk_names(rwkvmobile_runtime_t runtime,
+) {
+  return _rwkvmobile_runtime_cosyvoice_get_spk_names(runtime,
+);
+}
+
+late final _rwkvmobile_runtime_cosyvoice_get_spk_namesPtr = _lookup<
+    ffi.NativeFunction<ffi.Pointer<ffi.Char> Function(rwkvmobile_runtime_t )>>('rwkvmobile_runtime_cosyvoice_get_spk_names');
+late final _rwkvmobile_runtime_cosyvoice_get_spk_names = _rwkvmobile_runtime_cosyvoice_get_spk_namesPtr.asFunction<ffi.Pointer<ffi.Char> Function(rwkvmobile_runtime_t )>();
 
 ffi.Pointer<ffi.Char> rwkvmobile_get_platform_name() {
   return _rwkvmobile_get_platform_name();
