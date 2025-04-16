@@ -490,14 +490,17 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
     debug_print_mean_std(real_vector, "real_vector");
     debug_print_mean_std(imag_vector, "imag_vector");
     knf::StftResult stft_result = {
-        .real = real_vector,
-        .imag = imag_vector,
+        .real = std::move(real_vector),
+        .imag = std::move(imag_vector),
         .num_frames = static_cast<int32_t>(hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[1])
     };
 
     int istft_n_fft = 16;
     int istft_hop_length = 4;
 
+    end = std::chrono::high_resolution_clock::now();
+    LOGI("[TTS] hift duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+    start = std::chrono::high_resolution_clock::now();
     // istft
     knf::StftConfig stft_config;
     stft_config.n_fft = istft_n_fft;
