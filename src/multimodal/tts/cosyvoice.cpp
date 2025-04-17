@@ -105,7 +105,16 @@ bool cosyvoice::load_hift_generator(const std::string model_path) {
 bool cosyvoice::load_spk_info(const std::string spk_info_path) {
     try {
         std::ifstream ifs(spk_info_path, std::ios::binary);
-        std::vector<uint8_t> buffer(std::istreambuf_iterator<char>(ifs), {});
+        if (!ifs.is_open()) {
+            LOGE("[TTS] Failed to open spk_info file: %s", spk_info_path.c_str());
+            return false;
+        }
+        ifs.seekg(0, std::ios::end);
+        auto size = ifs.tellg();
+        ifs.seekg(0, std::ios::beg);
+
+        std::vector<uint8_t> buffer(size);
+        ifs.read(reinterpret_cast<char*>(buffer.data()), size);
         msgpack::object_handle oh = msgpack::unpack(reinterpret_cast<const char*>(buffer.data()), buffer.size());
         msgpack::object obj = oh.get();
         spk_info = obj.as<std::map<std::string, std::vector<float>>>();
