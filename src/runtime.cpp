@@ -742,6 +742,7 @@ int runtime::run_tts(std::string tts_text, std::string instruction_text, std::st
     _cosyvoice->process_zeroshot(prompt_wav_path, speech_tokens, speech_features, speech_embedding, 24000);
 
     auto start = std::chrono::high_resolution_clock::now();
+    clear_state();
     float *logits = nullptr;
     eval_logits(llm_tokens, logits);
     const int speech_vocab_size = 6562;
@@ -783,6 +784,7 @@ int runtime::run_tts_with_predefined_spks(std::string tts_text, std::string inst
     }
 
     auto start = std::chrono::high_resolution_clock::now();
+    clear_state();
     float *logits = nullptr;
     eval_logits(llm_tokens, logits);
     const int speech_vocab_size = 6562;
