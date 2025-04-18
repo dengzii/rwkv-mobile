@@ -368,7 +368,7 @@ std::vector<int> cosyvoice::get_llm_tokens(const std::vector<int> tts_tokens, co
     return tokens;
 }
 
-bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::vector<std::vector<float>> speech_features, const std::vector<float> speech_embedding, const std::string output_path) {
+bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::vector<std::vector<float>> speech_features, const std::vector<float> speech_embedding, std::vector<float> &output_samples) {
     if (flow_encoder_session == nullptr) {
         LOGE("[TTS] Flow encoder is not loaded");
         return false;
@@ -562,19 +562,10 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
     for (int i = 0; i < speech_output_istft.size(); i++) {
         speech_output_istft[i] = speech_output_istft[i] / max_val;
     }
-
-    wav_file wav_file;
-    wav_file.sample_rate = 24000;
-    wav_file.num_channels = 1;
-    wav_file.num_samples = speech_output_istft.size();
-    wav_file.bit_depth = 16;
-    wav_file.audio_format = 1;
-    wav_file.byte_rate = 24000 * 16 / 8;
-    wav_file.block_align = 2;
-    wav_file.samples = speech_output_istft;
-    wav_file.save(output_path);
     end = std::chrono::high_resolution_clock::now();
-    LOGI("[TTS] istft and audio saving duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+    LOGI("[TTS] istft duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+
+    output_samples = std::move(speech_output_istft);
 
     return true;
 }
