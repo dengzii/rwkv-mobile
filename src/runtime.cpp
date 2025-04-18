@@ -811,6 +811,9 @@ int runtime::run_tts_with_predefined_spks(std::string tts_text, std::string inst
     }
 
     std::vector<float> speech_embedding = _cosyvoice->get_spk_embedding(spks_name);
+    if (speech_embedding.empty()) {
+        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+    }
     std::vector<float> output_samples;
     run_tts_internal(tts_text, instruction_text, std::vector<int>(), std::vector<std::vector<float>>(80), speech_embedding, output_samples);
 

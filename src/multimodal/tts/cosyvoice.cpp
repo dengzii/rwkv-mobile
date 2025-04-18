@@ -559,8 +559,11 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
     for (int i = 0; i < speech_output_istft.size(); i++) {
         max_val = std::max(max_val, std::abs(speech_output_istft[i]));
     }
+    LOGI("[TTS] speech_output_istft abs max_val: %f", max_val);
     for (int i = 0; i < speech_output_istft.size(); i++) {
         speech_output_istft[i] = speech_output_istft[i] / max_val;
+        speech_output_istft[i] = std::max(std::min(speech_output_istft[i], 0.99f), -0.99f);
+        speech_output_istft[i] = speech_output_istft[i] * 0.90;
     }
     end = std::chrono::high_resolution_clock::now();
     LOGI("[TTS] istft duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());

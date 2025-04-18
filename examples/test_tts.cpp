@@ -34,14 +34,16 @@ int main(int argc, char **argv) {
         encoder_path + "spk_info.msgpack"
     );
 
-    std::string tts_text = "要陪我去拍照吗?";
-    std::string instruction_text = "请用高兴兴奋的语气说。";
+    std::string tts_text = "Hello World";
+    std::string instruction_text = "请用正常的语气说。";
     // std::string instruction_text = ""; // empty string means no instruction
 
     // std::cout << runtime.cosyvoice_get_spk_names() << std::endl;
 
-    // runtime.run_tts(tts_text, instruction_text, argv[5], "test.wav");
-    runtime.run_tts_with_predefined_spks(tts_text, instruction_text, "March 7th_Chinese(PRC)", "test.wav");
+    runtime.run_tts(tts_text, instruction_text, argv[5], "test.wav");
+    runtime.run_tts_with_predefined_spks(tts_text, instruction_text, "March 7th_Chinese(PRC)", "test2.wav");
+
+    // runtime.run_tts_with_predefined_spks(tts_text, instruction_text, "Blade_Japanese", "test2.wav");
 
     runtime.release();
 
