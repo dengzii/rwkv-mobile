@@ -96,7 +96,7 @@ bool llama_cpp_backend::is_available() {
 }
 
 int llama_cpp_backend::clear_state() {
-    llama_kv_self_clear(ctx);
+    llama_kv_cache_clear(ctx);
     return RWKV_SUCCESS;
 }
 
