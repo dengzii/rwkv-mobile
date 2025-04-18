@@ -812,7 +812,7 @@ int runtime::run_tts_with_predefined_spks(std::string tts_text, std::string inst
 
     std::vector<float> speech_embedding = _cosyvoice->get_spk_embedding(spks_name);
     std::vector<float> output_samples;
-    run_tts_internal(tts_text, instruction_text, std::vector<int>(), std::vector<std::vector<float>>(), speech_embedding, output_samples);
+    run_tts_internal(tts_text, instruction_text, std::vector<int>(), std::vector<std::vector<float>>(80), speech_embedding, output_samples);
 
     if (!output_wav_path.empty()) {
         save_samples_to_wav(output_samples, output_wav_path);
