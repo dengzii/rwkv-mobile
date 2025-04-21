@@ -4,6 +4,7 @@
 #include <functional>
 #include <chrono>
 #include <fstream>
+#include <cstdlib>
 #ifdef ENABLE_WEBRWKV
 #include "web_rwkv_backend.h"
 #endif
