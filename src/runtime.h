@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <functional>
+#include <cstdlib>
 #include "backend.h"
 #include "tokenizer.h"
 #include "sampler.h"
@@ -29,6 +30,10 @@ namespace rwkvmobile {
 class runtime {
 public:
     runtime() {
+#ifdef __ANDROID__
+        setenv("KMP_AFFINITY", "disabled", 1);
+        setenv("KMP_DUPLICATE_LIB_OK", "1", 1);
+#endif
         _soc_detect.detect_platform();
     };
     ~runtime() {};

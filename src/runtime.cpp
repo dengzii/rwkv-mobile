@@ -743,6 +743,10 @@ int runtime::cosyvoice_release_models() {
 int runtime::run_tts_internal(std::string tts_text, std::string instruction_text,
     std::vector<int> speech_tokens, std::vector<std::vector<float>> speech_features, std::vector<float> speech_embedding,
     std::vector<float> &output_samples) {
+#ifdef __ANDROID__
+    setenv("KMP_AFFINITY", "disabled", 1);
+    setenv("KMP_DUPLICATE_LIB_OK", "1", 1);
+#endif
     if (_cosyvoice == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
