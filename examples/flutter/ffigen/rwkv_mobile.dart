@@ -566,6 +566,18 @@ late final _rwkvmobile_runtime_cosyvoice_get_spk_namesPtr = _lookup<
     ffi.NativeFunction<ffi.Pointer<ffi.Char> Function(rwkvmobile_runtime_t )>>('rwkvmobile_runtime_cosyvoice_get_spk_names');
 late final _rwkvmobile_runtime_cosyvoice_get_spk_names = _rwkvmobile_runtime_cosyvoice_get_spk_namesPtr.asFunction<ffi.Pointer<ffi.Char> Function(rwkvmobile_runtime_t )>();
 
+int rwkvmobile_runtime_cosyvoice_set_cfm_steps(rwkvmobile_runtime_t runtime,
+int cfm_steps,
+) {
+  return _rwkvmobile_runtime_cosyvoice_set_cfm_steps(runtime,
+cfm_steps,
+);
+}
+
+late final _rwkvmobile_runtime_cosyvoice_set_cfm_stepsPtr = _lookup<
+    ffi.NativeFunction<ffi.Int Function(rwkvmobile_runtime_t , ffi.Int )>>('rwkvmobile_runtime_cosyvoice_set_cfm_steps');
+late final _rwkvmobile_runtime_cosyvoice_set_cfm_steps = _rwkvmobile_runtime_cosyvoice_set_cfm_stepsPtr.asFunction<int Function(rwkvmobile_runtime_t , int )>();
+
 ffi.Pointer<ffi.Char> rwkvmobile_get_platform_name() {
   return _rwkvmobile_get_platform_name();
 }
