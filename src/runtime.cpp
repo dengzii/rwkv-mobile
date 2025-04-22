@@ -817,6 +817,8 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
     _cosyvoice->speech_token_to_wav(decoded_tokens, speech_features, speech_embedding, output_samples);
     auto end = std::chrono::high_resolution_clock::now();
     LOGI("[TTS] total time: %f ms", std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000.0);
+    LOGI("[TTS] output samples length: %f", output_samples.size() / 24000.0);
+    LOGI("[TTS] rtf: %f", std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1e6f * 24000.0 / output_samples.size());
     return RWKV_SUCCESS;
 }
 
