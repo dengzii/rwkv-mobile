@@ -987,7 +987,6 @@ int qnn_backend::free_state(std::any state) {
 }
 
 int qnn_backend::release_model() {
-    LOGE("qnn_backend::release_model()");
     // free graphs
     for (int i = 0; i < qnnDecodeGraphsCount; i++) {
         auto graphInfo     = (*qnnDecodeGraphsInfo)[i];
