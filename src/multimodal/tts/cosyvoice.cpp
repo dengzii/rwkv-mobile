@@ -447,7 +447,7 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
     LOGI("[TTS] flow_encoder duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
     // Flow decoder
-    const int n_timesteps = 10;
+    const int n_timesteps = cfm_steps;
     int len_mu = encoder_output[0].GetTensorTypeAndShapeInfo().GetElementCount();
     if (len_mu != 80 * feat_len) {
         LOGE("[TTS] size mismatch: len_mu: %d, feat_len: %d", len_mu, feat_len);

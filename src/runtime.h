@@ -92,6 +92,14 @@ public:
     int run_tts_with_predefined_spks(std::string tts_text, std::string instruction_text, std::string spks_name, std::string output_wav_path);
 
     std::string cosyvoice_get_spk_names();
+
+    int cosyvoice_set_cfm_steps(int cfm_steps) {
+        if (_cosyvoice == nullptr) {
+            return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+        }
+        _cosyvoice->set_cfm_steps(cfm_steps);
+        return RWKV_SUCCESS;
+    }
 #endif
 
     int clear_state() {

@@ -565,6 +565,18 @@ const char * rwkvmobile_runtime_cosyvoice_get_spk_names(rwkvmobile_runtime_t run
 #endif
 }
 
+int rwkvmobile_runtime_cosyvoice_set_cfm_steps(rwkvmobile_runtime_t runtime, int cfm_steps) {
+#if ENABLE_TTS
+    if (runtime == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->cosyvoice_set_cfm_steps(cfm_steps);
+#else
+    return RWKV_ERROR_UNSUPPORTED;
+#endif
+}
+
 const char * rwkvmobile_get_platform_name() {
     soc_detect soc_detect;
     soc_detect.detect_platform();

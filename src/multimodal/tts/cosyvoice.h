@@ -63,6 +63,14 @@ public:
 
     int speech_token_sampler(float *logits, size_t size, std::vector<int> decoded_tokens, bool ignore_eos = false);
 
+    int set_cfm_steps(int cfm_steps) {
+        if (cfm_steps < 1 || cfm_steps > 10) {
+            return RWKV_ERROR_INVALID_PARAMETERS;
+        }
+        this->cfm_steps = cfm_steps;
+        return RWKV_SUCCESS;
+    }
+
 private:
     Ort::Env *env = nullptr;
     Ort::Session *speech_tokenizer_session = nullptr;
@@ -74,6 +82,7 @@ private:
 
     std::vector<float> random_noise;
     std::vector<float> t_span;
+    int cfm_steps = 5;
 
     std::map<std::string, std::vector<float>> spk_info;
 

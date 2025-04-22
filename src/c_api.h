@@ -121,6 +121,8 @@ int rwkvmobile_runtime_run_tts_with_predefined_spks(rwkvmobile_runtime_t runtime
 
 const char * rwkvmobile_runtime_cosyvoice_get_spk_names(rwkvmobile_runtime_t runtime);
 
+int rwkvmobile_runtime_cosyvoice_set_cfm_steps(rwkvmobile_runtime_t runtime, int cfm_steps);
+
 // platform info
 const char * rwkvmobile_get_platform_name();
 
