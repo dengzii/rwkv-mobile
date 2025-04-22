@@ -15,6 +15,7 @@
 #include "kaldi-native-fbank/csrc/istft.h"
 
 #include "net.h"
+#include "cpu.h"
 #include "mat.h"
 
 #define PRINT_FEATURE_INFO 0
@@ -91,6 +92,9 @@ bool cosyvoice::load_flow_decoder_estimator(const std::string model_path) {
     size_t pos = model_path.find_last_of(".");
     std::string param_path = model_path.substr(0, pos) + ".param";
     std::string bin_path = model_path.substr(0, pos) + ".bin";
+
+    ncnn::set_cpu_powersave(2);
+    flow_decoder_estimator_net.opt.num_threads = ncnn::get_physical_big_cpu_count() / 2;
     int ret = flow_decoder_estimator_net.load_param(param_path.c_str());
     if (ret != 0) {
         LOGE("[TTS] Failed to load param: %s", param_path.c_str());
@@ -490,31 +494,29 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
 
     for (int i = 1; i <= n_timesteps; i++) {
         ncnn::Mat dphi_dt, dphi_dt_cfg;
-
-        ncnn::Extractor ex = flow_decoder_estimator_net.create_extractor();
         ncnn::Mat x_in(feat_len, 320);
         ncnn::Mat mask_in(feat_len, 1);
         ncnn::Mat t_in(1);
+        ncnn::Mat x_cfg_in(feat_len, 320);
+        ncnn::Mat mask_cfg_in(feat_len, 1);
+        ncnn::Mat t_cfg_in(1);
+
         mask_in.fill(1.0f);
         t_in[0] = t;
 
         memcpy(x_in.row(0), x_vector.data(), x_vector.size() * sizeof(float));
 
-        ex.input("in0", x_in);
-        ex.input("in1", mask_in);
-        ex.input("in2", t_in);
-        ex.extract("out0", dphi_dt);
-
-        ncnn::Extractor ex_cfg = flow_decoder_estimator_net.create_extractor();
-        ncnn::Mat x_cfg_in(feat_len, 320);
-        ncnn::Mat mask_cfg_in(feat_len, 1);
-        ncnn::Mat t_cfg_in(1);
         x_cfg_in.fill(0.0f);
         mask_cfg_in.fill(1.0f);
         t_cfg_in[0] = t;
 
         memcpy(x_cfg_in.row(0), x_cfg_vector.data(), len_mu * sizeof(float));
-
+        ncnn::Extractor ex = flow_decoder_estimator_net.create_extractor();
+        ex.input("in0", x_in);
+        ex.input("in1", mask_in);
+        ex.input("in2", t_in);
+        ex.extract("out0", dphi_dt);
+        ncnn::Extractor ex_cfg = flow_decoder_estimator_net.create_extractor();
         ex_cfg.input("in0", x_cfg_in);
         ex_cfg.input("in1", mask_cfg_in);
         ex_cfg.input("in2", t_cfg_in);

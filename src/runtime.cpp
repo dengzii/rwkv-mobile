@@ -745,7 +745,6 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
     std::vector<int> speech_tokens, std::vector<std::vector<float>> speech_features, std::vector<float> speech_embedding,
     std::vector<float> &output_samples) {
 #ifdef __ANDROID__
-    setenv("KMP_AFFINITY", "disabled", 1);
     setenv("KMP_DUPLICATE_LIB_OK", "1", 1);
 #endif
     if (_cosyvoice == nullptr) {
@@ -802,7 +801,7 @@ int runtime::run_tts(std::string tts_text, std::string instruction_text, std::st
 
     std::vector<float> output_samples;
     run_tts_internal(tts_text, instruction_text, speech_tokens, speech_features, speech_embedding, output_samples);
-    
+
     if (!output_wav_path.empty()) {
         save_samples_to_wav(output_samples, output_wav_path);
     }
