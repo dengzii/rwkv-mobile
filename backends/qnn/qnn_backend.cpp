@@ -837,6 +837,7 @@ int qnn_backend::eval(std::vector<int> ids, float *& logits) {
         int idx = 0;
 // temporarily disable prefilling
 #if 0
+        bool is_prefilling_usable = true;
         for (; (idx + prefillSequenceLength) < ids.size(); idx += prefillSequenceLength) {
             for (int i = 0; i < prefillSequenceLength; i++) {
                 *token_input = ids[idx + i];
@@ -855,8 +856,12 @@ int qnn_backend::eval(std::vector<int> ids, float *& logits) {
                                                                     nullptr);
 
                 if (QNN_GRAPH_NO_ERROR != executeStatus) {
-                    return RWKV_ERROR_IO;
+                    is_prefilling_usable = false;
+                    break;
                 }
+            }
+            if (!is_prefilling_usable) {
+                break;
             }
         }
 #endif
