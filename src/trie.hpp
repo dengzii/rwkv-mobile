@@ -387,9 +387,9 @@ class TRIE_TOKENIZER {
                 token2idx[x] = idx;
                 root->add(x, 0, idx);
             }
-            idx2token[0] = stringToBytes("<s>");
-            token2idx[stringToBytes("<s>")] = 0;
-            root->add(stringToBytes("<s>"), 0, 0);
+            idx2token[0] = stringToBytes("<EOD>");
+            token2idx[stringToBytes("<EOD>")] = 0;
+            root->add(stringToBytes("<EOD>"), 0, 0);
             _inited = true;
         }
 
