@@ -63,22 +63,22 @@ class DmaBufferAllocator final : public IBufferAlloc {
   bool afterReadFromBuffer(Qnn_Tensor_t* tensor) override;
 
   bool useSameMemory(Qnn_Tensor_t* dest, Qnn_Tensor_t* src, int offset) override {
-    LOGW("Offset based tensors not supported!!");
+    rwkvmobile::LOGW("Offset based tensors not supported!!");
     return false;
     ;
   }
   bool useExternalMemory(Qnn_Tensor_t* dest, void* extMem) override {
-    LOGW("External Memory not supported!!");
+    rwkvmobile::LOGW("External Memory not supported!!");
     return false;
     ;
   }
   void* allocateTensorFusedBuffer(uint64_t bufferSize, int32_t* fd) override {
-    LOGW("Fused Buffers not supported\n");
+    rwkvmobile::LOGW("Fused Buffers not supported\n");
     return nullptr;
   };
   bool allocateBuffers(const std::map<int, std::map<std::string, size_t>>& allocs_per_chunk,
                        std::map<std::string, std::pair<int, size_t>>& tensor_offsets) override {
-    LOGW("Fused Buffers not supported\n");
+    rwkvmobile::LOGW("Fused Buffers not supported\n");
     return false;
   };
   bool mapFusedBufferOffset(Qnn_Tensor_t* tensor,
@@ -88,11 +88,11 @@ class DmaBufferAllocator final : public IBufferAlloc {
                             uint64_t totalBufferSize,
                             void* memPointer,
                             Qnn_ContextHandle_t contextHandle) override {
-    LOGW("Fused Buffers not supported\n");
+    rwkvmobile::LOGW("Fused Buffers not supported\n");
     return false;
   };
   bool deregisterTensorFusedBuffer(Qnn_Tensor_t* tensor) override {
-    LOGW("Fused Buffers not supported\n");
+    rwkvmobile::LOGW("Fused Buffers not supported\n");
     return false;
   };
   void freeFusedBuffers() override { return; };
@@ -101,7 +101,7 @@ class DmaBufferAllocator final : public IBufferAlloc {
                             size_t offset,
                             Qnn_ContextHandle_t ctx,
                             size_t size) override {
-    LOGW("Fused Buffers not supported\n");
+    rwkvmobile::LOGW("Fused Buffers not supported\n");
     return false;
   };
 

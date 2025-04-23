@@ -25,7 +25,7 @@ template <class T>
 static inline T resolveSymbol(void* libHandle, const char* sym) {
   T ptr = (T)pal::dynamicloading::dlSym(libHandle, sym);
   if (ptr == nullptr) {
-    LOGE("Unable to access symbol [%s]. pal::dynamicloading::dlError(): %s",
+    rwkvmobile::LOGE("Unable to access symbol [%s]. pal::dynamicloading::dlError(): %s",
               sym,
               pal::dynamicloading::dlError());
   }
@@ -47,7 +47,7 @@ dynamicloadutil::StatusCode dynamicloadutil::getQnnFunctionPointers(
       backendPath.c_str(), pal::dynamicloading::DL_NOW | pal::dynamicloading::DL_GLOBAL);
 // #endif
   if (nullptr == libBackendHandle) {
-    LOGE("Unable to load backend. pal::dynamicloading::dlError(): %s",
+    rwkvmobile::LOGE("Unable to load backend. pal::dynamicloading::dlError(): %s",
               pal::dynamicloading::dlError());
     return StatusCode::FAIL_LOAD_BACKEND;
   }
@@ -65,15 +65,15 @@ dynamicloadutil::StatusCode dynamicloadutil::getQnnFunctionPointers(
   uint32_t numProviders{0};
   if (QNN_SUCCESS !=
       getInterfaceProviders((const QnnInterface_t***)&interfaceProviders, &numProviders)) {
-    LOGE("Failed to get interface providers.");
+    rwkvmobile::LOGE("Failed to get interface providers.");
     return StatusCode::FAIL_GET_INTERFACE_PROVIDERS;
   }
   if (nullptr == interfaceProviders) {
-    LOGE("Failed to get interface providers: null interface providers received.");
+    rwkvmobile::LOGE("Failed to get interface providers: null interface providers received.");
     return StatusCode::FAIL_GET_INTERFACE_PROVIDERS;
   }
   if (0 == numProviders) {
-    LOGE("Failed to get interface providers: 0 interface providers.");
+    rwkvmobile::LOGE("Failed to get interface providers: 0 interface providers.");
     return StatusCode::FAIL_GET_INTERFACE_PROVIDERS;
   }
   bool foundValidInterface{false};
@@ -86,17 +86,17 @@ dynamicloadutil::StatusCode dynamicloadutil::getQnnFunctionPointers(
     }
   }
   if (!foundValidInterface) {
-    LOGE("Unable to find a valid interface.");
+    rwkvmobile::LOGE("Unable to find a valid interface.");
     libBackendHandle = nullptr;
     return StatusCode::FAIL_GET_INTERFACE_PROVIDERS;
   }
 
   if (true == loadModelLib) {
-    LOGI("Loading model shared library ([model].so)");
+    rwkvmobile::LOGI("Loading model shared library ([model].so)");
     void* libModelHandle = pal::dynamicloading::dlOpen(
         modelPath.c_str(), pal::dynamicloading::DL_NOW | pal::dynamicloading::DL_LOCAL);
     if (nullptr == libModelHandle) {
-      LOGE("Unable to load model. pal::dynamicloading::dlError(): %s",
+      rwkvmobile::LOGE("Unable to load model. pal::dynamicloading::dlError(): %s",
                 pal::dynamicloading::dlError());
       return StatusCode::FAIL_LOAD_MODEL;
     }
@@ -120,7 +120,7 @@ dynamicloadutil::StatusCode dynamicloadutil::getQnnFunctionPointers(
       return StatusCode::FAIL_SYM_FUNCTION;
     }
   } else {
-    LOGI("Model wasn't loaded from a shared library.");
+    rwkvmobile::LOGI("Model wasn't loaded from a shared library.");
   }
   return StatusCode::SUCCESS;
 }
@@ -128,13 +128,13 @@ dynamicloadutil::StatusCode dynamicloadutil::getQnnFunctionPointers(
 dynamicloadutil::StatusCode dynamicloadutil::getQnnSystemFunctionPointers(
     std::string systemLibraryPath, rwkv_app::QnnFunctionPointers* qnnFunctionPointers) {
   if (!qnnFunctionPointers) {
-    LOGE("nullptr provided for qnnFunctionPointers");
+    rwkvmobile::LOGE("nullptr provided for qnnFunctionPointers");
     return StatusCode::FAILURE;
   }
   void* systemLibraryHandle = pal::dynamicloading::dlOpen(
       systemLibraryPath.c_str(), pal::dynamicloading::DL_NOW | pal::dynamicloading::DL_LOCAL);
   if (nullptr == systemLibraryHandle) {
-    LOGE("Unable to load system library. pal::dynamicloading::dlError(): %s",
+    rwkvmobile::LOGE("Unable to load system library. pal::dynamicloading::dlError(): %s",
               pal::dynamicloading::dlError());
     return StatusCode::FAIL_LOAD_SYSTEM_LIB;
   }
@@ -148,15 +148,15 @@ dynamicloadutil::StatusCode dynamicloadutil::getQnnSystemFunctionPointers(
   uint32_t numProviders{0};
   if (QNN_SUCCESS != getSystemInterfaceProviders(
                          (const QnnSystemInterface_t***)&systemInterfaceProviders, &numProviders)) {
-    LOGE("Failed to get system interface providers.");
+    rwkvmobile::LOGE("Failed to get system interface providers.");
     return StatusCode::FAIL_GET_INTERFACE_PROVIDERS;
   }
   if (nullptr == systemInterfaceProviders) {
-    LOGE("Failed to get system interface providers: null interface providers received.");
+    rwkvmobile::LOGE("Failed to get system interface providers: null interface providers received.");
     return StatusCode::FAIL_GET_INTERFACE_PROVIDERS;
   }
   if (0 == numProviders) {
-    LOGE("Failed to get interface providers: 0 interface providers.");
+    rwkvmobile::LOGE("Failed to get interface providers: 0 interface providers.");
     return StatusCode::FAIL_GET_INTERFACE_PROVIDERS;
   }
   bool foundValidSystemInterface{false};
@@ -170,7 +170,7 @@ dynamicloadutil::StatusCode dynamicloadutil::getQnnSystemFunctionPointers(
     }
   }
   if (!foundValidSystemInterface) {
-    LOGE("Unable to find a valid system interface.");
+    rwkvmobile::LOGE("Unable to find a valid system interface.");
     return StatusCode::FAIL_GET_INTERFACE_PROVIDERS;
   }
   return StatusCode::SUCCESS;

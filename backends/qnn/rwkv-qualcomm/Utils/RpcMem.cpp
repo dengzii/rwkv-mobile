@@ -1,8 +1,8 @@
 //==============================================================================
 //
-//  Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+//  Copyright (c) Qualcomm Technorwkvmobile::LOGIes, Inc. and/or its subsidiaries.
 //  All Rights Reserved.
-//  Confidential and Proprietary - Qualcomm Technologies, Inc.
+//  Confidential and Proprietary - Qualcomm Technorwkvmobile::LOGIes, Inc.
 //
 //==============================================================================
 
@@ -15,8 +15,8 @@
 #define RPCMEM_HEAP_ID_SYSTEM 25
 #define RPCMEM_DEFAULT_FLAGS  1
 
-#if 1
-#define TRACE_MEMORY_ALLOC LOGI
+#if 0
+#define TRACE_MEMORY_ALLOC rwkvmobile::LOGI
 #else
 #define TRACE_MEMORY_ALLOC(fmt, ...)
 #endif
@@ -43,14 +43,14 @@ bool RpcMem::initialize() {
 
   m_libCdspRpc = dlopen(dsprpc_so, RTLD_NOW | RTLD_LOCAL);
   if (nullptr == m_libCdspRpc) {
-    LOGE("Unable to load backend. dlerror(): %s", dlerror());
+    rwkvmobile::LOGE("Unable to load backend. dlerror(): %s", dlerror());
     return false;
   }
   m_rpcMemAlloc = (RpcMemAllocFn_t)dlsym(m_libCdspRpc, "rpcmem_alloc");
   m_rpcMemFree  = (RpcMemFreeFn_t)dlsym(m_libCdspRpc, "rpcmem_free");
   m_rpcMemToFd  = (RpcMemToFdFn_t)dlsym(m_libCdspRpc, "rpcmem_to_fd");
   if (nullptr == m_rpcMemAlloc || nullptr == m_rpcMemFree || nullptr == m_rpcMemToFd) {
-    LOGE("Unable to access symbols in libcdsprpc. dlerror(): %s", dlerror());
+    rwkvmobile::LOGE("Unable to access symbols in libcdsprpc. dlerror(): %s", dlerror());
     return false;
   }
 
@@ -59,7 +59,7 @@ bool RpcMem::initialize() {
 
 RpcMem::~RpcMem() {
   if (m_libCdspRpc) {
-    LOGD("Closing libcdsprpc.so handle");
+    rwkvmobile::LOGD("Closing libcdsprpc.so handle");
     dlclose(m_libCdspRpc);
   }
 }
@@ -68,14 +68,14 @@ RpcMemTensorData* RpcMem::getRpcMemTensorData(Qnn_Tensor_t* tensor) {
   if (tensor == nullptr) return nullptr;
   Qnn_MemHandle_t mem_handle = QNN_TENSOR_GET_MEM_HANDLE(tensor);
   if (mem_handle == nullptr) return nullptr;
-  LOGI("RpcMem :: getRpcMemTensorData %s mem_handle=%p", QNN_TENSOR_GET_NAME(tensor), mem_handle);
+  rwkvmobile::LOGI("RpcMem :: getRpcMemTensorData %s mem_handle=%p", QNN_TENSOR_GET_NAME(tensor), mem_handle);
   return &m_memHandleToRpcMem.at(mem_handle);
 }
 
 void* RpcMem::getBuffer(Qnn_Tensor_t* tensor) {
   RpcMemTensorData* data = getRpcMemTensorData(tensor);
   if (data == nullptr) {
-    LOGE("getBuffer : Couldn't find tensor %p", tensor);
+    rwkvmobile::LOGE("getBuffer : Couldn't find tensor %p", tensor);
     return nullptr;
   }
   return data->memPointer;
@@ -84,7 +84,7 @@ void* RpcMem::getBuffer(Qnn_Tensor_t* tensor) {
 int RpcMem::getFd(Qnn_Tensor_t* tensor) {
   RpcMemTensorData* data = getRpcMemTensorData(tensor);
   if (data == nullptr) {
-    LOGE("getFd : Couldn't find tensor %p", tensor);
+    rwkvmobile::LOGE("getFd : Couldn't find tensor %p", tensor);
     return -1;
   }
   return data->fd;
@@ -93,7 +93,7 @@ int RpcMem::getFd(Qnn_Tensor_t* tensor) {
 size_t RpcMem::getOffset(Qnn_Tensor_t* tensor) {
   RpcMemTensorData* data = getRpcMemTensorData(tensor);
   if (data == nullptr) {
-    LOGE("getOffset : Couldn't find tensor %p", tensor);
+    rwkvmobile::LOGE("getOffset : Couldn't find tensor %p", tensor);
     return 0;
   }
   return data->offset;
@@ -102,7 +102,7 @@ size_t RpcMem::getOffset(Qnn_Tensor_t* tensor) {
 size_t RpcMem::getBufferSize(Qnn_Tensor_t* tensor) {
   RpcMemTensorData* data = getRpcMemTensorData(tensor);
   if (data == nullptr) {
-    LOGE("getBufferSize : Couldn't find tensor %p", tensor);
+    rwkvmobile::LOGE("getBufferSize : Couldn't find tensor %p", tensor);
     return 0;
   }
   return data->size;
@@ -111,7 +111,7 @@ size_t RpcMem::getBufferSize(Qnn_Tensor_t* tensor) {
 size_t RpcMem::getTotalBufferSize(Qnn_Tensor_t* tensor) {
   RpcMemTensorData* data = getRpcMemTensorData(tensor);
   if (data == nullptr) {
-    LOGE("getTotalBufferSize : Couldn't find tensor %p", tensor);
+    rwkvmobile::LOGE("getTotalBufferSize : Couldn't find tensor %p", tensor);
     return 0;
   }
   return data->totalBufferSize;
@@ -119,29 +119,29 @@ size_t RpcMem::getTotalBufferSize(Qnn_Tensor_t* tensor) {
 
 bool RpcMem::allocateTensorBuffer(Qnn_Tensor_t* tensor, size_t tensorDataSize) {
   if (m_libCdspRpc == nullptr) {
-    LOGE("RpcMem not initialized");
+    rwkvmobile::LOGE("RpcMem not initialized");
     return false;
   }
   if (!tensor) {
-    LOGE("Received nullptr for tensor");
+    rwkvmobile::LOGE("Received nullptr for tensor");
     return false;
   }
   if (m_tensorToRpcMem.find(tensor) != m_tensorToRpcMem.end()) {
-    LOGE("Tensor already allocated");
+    rwkvmobile::LOGE("Tensor already allocated");
     return false;
   }
 
   auto memPointer = m_rpcMemAlloc(RPCMEM_HEAP_ID_SYSTEM, RPCMEM_DEFAULT_FLAGS, tensorDataSize);
   auto status     = true;
   if (!memPointer) {
-    LOGE("rpcmem_alloc failure");
+    rwkvmobile::LOGE("rpcmem_alloc failure");
     status = false;
   }
   int memfd = -1;
   if (status == true) {
     memfd = m_rpcMemToFd(memPointer);
     if (memfd == -1) {
-      LOGE("rpcmem_to_fd failure");
+      rwkvmobile::LOGE("rpcmem_to_fd failure");
       status = false;
     }
   }
@@ -159,11 +159,11 @@ bool RpcMem::allocateTensorBuffer(Qnn_Tensor_t* tensor, size_t tensorDataSize) {
     if (QNN_SUCCESS !=
         m_qnnInterface->memRegister(m_contextHandle, &memDescriptor, 1, &(memHandle))) {
       const char* tname = QNN_TENSOR_GET_NAME(tensor);
-      LOGE("memRegister fail %s (ctx=%p fd=%d)", tname, m_contextHandle, memfd);
+      rwkvmobile::LOGE("memRegister fail %s (ctx=%p fd=%d)", tname, m_contextHandle, memfd);
       status = false;
     }
     QNN_TENSOR_SET_MEM_HANDLE(tensor, memHandle);
-    LOGI("RpcMem :: allocateTensorBuffer %s mem_handle=%p", QNN_TENSOR_GET_NAME(tensor), memHandle);
+    rwkvmobile::LOGI("RpcMem :: allocateTensorBuffer %s mem_handle=%p", QNN_TENSOR_GET_NAME(tensor), memHandle);
     m_memHandleToRpcMem.insert({memHandle, RpcMemTensorData(memfd, memPointer, tensorDataSize)});
   }
   if (status == true) {
@@ -179,25 +179,25 @@ bool RpcMem::allocateTensorBuffer(Qnn_Tensor_t* tensor, size_t tensorDataSize) {
 
 bool RpcMem::freeTensorBuffer(Qnn_Tensor_t* tensor) {
   if (!tensor) {
-    LOGE("Received nullptr for tensor");
+    rwkvmobile::LOGE("Received nullptr for tensor");
     return false;
   }
 
   if (m_sameMemoryFreeTensors.find(tensor) != m_sameMemoryFreeTensors.end()) {
     if (m_tensorToRpcMem.find(tensor) == m_tensorToRpcMem.end()) {
-      LOGE("Tensor not found");
+      rwkvmobile::LOGE("Tensor not found");
       return false;
     }
     m_tensorToRpcMem.erase(tensor);
   } else {
     auto memHandle = QNN_TENSOR_GET_MEM_HANDLE(tensor);
     if (QNN_SUCCESS != m_qnnInterface->memDeRegister(&memHandle, 1)) {
-      LOGE("Failed to deregister ion memory with the backend");
+      rwkvmobile::LOGE("Failed to deregister ion memory with the backend");
       return false;
     }
     QNN_TENSOR_SET_MEM_TYPE(tensor, QNN_TENSORMEMTYPE_UNDEFINED);
     if (m_tensorToRpcMem.find(tensor) == m_tensorToRpcMem.end()) {
-      LOGE("Tensor not found");
+      rwkvmobile::LOGE("Tensor not found");
       return false;
     }
     if (m_rpcMemFree) {
@@ -211,16 +211,16 @@ bool RpcMem::freeTensorBuffer(Qnn_Tensor_t* tensor) {
 
 bool RpcMem::useSameMemory(Qnn_Tensor_t* dest, Qnn_Tensor_t* src) {
   if (nullptr == dest || nullptr == src) {
-    LOGE("Received nullptr");
+    rwkvmobile::LOGE("Received nullptr");
     return false;
   }
   if (m_tensorToRpcMem.find(src) == m_tensorToRpcMem.end()) {
-    LOGE("Src Tensor not found");
+    rwkvmobile::LOGE("Src Tensor not found");
     return false;
   }
 
   // if (false == freeTensorBuffer(dest)) {
-  //   LOGE("Failed to free dest tensor");
+  //   rwkvmobile::LOGE("Failed to free dest tensor");
   //   return false;
   // }
 
@@ -234,11 +234,11 @@ bool RpcMem::useSameMemory(Qnn_Tensor_t* dest, Qnn_Tensor_t* src) {
 
 bool RpcMem::useSameMemory(Qnn_Tensor_t* dest, Qnn_Tensor_t* src, int offset) {
   if (nullptr == dest || nullptr == src) {
-    LOGE("Received nullptr");
+    rwkvmobile::LOGE("Received nullptr");
     return false;
   }
   if (m_tensorToRpcMem.find(src) == m_tensorToRpcMem.end()) {
-    LOGE("Src Tensor not found");
+    rwkvmobile::LOGE("Src Tensor not found");
     return false;
   }
 
@@ -255,34 +255,34 @@ bool RpcMem::useSameMemory(Qnn_Tensor_t* dest, Qnn_Tensor_t* src, int offset) {
 }
 
 bool RpcMem::useExternalMemory(Qnn_Tensor_t* dest, void* extMem) {
-  LOGE("We don't support external memory feature for shared buffers yet!");
+  rwkvmobile::LOGE("We don't support external memory feature for shared buffers yet!");
   return false;
 }
 
 void* RpcMem::allocateTensorFusedBuffer(uint64_t bufferSize, int32_t* fd) {
   *fd = -1;
   if (m_libCdspRpc == nullptr) {
-    LOGE("RpcMem not initialized for fused buffer");
+    rwkvmobile::LOGE("RpcMem not initialized for fused buffer");
     return nullptr;
   }
 
   void* memPointer = m_rpcMemAlloc(RPCMEM_HEAP_ID_SYSTEM, RPCMEM_DEFAULT_FLAGS, bufferSize);
   if (!memPointer) {
-    LOGE("Not able to allocate fused buffer of size: %lu", (unsigned long)bufferSize);
+    rwkvmobile::LOGE("Not able to allocate fused buffer of size: %lu", (unsigned long)bufferSize);
     return nullptr;
   }
 
   m_fusedBuffers.push_back({memPointer, bufferSize});
-  LOGD("Successfully allocated fused buffer at %p with size %lu",
+  rwkvmobile::LOGD("Successfully allocated fused buffer at %p with size %lu",
             memPointer,
             (unsigned long)bufferSize);
 
   if ((*fd = m_rpcMemToFd(memPointer)) == -1) {
-    LOGE("Not able to get fd for the fused buffer of size: %lu", (unsigned long)bufferSize);
+    rwkvmobile::LOGE("Not able to get fd for the fused buffer of size: %lu", (unsigned long)bufferSize);
     return nullptr;
   }
 
-  LOGD("Retrieved fd %d for pointer %p", *fd, memPointer);
+  rwkvmobile::LOGD("Retrieved fd %d for pointer %p", *fd, memPointer);
   return memPointer;
 }
 
@@ -302,7 +302,7 @@ bool RpcMem::allocateBuffers(const std::map<int, std::map<std::string, size_t>>&
 
     // Allocate chunk for this unique context set
     if (alloc_chunk_size <= 0) {
-      LOGE("Unexpected chunk size detected. Please re-check IO allocations");
+      rwkvmobile::LOGE("Unexpected chunk size detected. Please re-check IO allocations");
       return false;
     }
 
@@ -313,7 +313,7 @@ bool RpcMem::allocateBuffers(const std::map<int, std::map<std::string, size_t>>&
     alloc_chunk_idx++;
     num_alloc_chunks++;
   }
-  LOGI("Allocated total size = %lu across %d buffers",
+  rwkvmobile::LOGI("Allocated total size = %lu across %d buffers",
            (unsigned long)total_alloc_size,
            num_alloc_chunks);
   return true;
@@ -327,11 +327,11 @@ bool RpcMem::mapFusedBufferOffset(Qnn_Tensor_t* tensor,
                                   void* memPointer,
                                   Qnn_ContextHandle_t contextHandle) {
   if (m_libCdspRpc == nullptr) {
-    LOGE("RpcMem not initialized");
+    rwkvmobile::LOGE("RpcMem not initialized");
     return false;
   }
   if (!tensor) {
-    LOGE("Received nullptr for tensor");
+    rwkvmobile::LOGE("Received nullptr for tensor");
     return false;
   }
 
@@ -356,7 +356,7 @@ bool RpcMem::mapFusedBufferOffset(Qnn_Tensor_t* tensor,
                        cur_mem_handle);
     m_memHandleToRpcMem.erase(cur_mem_handle);
     if ((ret = m_qnnInterface->memDeRegister(&cur_mem_handle, 1)) != QNN_SUCCESS) {
-      LOGE(
+      rwkvmobile::LOGE(
           "memDeRegister ERROR(%lu) - %s memHandle=%p", (unsigned long)ret, tname, cur_mem_handle);
       return false;
     }
@@ -389,8 +389,8 @@ bool RpcMem::mapFusedBufferOffset(Qnn_Tensor_t* tensor,
   Qnn_MemHandle_t mem_handle = nullptr;
   ret = m_qnnInterface->memRegister(contextHandle, &mem_descriptor, 1, &mem_handle);
   if (ret != QNN_SUCCESS) {
-    LOGE("%-20s (ctx=%p fd=%d offset=%u)", tname, contextHandle, fd, offset);
-    LOGE("memRegister ERROR(%lu)", (unsigned long)ret);
+    rwkvmobile::LOGE("%-20s (ctx=%p fd=%d offset=%u)", tname, contextHandle, fd, offset);
+    rwkvmobile::LOGE("memRegister ERROR(%lu)", (unsigned long)ret);
     return false;
   }
 
@@ -426,12 +426,12 @@ bool RpcMem::mapFusedBufferOffset(
 
 bool RpcMem::deregisterTensorFusedBuffer(Qnn_Tensor_t* tensor) {
   if (!tensor) {
-    LOGE("Received nullptr for tensor");
+    rwkvmobile::LOGE("Received nullptr for tensor");
     return false;
   }
 
   if (m_tensorToRpcMem.find(tensor) == m_tensorToRpcMem.end()) {
-    LOGE("Tensor not found");
+    rwkvmobile::LOGE("Tensor not found");
     return false;
   }
 
@@ -440,9 +440,9 @@ bool RpcMem::deregisterTensorFusedBuffer(Qnn_Tensor_t* tensor) {
   // happens before this point
 
   // Qnn_MemHandle_t memHandle = QNN_TENSOR_GET_MEM_HANDLE(tensor);
-  // LOGE("Interface handle %p memhandle %p", m_qnnInterface, memHandle);
+  // rwkvmobile::LOGE("Interface handle %p memhandle %p", m_qnnInterface, memHandle);
   // if (QNN_SUCCESS != m_qnnInterface->memDeRegister(&memHandle, 1)) {
-  //   LOGE("Failed to deregister ion memory with the backend");
+  //   rwkvmobile::LOGE("Failed to deregister ion memory with the backend");
   //   return false;
   // }
 
@@ -455,12 +455,12 @@ bool RpcMem::deregisterTensorFusedBuffer(Qnn_Tensor_t* tensor) {
 void RpcMem::freeFusedBuffers() {
   // for (auto& memHandle : m_orphanedMemHandles) {
   //   if (QNN_SUCCESS != m_qnnInterface->memDeRegister(&memHandle, 1)) {
-  //     LOGE("Failed to deregister ion memory with the backend");
+  //     rwkvmobile::LOGE("Failed to deregister ion memory with the backend");
   //   }
   // }
 
   for (auto& [mem_ptr, buffer_size] : m_fusedBuffers) {
-    LOGD("Freeing fused buffer %p (size=%lu)", mem_ptr, buffer_size);
+    rwkvmobile::LOGD("Freeing fused buffer %p (size=%lu)", mem_ptr, buffer_size);
     m_rpcMemFree(mem_ptr);
   }
 }

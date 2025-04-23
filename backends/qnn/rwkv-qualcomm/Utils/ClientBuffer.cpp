@@ -11,7 +11,7 @@
 
 void* ClientBuffer::getBuffer(Qnn_Tensor_t* tensor) {
   if (!tensor) {
-    LOGW("getBuffer: received a null pointer to a tensor");
+    rwkvmobile::LOGW("getBuffer: received a null pointer to a tensor");
     return nullptr;
   }
   return QNN_TENSOR_GET_CLIENT_BUF(tensor).data;
@@ -19,7 +19,7 @@ void* ClientBuffer::getBuffer(Qnn_Tensor_t* tensor) {
 
 size_t ClientBuffer::getBufferSize(Qnn_Tensor_t* tensor) {
   if (!tensor) {
-    LOGW("getBufferSize: received a null pointer to a tensor");
+    rwkvmobile::LOGW("getBufferSize: received a null pointer to a tensor");
     return 0;
   }
   return QNN_TENSOR_GET_CLIENT_BUF(tensor).dataSize;
@@ -27,14 +27,14 @@ size_t ClientBuffer::getBufferSize(Qnn_Tensor_t* tensor) {
 
 bool ClientBuffer::allocateTensorBuffer(Qnn_Tensor_t* tensor, size_t tensorDataSize) {
   if (!tensor) {
-    LOGE("Received nullptr for tensors");
+    rwkvmobile::LOGE("Received nullptr for tensors");
     return false;
   }
   QNN_TENSOR_SET_MEM_TYPE(tensor, QNN_TENSORMEMTYPE_RAW);
   Qnn_ClientBuffer_t clientBuffer;
   clientBuffer.data = malloc(tensorDataSize);
   if (nullptr == clientBuffer.data) {
-    LOGE("mem alloc failed for clientBuffer.data");
+    rwkvmobile::LOGE("mem alloc failed for clientBuffer.data");
     return false;
   }
   clientBuffer.dataSize = tensorDataSize;
@@ -44,7 +44,7 @@ bool ClientBuffer::allocateTensorBuffer(Qnn_Tensor_t* tensor, size_t tensorDataS
 
 bool ClientBuffer::freeTensorBuffer(Qnn_Tensor_t* tensor) {
   if (!tensor) {
-    LOGE("Received nullptr for tensors");
+    rwkvmobile::LOGE("Received nullptr for tensors");
     return false;
   }
   if (QNN_TENSOR_GET_CLIENT_BUF(tensor).data) {
@@ -59,7 +59,7 @@ bool ClientBuffer::freeTensorBuffer(Qnn_Tensor_t* tensor) {
 
 bool ClientBuffer::useSameMemory(Qnn_Tensor_t* dest, Qnn_Tensor_t* src) {
   if (nullptr == dest || nullptr == src) {
-    LOGE("Received nullptr");
+    rwkvmobile::LOGE("Received nullptr");
     return false;
   }
   if (false == freeTensorBuffer(dest)) {
@@ -74,7 +74,7 @@ bool ClientBuffer::useSameMemory(Qnn_Tensor_t* dest, Qnn_Tensor_t* src) {
 
 bool ClientBuffer::useExternalMemory(Qnn_Tensor_t* dest, void* extMem) {
   if (nullptr == dest || nullptr == extMem) {
-    LOGE("Received nullptr");
+    rwkvmobile::LOGE("Received nullptr");
     return false;
   }
 

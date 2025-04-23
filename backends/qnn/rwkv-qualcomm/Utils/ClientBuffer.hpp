@@ -33,7 +33,7 @@ class ClientBuffer final : public IBufferAlloc {
   void* getBuffer(Qnn_Tensor_t* tensor) override;
 
   int getFd(Qnn_Tensor_t* tensor) override {
-    LOGW("getFd: This is not ION memory");
+    rwkvmobile::LOGW("getFd: This is not ION memory");
     return -1;
   };
 

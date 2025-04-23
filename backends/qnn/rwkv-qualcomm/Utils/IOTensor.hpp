@@ -84,12 +84,12 @@ class IOTensor {
     bool status = true;
     if (!tearDownTensors(graph_info->inputTensors, graph_info->numInputTensors)) {
       status = false;
-      LOGE("Failed to tear down input tensors for graph %s", graph_info->graphName);
+      rwkvmobile::LOGE("Failed to tear down input tensors for graph %s", graph_info->graphName);
     }
 
     if (!tearDownTensors(graph_info->outputTensors, graph_info->numOutputTensors)) {
       status = false;
-      LOGE("Failed to tear down output tensors for graph %s", graph_info->graphName);
+      rwkvmobile::LOGE("Failed to tear down output tensors for graph %s", graph_info->graphName);
     }
     return status;
   }

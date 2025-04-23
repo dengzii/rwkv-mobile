@@ -19,17 +19,17 @@ void Logger::log(const std::string &msg, const int level) {
     if (level >= _level) {
         switch (level) {
             case RWKV_LOG_LEVEL_DEBUG:
-                __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, msg.c_str());
+                __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "%s", msg.c_str());
                 break;
             case RWKV_LOG_LEVEL_WARN:
-                __android_log_print(ANDROID_LOG_WARN, LOG_TAG, msg.c_str());
+                __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "%s", msg.c_str());
                 break;
             case RWKV_LOG_LEVEL_ERROR:
-                __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, msg.c_str());
+                __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, "%s", msg.c_str());
                 break;
             case RWKV_LOG_LEVEL_INFO:
             default:
-                __android_log_print(ANDROID_LOG_INFO, LOG_TAG, msg.c_str());
+                __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "%s", msg.c_str());
                 break;
         }
     }

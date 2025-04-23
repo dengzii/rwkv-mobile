@@ -25,7 +25,7 @@ using namespace qnn::tools;
 
 std::tuple<datautil::StatusCode, size_t> datautil::getDataTypeSizeInBytes(Qnn_DataType_t dataType) {
   if (g_dataTypeToSize.find(dataType) == g_dataTypeToSize.end()) {
-    LOGE("Invalid qnn data type provided");
+    rwkvmobile::LOGE("Invalid qnn data type provided");
     return std::make_tuple(StatusCode::INVALID_DATA_TYPE, 0);
   }
   return std::make_tuple(StatusCode::SUCCESS, g_dataTypeToSize.find(dataType)->second);
@@ -41,7 +41,7 @@ size_t datautil::calculateElementCount(std::vector<size_t> dims) {
 std::tuple<datautil::StatusCode, size_t> datautil::calculateLength(std::vector<size_t> dims,
                                                                    Qnn_DataType_t dataType) {
   if (dims.size() == 0) {
-    LOGE("dims.size() is zero");
+    rwkvmobile::LOGE("dims.size() is zero");
     return std::make_tuple(StatusCode::INVALID_DIMENSIONS, 0);
   }
   StatusCode returnStatus{StatusCode::SUCCESS};
@@ -59,12 +59,12 @@ datautil::StatusCode datautil::readDataFromFile(std::string filePath,
                                                 Qnn_DataType_t dataType,
                                                 uint8_t* buffer) {
   if (nullptr == buffer) {
-    LOGE("buffer is nullptr");
+    rwkvmobile::LOGE("buffer is nullptr");
     return StatusCode::INVALID_BUFFER;
   }
   std::ifstream in(filePath, std::ifstream::binary);
   if (!in) {
-    LOGE("Failed to open input file: %s", filePath.c_str());
+    rwkvmobile::LOGE("Failed to open input file: %s", filePath.c_str());
     return StatusCode::FILE_OPEN_FAIL;
   }
   in.seekg(0, in.end);
@@ -77,7 +77,7 @@ datautil::StatusCode datautil::readDataFromFile(std::string filePath,
     return err;
   }
   if (length != l) {
-    LOGE("Input file %s: file size in bytes (%d), should be equal to: %d",
+    rwkvmobile::LOGE("Input file %s: file size in bytes (%d), should be equal to: %d",
               filePath.c_str(),
               length,
               l);
@@ -85,7 +85,7 @@ datautil::StatusCode datautil::readDataFromFile(std::string filePath,
   }
 
   if (!in.read(reinterpret_cast<char*>(buffer), length)) {
-    LOGE("Failed to read the contents of: %s", filePath.c_str());
+    rwkvmobile::LOGE("Failed to read the contents of: %s", filePath.c_str());
     return StatusCode::DATA_READ_FAIL;
   }
   return StatusCode::SUCCESS;
@@ -98,7 +98,7 @@ datautil::ReadBatchDataRetType_t datautil::readBatchData(const std::vector<std::
                                                          const Qnn_DataType_t dataType,
                                                          uint8_t* buffer) {
   if (nullptr == buffer) {
-    LOGE("buffer is nullptr");
+    rwkvmobile::LOGE("buffer is nullptr");
     return std::make_tuple(StatusCode::INVALID_BUFFER, 0, 0);
   }
   StatusCode err{StatusCode::SUCCESS};
@@ -124,14 +124,14 @@ datautil::ReadBatchDataRetType_t datautil::readBatchData(const std::vector<std::
     }
     std::ifstream in(filePaths[fileIndex], std::ifstream::binary);
     if (!in) {
-      LOGE("Failed to open input file: %s", (filePaths[fileIndex]).c_str());
+      rwkvmobile::LOGE("Failed to open input file: %s", (filePaths[fileIndex]).c_str());
       return std::make_tuple(StatusCode::FILE_OPEN_FAIL, numInputsCopied, numBatchSize);
     }
     in.seekg(0, in.end);
     const size_t fileSize = in.tellg();
     in.seekg(0, in.beg);
     if ((tensorLength % fileSize) != 0 || fileSize > tensorLength || fileSize == 0) {
-      LOGE(
+      rwkvmobile::LOGE(
           "Given input file %s with file size in bytes %d. If the model expects a batch size of "
           "one, the file size should match the tensor extent: %d bytes. If the model expects a "
           "batch size > 1, the file size should evenly divide the tensor extent: %d bytes.",
@@ -142,7 +142,7 @@ datautil::ReadBatchDataRetType_t datautil::readBatchData(const std::vector<std::
       return std::make_tuple(StatusCode::DATA_SIZE_MISMATCH, numInputsCopied, numBatchSize);
     }
     if (!in.read(reinterpret_cast<char*>(buffer + (numInputsCopied * fileSize)), fileSize)) {
-      LOGE("Failed to read the contents of: %s", filePaths.front().c_str());
+      rwkvmobile::LOGE("Failed to read the contents of: %s", filePaths.front().c_str());
       return std::make_tuple(StatusCode::DATA_READ_FAIL, numInputsCopied, numBatchSize);
     }
     totalLength += fileSize;
@@ -159,7 +159,7 @@ datautil::ReadBatchDataRetType_t datautil::readBatchData(const std::vector<std::
 std::tuple<datautil::StatusCode, size_t> datautil::getFileSize(std::string filePath) {
   std::ifstream in(filePath, std::ifstream::binary);
   if (!in) {
-    LOGE("Failed to open input file: %s", filePath.c_str());
+    rwkvmobile::LOGE("Failed to open input file: %s", filePath.c_str());
     return std::make_tuple(StatusCode::FILE_OPEN_FAIL, 0);
   }
   in.seekg(0, in.end);
@@ -172,16 +172,16 @@ datautil::StatusCode datautil::readBinaryFromFile(std::string filePath,
                                                   uint8_t* buffer,
                                                   size_t bufferSize) {
   if (nullptr == buffer) {
-    LOGE("buffer is nullptr");
+    rwkvmobile::LOGE("buffer is nullptr");
     return StatusCode::INVALID_BUFFER;
   }
   std::ifstream in(filePath, std::ifstream::binary);
   if (!in) {
-    LOGE("Failed to open input file: %s", filePath.c_str());
+    rwkvmobile::LOGE("Failed to open input file: %s", filePath.c_str());
     return StatusCode::FILE_OPEN_FAIL;
   }
   if (!in.read(reinterpret_cast<char*>(buffer), bufferSize)) {
-    LOGE("Failed to read the contents of: %s", filePath.c_str());
+    rwkvmobile::LOGE("Failed to read the contents of: %s", filePath.c_str());
     return StatusCode::DATA_READ_FAIL;
   }
   return StatusCode::SUCCESS;
@@ -194,17 +194,17 @@ datautil::StatusCode datautil::writeDataToFile(std::string fileDir,
                                                Qnn_DataType_t dataType,
                                                uint8_t* buffer) {
   if (nullptr == buffer) {
-    LOGE("buffer is nullptr");
+    rwkvmobile::LOGE("buffer is nullptr");
     return StatusCode::INVALID_BUFFER;
   }
   if (!pal::Directory::makePath(fileDir)) {
-    LOGE("Failed to create output directory: %s", fileDir.c_str());
+    rwkvmobile::LOGE("Failed to create output directory: %s", fileDir.c_str());
     return StatusCode::DIRECTORY_CREATE_FAIL;
   }
   const std::string outputPath(fileDir + pal::Path::getSeparator() + fileName);
   std::ofstream os(outputPath, std::ofstream::binary);
   if (!os) {
-    LOGE("Failed to open output file for writing: %s", outputPath.c_str());
+    rwkvmobile::LOGE("Failed to open output file for writing: %s", outputPath.c_str());
     return StatusCode::FILE_OPEN_FAIL;
   }
   StatusCode err{StatusCode::SUCCESS};
@@ -226,7 +226,7 @@ datautil::StatusCode datautil::writeBatchDataToFile(std::vector<std::string> fil
                                                     uint8_t* buffer,
                                                     const size_t batchSize) {
   if (nullptr == buffer) {
-    LOGE("buffer is nullptr");
+    rwkvmobile::LOGE("buffer is nullptr");
     return StatusCode::INVALID_BUFFER;
   }
   StatusCode err{StatusCode::SUCCESS};
@@ -239,13 +239,13 @@ datautil::StatusCode datautil::writeBatchDataToFile(std::vector<std::string> fil
   for (size_t batchIndex = 0; batchIndex < fileDirs.size(); batchIndex++) {
     std::string fileDir = fileDirs[batchIndex];
     if (!pal::Directory::makePath(fileDir)) {
-      LOGE("Failed to create output directory: %s", fileDir.c_str());
+      rwkvmobile::LOGE("Failed to create output directory: %s", fileDir.c_str());
       return StatusCode::DIRECTORY_CREATE_FAIL;
     }
     const std::string outputPath(fileDir + pal::Path::getSeparator() + fileName);
     std::ofstream os(outputPath, std::ofstream::binary);
     if (!os) {
-      LOGE("Failed to open output file for writing: %s", outputPath.c_str());
+      rwkvmobile::LOGE("Failed to open output file for writing: %s", outputPath.c_str());
       return StatusCode::FILE_OPEN_FAIL;
     }
     for (size_t l = 0; l < outputSize; l++) {
@@ -261,17 +261,17 @@ datautil::StatusCode datautil::writeBinaryToFile(std::string fileDir,
                                                  uint8_t* buffer,
                                                  size_t bufferSize) {
   if (nullptr == buffer) {
-    LOGE("buffer is nullptr");
+    rwkvmobile::LOGE("buffer is nullptr");
     return StatusCode::INVALID_BUFFER;
   }
   if (!pal::Directory::makePath(fileDir)) {
-    LOGE("Failed to create output directory: %s", fileDir.c_str());
+    rwkvmobile::LOGE("Failed to create output directory: %s", fileDir.c_str());
     return StatusCode::DIRECTORY_CREATE_FAIL;
   }
   const std::string outputPath(fileDir + pal::Path::getSeparator() + fileName);
   std::ofstream os(outputPath, std::ofstream::binary);
   if (!os) {
-    LOGE("Failed to open output file for writing: %s", outputPath.c_str());
+    rwkvmobile::LOGE("Failed to open output file for writing: %s", outputPath.c_str());
     return StatusCode::FILE_OPEN_FAIL;
   }
   os.write(reinterpret_cast<char*>(buffer), bufferSize);
@@ -285,7 +285,7 @@ datautil::StatusCode datautil::floatToTfN(
   static_assert(std::is_unsigned<T_QuantType>::value, "floatToTfN supports unsigned only!");
 
   if (nullptr == out || nullptr == in) {
-    LOGE("Received a nullptr");
+    rwkvmobile::LOGE("Received a nullptr");
     return StatusCode::INVALID_BUFFER;
   }
 
@@ -319,7 +319,7 @@ datautil::StatusCode datautil::tfNToFloat(
   static_assert(std::is_unsigned<T_QuantType>::value, "tfNToFloat supports unsigned only!");
 
   if (nullptr == out || nullptr == in) {
-    LOGE("Received a nullptr");
+    rwkvmobile::LOGE("Received a nullptr");
     return StatusCode::INVALID_BUFFER;
   }
   for (size_t i = 0; i < numElements; i++) {
@@ -339,7 +339,7 @@ template datautil::StatusCode datautil::tfNToFloat<uint16_t>(
 template <typename T_QuantType>
 datautil::StatusCode datautil::castToFloat(float* out, T_QuantType* in, size_t numElements) {
   if (nullptr == out || nullptr == in) {
-    LOGE("Received a nullptr");
+    rwkvmobile::LOGE("Received a nullptr");
     return StatusCode::INVALID_BUFFER;
   }
   for (size_t i = 0; i < numElements; i++) {
@@ -383,7 +383,7 @@ template datautil::StatusCode datautil::castToFloat<int64_t>(float* out,
 template <typename T_QuantType>
 datautil::StatusCode datautil::castFromFloat(T_QuantType* out, float* in, size_t numElements) {
   if (nullptr == out || nullptr == in) {
-    LOGE("Received a nullptr");
+    rwkvmobile::LOGE("Received a nullptr");
     return StatusCode::INVALID_BUFFER;
   }
   for (size_t i = 0; i < numElements; i++) {

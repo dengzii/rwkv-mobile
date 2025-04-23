@@ -42,7 +42,7 @@ bool IOTensor::initialize(Qnn_ContextHandle_t contextHandle) {
   }
 
   if (true != m_bufferManager->initialize()) {
-    LOGE("Failed to initialize buffer manager");
+    rwkvmobile::LOGE("Failed to initialize buffer manager");
     return false;
   }
 
@@ -65,17 +65,17 @@ bool IOTensor::setupTensors(Qnn_Tensor_t** tensors,
                             Qnn_ContextHandle_t contextHandle,
                             bool skipBufferAllocation) {
   if (nullptr == tensorWrappers) {
-    LOGE("tensorWrappers is nullptr");
+    rwkvmobile::LOGE("tensorWrappers is nullptr");
     return false;
   }
   if (0 == tensorCount) {
-    LOGD("tensor count is 0. Nothing to setup.");
+    rwkvmobile::LOGD("tensor count is 0. Nothing to setup.");
     return true;
   }
 
   *tensors = (Qnn_Tensor_t*)calloc(1, tensorCount * sizeof(Qnn_Tensor_t));
   if (nullptr == *tensors) {
-    LOGE("mem alloc failed for *tensors");
+    rwkvmobile::LOGE("mem alloc failed for *tensors");
     return false;
   }
 
@@ -90,18 +90,18 @@ bool IOTensor::setupTensors(Qnn_Tensor_t** tensors,
       auto wrapperTensorName = std::string(GET_TENSOR_WRAPPER_NAME(tensorWrappers[tensorIdx]));
       totalBufferSize += tensorsSize[wrapperTensorName];
     }
-    LOGI("Calculated total size %lu", totalBufferSize);
+    rwkvmobile::LOGI("Calculated total size %lu", totalBufferSize);
 
     if (!skipBufferAllocation) {
       // Allocate the buffer of this size
       memPointer = m_bufferManager->allocateTensorFusedBuffer(totalBufferSize, &fd);
       if (memPointer) {
-        LOGI("Successfully allocated a buffer of size %lu, pointer %p, fd %d",
+        rwkvmobile::LOGI("Successfully allocated a buffer of size %lu, pointer %p, fd %d",
                   (unsigned long)totalBufferSize,
                   memPointer,
                   fd);
       } else {
-        LOGE("Not able to allocate buffer of size %lu", (unsigned long)totalBufferSize);
+        rwkvmobile::LOGE("Not able to allocate buffer of size %lu", (unsigned long)totalBufferSize);
         return false;
       }
     }
@@ -135,10 +135,10 @@ bool IOTensor::setupTensors(Qnn_Tensor_t** tensors,
       }
     }
     if (true != returnStatus) {
-      LOGE("Failure in setupTensors, cleaning up resources");
+      rwkvmobile::LOGE("Failure in setupTensors, cleaning up resources");
       tearDownTensors(*tensors, tensorIdx);
       *tensors = nullptr;
-      LOGE("Failure in setupTensors, done cleaning up resources");
+      rwkvmobile::LOGE("Failure in setupTensors, done cleaning up resources");
       return false;
     } else {
       tensorNameToTensorPointer.insert({wrapperTensorName, ((*tensors) + tensorIdx)});
@@ -163,13 +163,13 @@ bool IOTensor::setupInputTensors(Qnn_Tensor_t** inputs,
                            inputTensorsSize,
                            contextHandle,
                            skipBufferAllocation)) {
-    LOGE("Failure in setupInputTensors, cleaning up resources");
+    rwkvmobile::LOGE("Failure in setupInputTensors, cleaning up resources");
     if (nullptr != *inputs) {
-      LOGD("cleaning up input tensors");
+      rwkvmobile::LOGD("cleaning up input tensors");
       tearDownTensors(*inputs, graphInfo.numInputTensors);
       *inputs = nullptr;
     }
-    LOGE("Failure in setupInputTensors, done cleaning up resources");
+    rwkvmobile::LOGE("Failure in setupInputTensors, done cleaning up resources");
 
     return false;
   }
@@ -191,13 +191,13 @@ bool IOTensor::setupOutputTensors(Qnn_Tensor_t** outputs,
                            outputTensorsSize,
                            contextHandle,
                            skipBufferAllocation)) {
-    LOGE("Failure in setupOutputTensors, cleaning up resources");
+    rwkvmobile::LOGE("Failure in setupOutputTensors, cleaning up resources");
     if (nullptr != *outputs) {
-      LOGD("cleaning up output tensors");
+      rwkvmobile::LOGD("cleaning up output tensors");
       tearDownTensors(*outputs, graphInfo.numOutputTensors);
       *outputs = nullptr;
     }
-    LOGE("Failure in setupOutputTensors, done cleaning up resources");
+    rwkvmobile::LOGE("Failure in setupOutputTensors, done cleaning up resources");
 
     return false;
   }
@@ -217,18 +217,18 @@ bool IOTensor::setupInputWithSharedTensors(
   uint32_t tensorCount          = graphInfo.numInputTensors;
   TensorWrapper* tensorWrappers = graphInfo.inputTensors;
   if (nullptr == tensorWrappers) {
-    LOGE("tensorWrappers is nullptr");
+    rwkvmobile::LOGE("tensorWrappers is nullptr");
     return false;
   }
 
   if (0 == tensorCount) {
-    LOGD("tensor count is 0. Nothing to setup.");
+    rwkvmobile::LOGD("tensor count is 0. Nothing to setup.");
     return true;
   }
 
   *tensors = (Qnn_Tensor_t*)calloc(1, tensorCount * sizeof(Qnn_Tensor_t));
   if (nullptr == *tensors) {
-    LOGE("mem alloc failed for *tensors");
+    rwkvmobile::LOGE("mem alloc failed for *tensors");
     return false;
   }
 
@@ -243,12 +243,12 @@ bool IOTensor::setupInputWithSharedTensors(
     if (true == returnStatus) {
       if (sharedTensorMap.find(wrapperTensorName) == sharedTensorMap.end()) {
         size_t tensorDataSize = tensorsSize[wrapperTensorName];
-        LOGI("IoTensor :: Create Buffer for Tensor %s Size: %zu", wrapperTensorName.c_str(), tensorDataSize);
+        rwkvmobile::LOGI("IoTensor :: Create Buffer for Tensor %s Size: %zu", wrapperTensorName.c_str(), tensorDataSize);
         returnStatus =
             m_bufferManager->allocateTensorBuffer(((*tensors) + tensorIdx), tensorDataSize);
       } else {
         std::string inputName = QNN_TENSOR_GET_NAME(sharedTensorMap[wrapperTensorName]);
-        LOGI("IoTensor :: Reuse Buffer %s for Tensor %s",
+        rwkvmobile::LOGI("IoTensor :: Reuse Buffer %s for Tensor %s",
                   inputName.c_str(),
                   wrapperTensorName.c_str());
         returnStatus = m_bufferManager->useSameMemory(((*tensors) + tensorIdx),
@@ -256,10 +256,10 @@ bool IOTensor::setupInputWithSharedTensors(
       }
     }
     if (true != returnStatus) {
-      LOGE("Failure in setupTensors, cleaning up resources");
+      rwkvmobile::LOGE("Failure in setupTensors, cleaning up resources");
       tearDownTensors(*tensors, tensorIdx);
       *tensors = nullptr;
-      LOGE("Failure in setupTensors, done cleaning up resources");
+      rwkvmobile::LOGE("Failure in setupTensors, done cleaning up resources");
       break;
     } else {
       tensorNameToTensorPointer.insert({wrapperTensorName, ((*tensors) + tensorIdx)});
@@ -278,18 +278,18 @@ bool IOTensor::setupOutputWithSharedTensors(
   uint32_t tensorCount          = graphInfo.numOutputTensors;
   TensorWrapper* tensorWrappers = graphInfo.outputTensors;
   if (nullptr == tensorWrappers) {
-    LOGE("tensorWrappers is nullptr");
+    rwkvmobile::LOGE("tensorWrappers is nullptr");
     return false;
   }
 
   if (0 == tensorCount) {
-    LOGD("tensor count is 0. Nothing to setup.");
+    rwkvmobile::LOGD("tensor count is 0. Nothing to setup.");
     return true;
   }
 
   *tensors = (Qnn_Tensor_t*)calloc(1, tensorCount * sizeof(Qnn_Tensor_t));
   if (nullptr == *tensors) {
-    LOGE("mem alloc failed for *tensors");
+    rwkvmobile::LOGE("mem alloc failed for *tensors");
     return false;
   }
 
@@ -304,12 +304,12 @@ bool IOTensor::setupOutputWithSharedTensors(
     if (true == returnStatus) {
       if (sharedTensorMap.find(wrapperTensorName) == sharedTensorMap.end()) {
         size_t tensorDataSize = tensorsSize[wrapperTensorName];
-        LOGI("IoTensor :: Create Buffer for Tensor %s Size: %zu", wrapperTensorName.c_str(), tensorDataSize);
+        rwkvmobile::LOGI("IoTensor :: Create Buffer for Tensor %s Size: %zu", wrapperTensorName.c_str(), tensorDataSize);
         returnStatus =
             m_bufferManager->allocateTensorBuffer(((*tensors) + tensorIdx), tensorDataSize);
       } else {
         std::string outputName = QNN_TENSOR_GET_NAME(sharedTensorMap[wrapperTensorName]);
-        LOGI("IoTensor :: Reuse Buffer %s for Tensor %s",
+        rwkvmobile::LOGI("IoTensor :: Reuse Buffer %s for Tensor %s",
                   outputName.c_str(),
                   wrapperTensorName.c_str());
         returnStatus = m_bufferManager->useSameMemory(((*tensors) + tensorIdx),
@@ -317,10 +317,10 @@ bool IOTensor::setupOutputWithSharedTensors(
       }
     }
     if (true != returnStatus) {
-      LOGE("Failure in setupTensors, cleaning up resources");
+      rwkvmobile::LOGE("Failure in setupTensors, cleaning up resources");
       tearDownTensors(*tensors, tensorIdx);
       *tensors = nullptr;
-      LOGE("Failure in setupTensors, done cleaning up resources");
+      rwkvmobile::LOGE("Failure in setupTensors, done cleaning up resources");
       break;
     } else {
       tensorNameToTensorPointer.insert({wrapperTensorName, ((*tensors) + tensorIdx)});
@@ -358,7 +358,7 @@ bool IOTensor::mapFusedBufferOffset(
 // Clean up all tensors related data after execution.
 bool IOTensor::tearDownTensors(Qnn_Tensor_t* tensors, uint32_t tensorCount) {
   if (nullptr != tensors) {
-    LOGD("cleaning up resources for tensors");
+    rwkvmobile::LOGD("cleaning up resources for tensors");
     for (size_t tensorIdx = 0; tensorIdx < tensorCount; tensorIdx++) {
       // LOGD("freeing resources for tensor: %zu", tensorIdx);
       if (nullptr != QNN_TENSOR_GET_DIMENSIONS(&tensors[tensorIdx])) {
@@ -414,7 +414,7 @@ bool IOTensor::tearDownTensors(std::vector<std::unordered_map<std::string, Qnn_T
 
 bool IOTensor::deepCopyQnnTensorInfo(Qnn_Tensor_t* dest, Qnn_Tensor_t* src) {
   if (nullptr == dest || nullptr == src) {
-    LOGE("Received nullptr");
+    rwkvmobile::LOGE("Received nullptr");
     return false;
   }
 

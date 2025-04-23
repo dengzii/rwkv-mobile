@@ -46,7 +46,7 @@ bool DmaBufferAllocator::initialize() {
     }
   }
   if (nullptr == m_libDmaBufHeapHandle) {
-    LOGE("Unable to load backend. dlerror(): %s", dlerror());
+    rwkvmobile::LOGE("Unable to load backend. dlerror(): %s", dlerror());
     return false;
   }
   m_dmaBufCreate =
@@ -54,7 +54,7 @@ bool DmaBufferAllocator::initialize() {
   m_dmaBufAlloc  = (DmaBufAllocFn_t)dlsym(m_libDmaBufHeapHandle, "DmabufHeapAlloc");
   m_dmaBufDeinit = (DmaBufDeinitFn_t)dlsym(m_libDmaBufHeapHandle, "FreeDmabufHeapBufferAllocator");
   if (nullptr == m_dmaBufCreate || nullptr == m_dmaBufAlloc || nullptr == m_dmaBufDeinit) {
-    LOGE("Unable to access symbols in libdmaBufheap. dlerror(): %s", dlerror());
+    rwkvmobile::LOGE("Unable to access symbols in libdmaBufheap. dlerror(): %s", dlerror());
     return false;
   }
   return true;
@@ -76,11 +76,11 @@ DmaBufferData* DmaBufferAllocator::getDmaBufTensorData(Qnn_Tensor_t* tensor) {
 
 void* DmaBufferAllocator::getBuffer(Qnn_Tensor_t* tensor) {
   if (!tensor) {
-    LOGW("DmaBufferAllocator: getBuffer: received a null pointer to a tensor");
+    rwkvmobile::LOGW("DmaBufferAllocator: getBuffer: received a null pointer to a tensor");
     return nullptr;
   }
   if (m_tensorToDmaBufferData.find(tensor) == m_tensorToDmaBufferData.end()) {
-    LOGE("DmaBufferAllocator: Tensor not found with address = %p", tensor);
+    rwkvmobile::LOGE("DmaBufferAllocator: Tensor not found with address = %p", tensor);
     return nullptr;
   }
   DmaBufferData dmaBufferData = m_tensorToDmaBufferData[tensor];
@@ -90,7 +90,7 @@ void* DmaBufferAllocator::getBuffer(Qnn_Tensor_t* tensor) {
 int DmaBufferAllocator::getFd(Qnn_Tensor_t* tensor) {
   DmaBufferData* data = getDmaBufTensorData(tensor);
   if (data == nullptr) {
-    LOGE("DmaBufferAllocator: getFd : Couldn't find tensor %p", tensor);
+    rwkvmobile::LOGE("DmaBufferAllocator: getFd : Couldn't find tensor %p", tensor);
     return -1;
   }
   return data->fd;
@@ -99,7 +99,7 @@ int DmaBufferAllocator::getFd(Qnn_Tensor_t* tensor) {
 size_t DmaBufferAllocator::getOffset(Qnn_Tensor_t* tensor) {
   DmaBufferData* data = getDmaBufTensorData(tensor);
   if (data == nullptr) {
-    LOGE("DmaBufferAllocator: getOffset : Couldn't find tensor %p", tensor);
+    rwkvmobile::LOGE("DmaBufferAllocator: getOffset : Couldn't find tensor %p", tensor);
     return 0;
   }
   return data->offset;
@@ -108,7 +108,7 @@ size_t DmaBufferAllocator::getOffset(Qnn_Tensor_t* tensor) {
 size_t DmaBufferAllocator::getBufferSize(Qnn_Tensor_t* tensor) {
   DmaBufferData* data = getDmaBufTensorData(tensor);
   if (data == nullptr) {
-    LOGE("DmaBufferAllocator: getBufferSize : Couldn't find tensor %p", tensor);
+    rwkvmobile::LOGE("DmaBufferAllocator: getBufferSize : Couldn't find tensor %p", tensor);
     return 0;
   }
   return data->totalBufferSize;
@@ -117,7 +117,7 @@ size_t DmaBufferAllocator::getBufferSize(Qnn_Tensor_t* tensor) {
 size_t DmaBufferAllocator::getTotalBufferSize(Qnn_Tensor_t* tensor) {
   DmaBufferData* data = getDmaBufTensorData(tensor);
   if (data == nullptr) {
-    LOGE("DmaBufferAllocator: getTotalBufferSize : Couldn't find tensor %p", tensor);
+    rwkvmobile::LOGE("DmaBufferAllocator: getTotalBufferSize : Couldn't find tensor %p", tensor);
     return 0;
   }
   return data->totalBufferSize;
@@ -125,29 +125,29 @@ size_t DmaBufferAllocator::getTotalBufferSize(Qnn_Tensor_t* tensor) {
 
 bool DmaBufferAllocator::allocateTensorBuffer(Qnn_Tensor_t* tensor, size_t tensorDataSize) {
   if (m_libDmaBufHeapHandle == nullptr) {
-    LOGE("DmaBufferAllocator not initialized");
+    rwkvmobile::LOGE("DmaBufferAllocator not initialized");
     return false;
   }
 
   if (!tensor) {
-    LOGE("DmaBufferAllocator: Received nullptr for tensor");
+    rwkvmobile::LOGE("DmaBufferAllocator: Received nullptr for tensor");
     return false;
   }
 
   if (m_tensorToDmaBufferData.find(tensor) != m_tensorToDmaBufferData.end()) {
-    LOGE("DmaBufferAllocator: Tensor already allocated");
+    rwkvmobile::LOGE("DmaBufferAllocator: Tensor already allocated");
     return false;
   }
 
   void* dmaBufferAllocator = m_dmaBufCreate();
   if (dmaBufferAllocator == nullptr) {
-    LOGE("DmaBufferAllocator: nullptr returned for CreateDmabufHeapBufferAllocator().");
+    rwkvmobile::LOGE("DmaBufferAllocator: nullptr returned for CreateDmabufHeapBufferAllocator().");
     return false;
   }
 
   int fd = m_dmaBufAlloc(dmaBufferAllocator, "qcom,system", tensorDataSize, 0, 0);
   if (fd < 0) {
-    LOGE("DmaBufAlloc returned a invalid file descriptor = %d", fd);
+    rwkvmobile::LOGE("DmaBufAlloc returned a invalid file descriptor = %d", fd);
     return false;
   }
 
@@ -168,10 +168,10 @@ bool DmaBufferAllocator::allocateTensorBuffer(Qnn_Tensor_t* tensor, size_t tenso
 
   if (QNN_SUCCESS !=
       m_qnnInterface->memRegister(m_contextHandle, &memDescriptor, 1, &(memHandle))) {
-    LOGE("DmaBufferAllocator: Failure to register ion memory with the backend");
+    rwkvmobile::LOGE("DmaBufferAllocator: Failure to register ion memory with the backend");
     return false;
   }
-  LOGD(
+  rwkvmobile::LOGD(
       "DmaBufferAllocator: Memregister successful with handle %p for DMA buffer with size: %zu and "
       "fd %d",
       memHandle,
@@ -186,21 +186,21 @@ bool DmaBufferAllocator::allocateTensorBuffer(Qnn_Tensor_t* tensor, size_t tenso
 
 bool DmaBufferAllocator::freeTensorBuffer(Qnn_Tensor_t* tensor) {
   if (!tensor) {
-    LOGE("DmaBufferAllocator: Received nullptr for tensor");
+    rwkvmobile::LOGE("DmaBufferAllocator: Received nullptr for tensor");
     return false;
   }
   auto memHandle = QNN_TENSOR_GET_MEM_HANDLE(tensor);
   if (QNN_SUCCESS != m_qnnInterface->memDeRegister(&memHandle, 1)) {
-    LOGE("DmaBufferAllocator: Failed to deregister custom memory handle with the backend");
+    rwkvmobile::LOGE("DmaBufferAllocator: Failed to deregister custom memory handle with the backend");
     return false;
   }
   if (m_tensorToDmaBufferData.find(tensor) == m_tensorToDmaBufferData.end()) {
-    LOGE("DmaBufferAllocator: Tensor not found with address = %p", tensor);
+    rwkvmobile::LOGE("DmaBufferAllocator: Tensor not found with address = %p", tensor);
     return false;
   }
   DmaBufferData dmaBufferData = m_tensorToDmaBufferData[tensor];
   if (!m_dmaBufDeinit) {
-    LOGE("DmaBufferAllocator: DmaBuf Deinit function pointer is null");
+    rwkvmobile::LOGE("DmaBufferAllocator: DmaBuf Deinit function pointer is null");
     return false;
   }
   munmap(dmaBufferData.memPointer, dmaBufferData.totalBufferSize);
@@ -211,11 +211,11 @@ bool DmaBufferAllocator::freeTensorBuffer(Qnn_Tensor_t* tensor) {
 
 bool DmaBufferAllocator::useSameMemory(Qnn_Tensor_t* dest, Qnn_Tensor_t* src) {
   if (nullptr == dest || nullptr == src) {
-    LOGE("DmaBufferAllocator: Received nullptr");
+    rwkvmobile::LOGE("DmaBufferAllocator: Received nullptr");
     return false;
   }
   if (m_tensorToDmaBufferData.find(src) == m_tensorToDmaBufferData.end()) {
-    LOGE("DmaBufferAllocator: Src Tensor not found");
+    rwkvmobile::LOGE("DmaBufferAllocator: Src Tensor not found");
     return false;
   }
 
@@ -228,11 +228,11 @@ bool DmaBufferAllocator::useSameMemory(Qnn_Tensor_t* dest, Qnn_Tensor_t* src) {
 
 bool DmaBufferAllocator::beforeWriteToBuffer(Qnn_Tensor_t* tensor) {
   if (!tensor) {
-    LOGW("beforeWriteToBuffer: received a null pointer to a tensor");
+    rwkvmobile::LOGW("beforeWriteToBuffer: received a null pointer to a tensor");
     return false;
   }
   if (m_tensorToDmaBufferData.find(tensor) == m_tensorToDmaBufferData.end()) {
-    LOGE("beforeWriteToBuffer: Tensor not found with address = %p", tensor);
+    rwkvmobile::LOGE("beforeWriteToBuffer: Tensor not found with address = %p", tensor);
     return false;
   }
   DmaBufferData dmaBufferData  = m_tensorToDmaBufferData[tensor];
@@ -240,7 +240,7 @@ bool DmaBufferAllocator::beforeWriteToBuffer(Qnn_Tensor_t* tensor) {
   buf_sync.flags               = DMA_BUF_SYNC_START | DMA_BUF_SYNC_WRITE;
   auto ioctlReturnValue        = ioctl(dmaBufferData.fd, DMA_BUF_IOCTL_SYNC, &buf_sync);
   if (ioctlReturnValue) {
-    LOGE(
+    rwkvmobile::LOGE(
         "beforeWriteToBuffer: Error preparing the cache for buffer writes."
         "The DMA_BUF_IOCTL_SYNC operation returned %d",
         ioctlReturnValue);
@@ -251,11 +251,11 @@ bool DmaBufferAllocator::beforeWriteToBuffer(Qnn_Tensor_t* tensor) {
 
 bool DmaBufferAllocator::afterWriteToBuffer(Qnn_Tensor_t* tensor) {
   if (!tensor) {
-    LOGW("afterWriteToBuffer: received a null pointer to a tensor");
+    rwkvmobile::LOGW("afterWriteToBuffer: received a null pointer to a tensor");
     return false;
   }
   if (m_tensorToDmaBufferData.find(tensor) == m_tensorToDmaBufferData.end()) {
-    LOGE("afterWriteToBuffer: Tensor not found with address = %p", tensor);
+    rwkvmobile::LOGE("afterWriteToBuffer: Tensor not found with address = %p", tensor);
     return false;
   }
   DmaBufferData dmaBufferData  = m_tensorToDmaBufferData[tensor];
@@ -263,7 +263,7 @@ bool DmaBufferAllocator::afterWriteToBuffer(Qnn_Tensor_t* tensor) {
   buf_sync.flags               = DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE;
   auto ioctlReturnValue        = ioctl(dmaBufferData.fd, DMA_BUF_IOCTL_SYNC, &buf_sync);
   if (ioctlReturnValue) {
-    LOGE(
+    rwkvmobile::LOGE(
         "afterWriteToBuffer: Error close the cache after buffer writing."
         "The DMA_BUF_IOCTL_SYNC operation returned %d",
         ioctlReturnValue);
@@ -274,11 +274,11 @@ bool DmaBufferAllocator::afterWriteToBuffer(Qnn_Tensor_t* tensor) {
 
 bool DmaBufferAllocator::beforeReadFromBuffer(Qnn_Tensor_t* tensor) {
   if (!tensor) {
-    LOGW("beforeReadFromBuffer: received a null pointer to a tensor");
+    rwkvmobile::LOGW("beforeReadFromBuffer: received a null pointer to a tensor");
     return false;
   }
   if (m_tensorToDmaBufferData.find(tensor) == m_tensorToDmaBufferData.end()) {
-    LOGE("beforeReadFromBuffer: Tensor not found with address = %p", tensor);
+    rwkvmobile::LOGE("beforeReadFromBuffer: Tensor not found with address = %p", tensor);
     return false;
   }
   DmaBufferData dmaBufferData  = m_tensorToDmaBufferData[tensor];
@@ -286,7 +286,7 @@ bool DmaBufferAllocator::beforeReadFromBuffer(Qnn_Tensor_t* tensor) {
   buf_sync.flags               = DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ;
   auto ioctlReturnValue        = ioctl(dmaBufferData.fd, DMA_BUF_IOCTL_SYNC, &buf_sync);
   if (ioctlReturnValue) {
-    LOGE(
+    rwkvmobile::LOGE(
         "beforeReadFromBuffer: Error preparing the cache for buffer reading."
         "The DMA_BUF_IOCTL_SYNC operation returned %d",
         ioctlReturnValue);
@@ -297,11 +297,11 @@ bool DmaBufferAllocator::beforeReadFromBuffer(Qnn_Tensor_t* tensor) {
 
 bool DmaBufferAllocator::afterReadFromBuffer(Qnn_Tensor_t* tensor) {
   if (!tensor) {
-    LOGW("afterReadFromBuffer: received a null pointer to a tensor");
+    rwkvmobile::LOGW("afterReadFromBuffer: received a null pointer to a tensor");
     return false;
   }
   if (m_tensorToDmaBufferData.find(tensor) == m_tensorToDmaBufferData.end()) {
-    LOGE("afterReadFromBuffer: Tensor not found with address = %p", tensor);
+    rwkvmobile::LOGE("afterReadFromBuffer: Tensor not found with address = %p", tensor);
     return false;
   }
   DmaBufferData dmaBufferData  = m_tensorToDmaBufferData[tensor];
@@ -309,7 +309,7 @@ bool DmaBufferAllocator::afterReadFromBuffer(Qnn_Tensor_t* tensor) {
   buf_sync.flags               = DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ;
   auto ioctlReturnValue        = ioctl(dmaBufferData.fd, DMA_BUF_IOCTL_SYNC, &buf_sync);
   if (ioctlReturnValue) {
-    LOGE(
+    rwkvmobile::LOGE(
         "afterReadFromBuffer: Error closing the cache after buffer reading."
         "The DMA_BUF_IOCTL_SYNC operation returned %d",
         ioctlReturnValue);

@@ -43,7 +43,7 @@ void rwkv_app::split(std::vector<std::string> &splitString,
 
 bool rwkv_app::deepCopyQnnTensorInfo(Qnn_Tensor_t *dst, const Qnn_Tensor_t *src) {
   if (nullptr == dst || nullptr == src) {
-    LOGE("Received nullptr");
+    rwkvmobile::LOGE("Received nullptr");
     return false;
   }
   // set tensor.version before using QNN_TENSOR_SET macros, as they require the version to be set
@@ -120,12 +120,12 @@ bool rwkv_app::copyTensorsInfo(const Qnn_Tensor_t *tensorsInfoSrc,
   auto returnStatus = true;
   tensorWrappers    = (Qnn_Tensor_t *)calloc(tensorsCount, sizeof(Qnn_Tensor_t));
   if (nullptr == tensorWrappers) {
-    LOGE("Failed to allocate memory for tensorWrappers.");
+    rwkvmobile::LOGE("Failed to allocate memory for tensorWrappers.");
     return false;
   }
   if (returnStatus) {
     for (size_t tIdx = 0; tIdx < tensorsCount; tIdx++) {
-      LOGD("Extracting tensorInfo for tensor Idx: %zu", tIdx);
+      rwkvmobile::LOGD("Extracting tensorInfo for tensor Idx: %zu", tIdx);
       tensorWrappers[tIdx] = QNN_TENSOR_INIT;
       deepCopyQnnTensorInfo(&tensorWrappers[tIdx], &tensorsInfoSrc[tIdx]);
     }
@@ -197,7 +197,7 @@ bool rwkv_app::copyGraphsInfo(const QnnSystemContext_GraphInfo_t *graphsInput,
                                 GraphInfo_t **&graphsInfo) {
 
   if (!graphsInput) {
-    LOGE("Received nullptr for graphsInput.");
+    rwkvmobile::LOGE("Received nullptr for graphsInput.");
     return false;
   }
   auto returnStatus = true;
@@ -206,12 +206,12 @@ bool rwkv_app::copyGraphsInfo(const QnnSystemContext_GraphInfo_t *graphsInput,
   GraphInfo_t *graphInfoArr =
       (GraphInfo_t *)calloc(numGraphs, sizeof(GraphInfo_t));
   if (nullptr == graphsInfo || nullptr == graphInfoArr) {
-    LOGE("Failure to allocate memory for *graphInfo");
+    rwkvmobile::LOGE("Failure to allocate memory for *graphInfo");
     returnStatus = false;
   }
   if (true == returnStatus) {
     for (size_t gIdx = 0; gIdx < numGraphs; gIdx++) {
-      LOGD("Extracting graphsInfo for graph Idx: %zu", gIdx);
+      rwkvmobile::LOGD("Extracting graphsInfo for graph Idx: %zu", gIdx);
       if (graphsInput[gIdx].version == QNN_SYSTEM_CONTEXT_GRAPH_INFO_VERSION_1) {
         copyGraphsInfoV1(&graphsInput[gIdx].graphInfoV1, &graphInfoArr[gIdx]);
       } else if (graphsInput[gIdx].version == QNN_SYSTEM_CONTEXT_GRAPH_INFO_VERSION_3) {
@@ -221,7 +221,7 @@ bool rwkv_app::copyGraphsInfo(const QnnSystemContext_GraphInfo_t *graphsInput,
     }
   }
   if (true != returnStatus) {
-    LOGE("Received an ERROR during extractGraphsInfo. Freeing resources.");
+    rwkvmobile::LOGE("Received an ERROR during extractGraphsInfo. Freeing resources.");
     if (graphsInfo) {
       for (uint32_t gIdx = 0; gIdx < numGraphs; gIdx++) {
         if (graphsInfo[gIdx]) {
@@ -248,7 +248,7 @@ bool rwkv_app::copyMetadataToGraphsInfo(const QnnSystemContext_BinaryInfo_t *bin
                                           GraphInfo_t **&graphsInfo,
                                           uint32_t &graphsCount) {
   if (nullptr == binaryInfo) {
-    LOGE("binaryInfo is nullptr.");
+    rwkvmobile::LOGE("binaryInfo is nullptr.");
     return false;
   }
   graphsCount = 0;
@@ -257,7 +257,7 @@ bool rwkv_app::copyMetadataToGraphsInfo(const QnnSystemContext_BinaryInfo_t *bin
       if (!copyGraphsInfo(binaryInfo->contextBinaryInfoV1.graphs,
                           binaryInfo->contextBinaryInfoV1.numGraphs,
                           graphsInfo)) {
-        LOGE("Failed while copying graphs Info.");
+        rwkvmobile::LOGE("Failed while copying graphs Info.");
         return false;
       }
       graphsCount = binaryInfo->contextBinaryInfoV1.numGraphs;
@@ -268,7 +268,7 @@ bool rwkv_app::copyMetadataToGraphsInfo(const QnnSystemContext_BinaryInfo_t *bin
       if (!copyGraphsInfo(binaryInfo->contextBinaryInfoV2.graphs,
                           binaryInfo->contextBinaryInfoV2.numGraphs,
                           graphsInfo)) {
-        LOGE("Failed while copying graphs Info.");
+        rwkvmobile::LOGE("Failed while copying graphs Info.");
         return false;
       }
       graphsCount = binaryInfo->contextBinaryInfoV2.numGraphs;
@@ -279,14 +279,14 @@ bool rwkv_app::copyMetadataToGraphsInfo(const QnnSystemContext_BinaryInfo_t *bin
       if (!copyGraphsInfo(binaryInfo->contextBinaryInfoV3.graphs,
                           binaryInfo->contextBinaryInfoV3.numGraphs,
                           graphsInfo)) {
-        LOGE("Failed while copying graphs Info.");
+        rwkvmobile::LOGE("Failed while copying graphs Info.");
         return false;
       }
       graphsCount = binaryInfo->contextBinaryInfoV3.numGraphs;
       return true;
     }
   }
-  LOGE("Unrecognized system context binary info version.");
+  rwkvmobile::LOGE("Unrecognized system context binary info version.");
   return false;
 }
 
