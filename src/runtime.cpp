@@ -391,7 +391,6 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     int start_idx = 0;
     bool edited = false;
     while (node && node->next && (start_idx < (int)inputs.size())) {
-        LOGD("Comparing state node %i hash %llu with %llu\n", start_idx, node->next->hash, hash_string(inputs[start_idx]));
         unsigned long long input_hash = hash_string(inputs[start_idx]);
         if (node->next->hash != input_hash) {
             edited = true;
@@ -575,6 +574,7 @@ int runtime::set_prompt(std::string prompt) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
     unsigned long long hash;
+    LOGD("Setting and processing prompt: \"%s\"\n", prompt.c_str());
     if (prompt.empty()) {
         hash = 0;
     } else {

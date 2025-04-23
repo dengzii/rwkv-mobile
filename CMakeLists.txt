@@ -36,7 +36,7 @@ set(RWKV_MOBILE_SRCS
     src/runtime.cpp
     src/sampler.cpp
     src/tokenizer.cpp
-    # src/logger.cpp
+    src/logger.cpp
     src/soc_detect.cpp
 )
 

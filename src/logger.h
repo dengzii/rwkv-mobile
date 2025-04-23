@@ -1,5 +1,11 @@
 #ifndef LOGGER_H
 #define LOGGER_H
+#include <string>
+#include <vector>
+#include <mutex>
+#include <condition_variable>
+
+namespace rwkvmobile {
 
 enum {
     RWKV_LOG_LEVEL_DEBUG = 0,
@@ -8,29 +14,46 @@ enum {
     RWKV_LOG_LEVEL_ERROR,
 };
 
-#define DEFAULT_LOG_LEVEL RWKV_LOG_LEVEL_INFO
+void LOGI(const char *fmt, ...);
+void LOGD(const char *fmt, ...);
+void LOGW(const char *fmt, ...);
+void LOGE(const char *fmt, ...);
 
-#if defined(__ANDROID__)
-#include <android/log.h>
-#define LOG_TAG "RWKV-MOBILE"
-#define LOGI(...) \
-    { if (DEFAULT_LOG_LEVEL <= RWKV_LOG_LEVEL_INFO) { __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__); } }
-#define LOGD(...) \
-    { if (DEFAULT_LOG_LEVEL <= RWKV_LOG_LEVEL_DEBUG) { __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__); } }
-#define LOGW(...) \
-    { if (DEFAULT_LOG_LEVEL <= RWKV_LOG_LEVEL_WARN) { __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__); } }
-#define LOGE(...) \
-    { if (DEFAULT_LOG_LEVEL <= RWKV_LOG_LEVEL_ERROR) { __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__); } }
-#else
-#include <cstdio>
-#define LOGI(...) \
-    { if (DEFAULT_LOG_LEVEL <= RWKV_LOG_LEVEL_INFO) { printf("[INFO] " __VA_ARGS__); printf("\n"); } }
-#define LOGD(...) \
-    { if (DEFAULT_LOG_LEVEL <= RWKV_LOG_LEVEL_DEBUG) { printf("[DEBUG] " __VA_ARGS__); printf("\n"); } }
-#define LOGW(...) \
-    { if (DEFAULT_LOG_LEVEL <= RWKV_LOG_LEVEL_WARN) { printf("[WARN] " __VA_ARGS__); printf("\n"); } }
-#define LOGE(...) \
-    { if (DEFAULT_LOG_LEVEL <= RWKV_LOG_LEVEL_ERROR) { printf("[ERROR] " __VA_ARGS__); printf("\n"); } }
-#endif
+std::string logger_get_log();
+
+#define LOG_BUFFER_SIZE 1024
+
+class Logger {
+public:
+    Logger() {
+        _buffer.resize(LOG_BUFFER_SIZE);
+    }
+    ~Logger() = default;
+    void log(const std::string &msg, const int level = RWKV_LOG_LEVEL_INFO);
+
+    std::string get_log() {
+        std::lock_guard<std::mutex> lock(_mutex);
+        std::string log;
+        for (int i = _buffer_start; i != _buffer_end; i = (i + 1) % LOG_BUFFER_SIZE) {
+            log += _buffer[i];
+        }
+        return log;
+    }
+
+private:
+    int _level = RWKV_LOG_LEVEL_INFO;
+
+    // ring buffer
+    std::vector<std::string> _buffer;
+    int _buffer_start = 0;
+    int _buffer_end = 0;
+    std::mutex _mutex;
+    std::condition_variable _condition;
+
+    // log into ring buffer
+    void _log(const std::string &msg);
+};
+
+}
 
 #endif

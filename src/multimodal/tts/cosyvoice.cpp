@@ -162,7 +162,7 @@ std::vector<float> cosyvoice::get_spk_embedding(const std::string spk_name) {
 
 std::vector<int> cosyvoice::extract_speech_tokens(std::vector<float> audio_samples, int sample_rate) {
     if (speech_tokenizer_session == nullptr) {
-        LOGE("[TTS] speech_tokenizer model not loaded.")
+        LOGE("[TTS] speech_tokenizer model not loaded.");
         return std::vector<int>();
     }
     auto start = std::chrono::high_resolution_clock::now();
@@ -209,7 +209,7 @@ std::vector<int> cosyvoice::extract_speech_tokens(std::vector<float> audio_sampl
 
 std::vector<float> cosyvoice::extract_speech_embedding(std::vector<float> audio_samples, int sample_rate) {
     if (campplus_session == nullptr) {
-        LOGE("[TTS] speech_tokenizer model not loaded.")
+        LOGE("[TTS] speech_tokenizer model not loaded.");
         return std::vector<float>();
     }
 
