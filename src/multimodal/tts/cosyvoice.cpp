@@ -453,13 +453,13 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
         LOGE("[TTS] size mismatch: len_mu: %d, feat_len: %d", len_mu, feat_len);
         return false;
     }
-    if (random_noise.size() < len_mu) {
-        random_noise.resize(len_mu);
-    }
 
     std::mt19937 generator(time(nullptr));
     std::normal_distribution<float> distribution(0.0f, 1.0f);
-    std::generate(random_noise.begin(), random_noise.end(), [&]() { return distribution(generator); });
+    if (random_noise.size() < len_mu) {
+        random_noise.resize(len_mu);
+        std::generate(random_noise.begin(), random_noise.end(), [&]() { return distribution(generator); });
+    }
     if (t_span.empty()) {
         t_span.resize(n_timesteps + 1);
         for (int i = 0; i < n_timesteps + 1; i++) {

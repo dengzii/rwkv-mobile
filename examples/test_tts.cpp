@@ -34,8 +34,8 @@ int main(int argc, char **argv) {
         encoder_path + "spk_info.msgpack"
     );
 
-    std::string tts_text = "要陪我去拍照吗？";
-    std::string instruction_text = "";
+    std::string tts_text = "Let's make America great again!";
+    std::string instruction_text = "请用正常的语气说";
     // std::string instruction_text = ""; // empty string means no instruction
 
     // std::cout << runtime.cosyvoice_get_spk_names() << std::endl;

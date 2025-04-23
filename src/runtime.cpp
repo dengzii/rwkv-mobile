@@ -812,7 +812,9 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    decoded_tokens.insert(decoded_tokens.begin(), speech_tokens.begin(), speech_tokens.end());
+    speech_features = std::vector<std::vector<float>>(80);
+
+    // decoded_tokens.insert(decoded_tokens.begin(), speech_tokens.begin(), speech_tokens.end());
 
     _cosyvoice->speech_token_to_wav(decoded_tokens, speech_features, speech_embedding, output_samples);
     auto end = std::chrono::high_resolution_clock::now();
