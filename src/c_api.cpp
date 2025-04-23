@@ -601,5 +601,9 @@ const char * rwkvmobile_get_htp_arch() {
     return soc_detect.get_htp_arch();
 }
 
+const char * rwkvmobile_dump_log() {
+    return logger_get_log().c_str();
+}
+
 } // extern "C"
 } // namespace rwkvmobile

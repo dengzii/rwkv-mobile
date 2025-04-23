@@ -132,6 +132,10 @@ const char * rwkvmobile_get_soc_partname();
 
 const char * rwkvmobile_get_htp_arch();
 
+// logging
+
+const char * rwkvmobile_dump_log();
+
 #ifdef __cplusplus
 }
 #endif

@@ -180,12 +180,14 @@ public:
     inline void set_thinking_token(std::string thinking_token) { _thinking_token = thinking_token; }
 
     inline void set_sampler_params(float temperature, int top_k, float top_p) {
+        LOGD("Setting sampler params: temperature=%f, top_k=%d, top_p=%f\n", temperature, top_k, top_p);
         _temperature = temperature;
         _top_k = top_k;
         _top_p = top_p;
     }
 
     inline void set_penalty_params(float presence_penalty, float frequency_penalty, float penalty_decay) {
+        LOGD("Setting penalty params: presence_penalty=%f, frequency_penalty=%f, penalty_decay=%f\n", presence_penalty, frequency_penalty, penalty_decay);
         _presence_penalty = presence_penalty;
         _frequency_penalty = frequency_penalty;
         _penalty_decay = penalty_decay;
@@ -219,15 +221,21 @@ public:
 
     // platform info
     const char * get_platform_name() {
-        return _soc_detect.get_platform_name();
+        auto platform_name = _soc_detect.get_platform_name();
+        LOGD("Platform name: %s", platform_name);
+        return platform_name;
     }
 
     const char * get_soc_name() {
-        return _soc_detect.get_soc_name();
+        auto soc_name = _soc_detect.get_soc_name();
+        LOGD("SOC name: %s", soc_name);
+        return soc_name;
     }
 
     const char * get_soc_partname() {
-        return _soc_detect.get_soc_partname();
+        auto soc_partname = _soc_detect.get_soc_partname();
+        LOGD("SOC partname: %s", soc_partname);
+        return soc_partname;
     }
 
     // backend
