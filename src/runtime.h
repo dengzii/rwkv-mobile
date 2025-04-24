@@ -86,9 +86,9 @@ public:
 
     int cosyvoice_release_models();
     int run_tts_internal(std::string tts_text, std::string instruction_text,
-        const std::string prompt_wav_path, const std::string spk_name,
+        const std::string prompt_wav_path, const std::string spk_name, const std::string prompt_speech_text,
         std::vector<float> &output_samples);
-    int run_tts(std::string tts_text, std::string instruction_text, std::string prompt_wav_path, std::string output_wav_path);
+    int run_tts(std::string tts_text, std::string instruction_text, std::string prompt_speech_text, std::string prompt_wav_path, std::string output_wav_path);
     int run_tts_with_predefined_spks(std::string tts_text, std::string instruction_text, std::string spks_name, std::string output_wav_path);
 
     std::string cosyvoice_get_spk_names();

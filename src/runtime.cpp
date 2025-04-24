@@ -743,7 +743,7 @@ int runtime::cosyvoice_release_models() {
 }
 
 int runtime::run_tts_internal(std::string tts_text, std::string instruction_text,
-    const std::string prompt_wav_path, const std::string spk_name,
+    const std::string prompt_wav_path, const std::string spk_name, const std::string prompt_speech_text,
     std::vector<float> &output_samples) {
 #ifdef __ANDROID__
     setenv("KMP_DUPLICATE_LIB_OK", "1", 1);
@@ -763,34 +763,14 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
     std::vector<int> tts_tokens = _tokenizer->encode(tts_text);
     std::vector<int> prompt_tokens;
     if (!instruction_text.empty()) {
-        prompt_tokens = _tokenizer->encode(instruction_text + "<|endofprompt|>");
+        if (!prompt_speech_text.empty()) {
+            prompt_tokens = _tokenizer->encode(instruction_text + "<|endofprompt|>" + prompt_speech_text);
+        } else {
+            prompt_tokens = _tokenizer->encode(instruction_text + "<|endofprompt|>");
+        }
     }
     int min_len, max_len;
     std::vector<int> llm_tokens = _cosyvoice->get_llm_tokens(tts_tokens, prompt_tokens, min_len, max_len);
-
-    std::vector<int> decoded_tokens;
-    bool is_llm_decoding = true;
-    std::thread llm_thread([&]() {
-        auto start = std::chrono::high_resolution_clock::now();
-        clear_state();
-        float *logits = nullptr;
-        eval_logits(llm_tokens, logits);
-        const int speech_vocab_size = 6562;
-        const int speech_vocab_offset = 65548;
-        for (int i = 0; i < max_len; i++) {
-            int token_id = _cosyvoice->speech_token_sampler(logits, speech_vocab_size, decoded_tokens, (i < min_len));
-            free_logits_if_allocated(logits);
-            if (token_id == speech_vocab_size - 1) {
-                break;
-            }
-            decoded_tokens.push_back(token_id);
-            eval_logits(token_id + speech_vocab_offset, logits);
-        }
-        auto end = std::chrono::high_resolution_clock::now();
-        LOGI("[TTS] llm decode time: %f ms", std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000.0);
-        is_llm_decoding = false;
-    });
-    llm_thread.detach();
 
     std::vector<int> speech_tokens;
     std::vector<std::vector<float>> speech_features(80);
@@ -808,13 +788,44 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
         }
     }
 
-    while (is_llm_decoding) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    const int speech_vocab_offset = 65548;
+    if (!instruction_text.empty() && !prompt_speech_text.empty()) {
+        // llm_tokens.insert(llm_tokens.end(), speech_tokens.begin(), speech_tokens.end());
+        for (auto token : speech_tokens) {
+            llm_tokens.push_back(token + speech_vocab_offset);
+        }
     }
 
-    speech_features = std::vector<std::vector<float>>(80);
+    std::vector<int> decoded_tokens;
+    // bool is_llm_decoding = true;
+    // std::thread llm_thread([&]() {
+    {
+        auto start = std::chrono::high_resolution_clock::now();
+        clear_state();
+        float *logits = nullptr;
+        eval_logits(llm_tokens, logits);
+        const int speech_vocab_size = 6562;
+        for (int i = 0; i < max_len; i++) {
+            int token_id = _cosyvoice->speech_token_sampler(logits, speech_vocab_size, decoded_tokens, (i < min_len));
+            free_logits_if_allocated(logits);
+            if (token_id == speech_vocab_size - 1) {
+                break;
+            }
+            decoded_tokens.push_back(token_id);
+            eval_logits(token_id + speech_vocab_offset, logits);
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        LOGI("[TTS] llm decode time: %f ms", std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000.0);
+        // is_llm_decoding = false;
+    }
+    // });
+    // llm_thread.detach();
 
-    // decoded_tokens.insert(decoded_tokens.begin(), speech_tokens.begin(), speech_tokens.end());
+    // while (is_llm_decoding) {
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    // }
+
+    decoded_tokens.insert(decoded_tokens.begin(), speech_tokens.begin(), speech_tokens.end());
 
     _cosyvoice->speech_token_to_wav(decoded_tokens, speech_features, speech_embedding, output_samples);
     auto end = std::chrono::high_resolution_clock::now();
@@ -824,13 +835,13 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
     return RWKV_SUCCESS;
 }
 
-int runtime::run_tts(std::string tts_text, std::string instruction_text, std::string prompt_wav_path, std::string output_wav_path) {
+int runtime::run_tts(std::string tts_text, std::string instruction_text, std::string prompt_speech_text, std::string prompt_wav_path, std::string output_wav_path) {
     if (_cosyvoice == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
 
     std::vector<float> output_samples;
-    run_tts_internal(tts_text, instruction_text, prompt_wav_path, "", output_samples);
+    run_tts_internal(tts_text, instruction_text, prompt_wav_path, "", prompt_speech_text, output_samples);
 
     if (!output_wav_path.empty()) {
         save_samples_to_wav(output_samples, output_wav_path);
@@ -847,7 +858,7 @@ int runtime::run_tts_with_predefined_spks(std::string tts_text, std::string inst
     std::vector<float> speech_embedding = _cosyvoice->get_spk_embedding(spks_name);
     
     std::vector<float> output_samples;
-    run_tts_internal(tts_text, instruction_text, "", spks_name, output_samples);
+    run_tts_internal(tts_text, instruction_text, "", spks_name, "", output_samples);
 
     if (!output_wav_path.empty()) {
         save_samples_to_wav(output_samples, output_wav_path);

@@ -14,8 +14,8 @@
 int main(int argc, char **argv) {
     // set stdout to be unbuffered
     setvbuf(stdout, NULL, _IONBF, 0);
-    if (argc != 6) {
-        std::cerr << "Usage: " << argv[0] << " <model_file> <backend> <encoder_path> <tokenizer_file> <wav_file>" << std::endl;
+    if (argc != 6 && argc != 7) {
+        std::cerr << "Usage: " << argv[0] << " <model_file> <backend> <encoder_path> <tokenizer_file> <wav_file> [prompt_speech_text]" << std::endl;
         return 1;
     }
     rwkvmobile::runtime runtime;
@@ -34,14 +34,17 @@ int main(int argc, char **argv) {
         encoder_path + "spk_info.msgpack"
     );
 
-    std::string tts_text = "Let's make America great again!";
-    std::string instruction_text = "请用正常的语气说";
+    std::string tts_text = "请助我一臂之力！";
+    std::string instruction_text = "请用高昂的语气说";
     // std::string instruction_text = ""; // empty string means no instruction
 
     // std::cout << runtime.cosyvoice_get_spk_names() << std::endl;
 
-    runtime.run_tts(tts_text, instruction_text, argv[5], "test.wav");
-    runtime.run_tts_with_predefined_spks(tts_text, instruction_text, "March 7th_Chinese(PRC)", "test2.wav");
+    std::string prompt_speech_text = "";
+    if (argc == 7) {
+        prompt_speech_text = argv[6];
+    }
+    runtime.run_tts(tts_text, instruction_text, prompt_speech_text, argv[5], "test.wav");
 
     // runtime.run_tts_with_predefined_spks(tts_text, instruction_text, "Blade_Japanese", "test2.wav");
 

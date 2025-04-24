@@ -115,7 +115,7 @@ int rwkvmobile_runtime_cosyvoice_load_models(rwkvmobile_runtime_t runtime, const
 
 int rwkvmobile_runtime_cosyvoice_release_models(rwkvmobile_runtime_t runtime);
 
-int rwkvmobile_runtime_run_tts(rwkvmobile_runtime_t runtime, const char * tts_text, const char * instruction_text, const char * prompt_wav_path, const char * output_wav_path);
+int rwkvmobile_runtime_run_tts(rwkvmobile_runtime_t runtime, const char * tts_text, const char * instruction_text, const char * prompt_speech_text, const char * prompt_wav_path, const char * output_wav_path);
 
 int rwkvmobile_runtime_run_tts_with_predefined_spks(rwkvmobile_runtime_t runtime, const char * tts_text, const char * instruction_text, const char * spk_name, const char * output_wav_path);
 

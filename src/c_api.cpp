@@ -517,7 +517,7 @@ int rwkvmobile_runtime_cosyvoice_release_models(rwkvmobile_runtime_t runtime) {
 #endif
 }
 
-int rwkvmobile_runtime_run_tts(rwkvmobile_runtime_t runtime, const char * tts_text, const char * instruction_text, const char * prompt_wav_path, const char * output_wav_path) {
+int rwkvmobile_runtime_run_tts(rwkvmobile_runtime_t runtime, const char * tts_text, const char * instruction_text, const char * prompt_speech_text, const char * prompt_wav_path, const char * output_wav_path) {
 #if ENABLE_TTS
     if (runtime == nullptr || tts_text == nullptr || prompt_wav_path == nullptr || output_wav_path == nullptr) {
         return RWKV_ERROR_INVALID_PARAMETERS;
@@ -529,7 +529,13 @@ int rwkvmobile_runtime_run_tts(rwkvmobile_runtime_t runtime, const char * tts_te
     } else {
         instruction_text_str = std::string(instruction_text);
     }
-    return rt->run_tts(tts_text, instruction_text_str, prompt_wav_path, output_wav_path);
+    std::string prompt_speech_text_str;
+    if (prompt_speech_text == nullptr) {
+        prompt_speech_text_str = "";
+    } else {
+        prompt_speech_text_str = std::string(prompt_speech_text);
+    }
+    return rt->run_tts(tts_text, instruction_text_str, prompt_speech_text_str, prompt_wav_path, output_wav_path);
 #else
     return RWKV_ERROR_UNSUPPORTED;
 #endif
