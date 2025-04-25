@@ -110,17 +110,17 @@ jobs:
     - uses: actions/checkout@v4
     - name: build-arm64
       run: |
-        wget -q https://github.com/csukuangfj/onnxruntime-libs/releases/download/v1.20.2/onnxruntime.xcframework-1.20.2.tar.bz2
-        tar -xvf onnxruntime.xcframework-1.20.2.tar.bz2
-        mkdir -p src/multimodal/utils/onnxruntime/obj/macos-arm64
-        cp ./onnxruntime.xcframework/macos-arm64_x86_64/onnxruntime.a src/multimodal/utils/onnxruntime/obj/macos-arm64/libonnxruntime.a
+        # wget -q https://github.com/csukuangfj/onnxruntime-libs/releases/download/v1.20.2/onnxruntime.xcframework-1.20.2.tar.bz2
+        # tar -xvf onnxruntime.xcframework-1.20.2.tar.bz2
+        # mkdir -p src/multimodal/utils/onnxruntime/obj/macos-arm64
+        # cp ./onnxruntime.xcframework/macos-arm64_x86_64/onnxruntime.a src/multimodal/utils/onnxruntime/obj/macos-arm64/libonnxruntime.a
         rm -rf build-arm64 build-arm64-debug
         mkdir build-arm64 && cd build-arm64
-        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_TTS=ON -DCMAKE_BUILD_TYPE=Release
+        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_TTS=OFF -DCMAKE_BUILD_TYPE=Release
         cmake --build . -j 8
         cd ..
         mkdir build-arm64-debug && cd build-arm64-debug
-        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_TTS=ON -DCMAKE_BUILD_TYPE=Debug
+        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_TTS=OFF -DCMAKE_BUILD_TYPE=Debug
         cmake --build . -j 8
     - name: package
       run: |

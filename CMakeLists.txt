@@ -305,6 +305,10 @@ if (BUILD_STATIC_LIB)
         set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST} ${CMAKE_BINARY_DIR}/Release/cargo/build/${Rust_CARGO_TARGET}/release/libweb_rwkv_ffi.a)
     endif()
 
+    if (ENABLE_NCNN_BACKEND)
+        set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST} $<TARGET_FILE:ncnn>)
+    endif()
+
     if (ENABLE_WHISPER OR ENABLE_TTS)
         set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST} $<TARGET_FILE:soxr>)
         if (IOS)
