@@ -32,7 +32,8 @@ jobs:
         rm -rf build-arm64
         mkdir build-arm64 && cd build-arm64
         export LIBRARY_PATH="$LIBRARY_PATH:${{ env.DEVELOPER_DIR }}/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/lib"
-        cmake .. -DENABLE_NCNN_BACKEND=OFF -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_LLAMACPP_BACKEND=OFF -DBUILD_STATIC_LIB=ON -DBUILD_EXAMPLES=OFF \
+        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_LLAMACPP_BACKEND=OFF -DBUILD_STATIC_LIB=ON -DBUILD_EXAMPLES=OFF \
+          -DENABLE_TTS=ON \
           -GXcode -DCMAKE_TOOLCHAIN_FILE=../cmake/ios.toolchain.cmake -DPLATFORM=OS64 -DARCHS="arm64" \
           -DDEPLOYMENT_TARGET=$IOS_DEPLOYMENT_TARGET -DENABLE_BITCODE=$ENABLE_BITCODE -DENABLE_ARC=$ENABLE_ARC -DENABLE_VISIBILITY=$ENABLE_VISIBILITY
         cmake --build . --config Release -j 8 -- CODE_SIGNING_ALLOWED=NO
@@ -109,13 +110,17 @@ jobs:
     - uses: actions/checkout@v4
     - name: build-arm64
       run: |
+        wget -q https://github.com/csukuangfj/onnxruntime-libs/releases/download/v1.20.2/onnxruntime.xcframework-1.20.2.tar.bz2
+        tar -xvf onnxruntime.xcframework-1.20.2.tar.bz2
+        mkdir -p src/multimodal/utils/onnxruntime/obj/macos-arm64
+        cp ./onnxruntime.xcframework/macos-arm64_x86_64/onnxruntime.a src/multimodal/utils/onnxruntime/obj/macos-arm64/libonnxruntime.a
         rm -rf build-arm64 build-arm64-debug
         mkdir build-arm64 && cd build-arm64
-        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DCMAKE_BUILD_TYPE=Release
+        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_TTS=ON -DCMAKE_BUILD_TYPE=Release
         cmake --build . -j 8
         cd ..
         mkdir build-arm64-debug && cd build-arm64-debug
-        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DCMAKE_BUILD_TYPE=Debug
+        cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_TTS=ON -DCMAKE_BUILD_TYPE=Debug
         cmake --build . -j 8
     - name: package
       run: |
