@@ -6,6 +6,8 @@
 #include <memory>
 #include <functional>
 #include <cstdlib>
+#include <any>
+#include <thread>
 #include "backend.h"
 #include "tokenizer.h"
 #include "sampler.h"
@@ -297,6 +299,8 @@ private:
 
     bool _is_generating = false;
     bool _stop_signal = false;
+
+    std::thread _prefilling_thread;
 
     std::vector<std::string> _stop_codes = {"\n\n", "\nUser:", "User:"};
     std::vector<int> _token_banned = {};

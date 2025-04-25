@@ -387,6 +387,11 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     set_is_generating(true);
     _stop_signal = false;
 
+    if (_prefilling_thread.joinable()) {
+        LOGI("Found prefilling thread, joining\n");
+        _prefilling_thread.join();
+    }
+
     struct state_node *node = _state_head;
     int start_idx = 0;
     bool edited = false;
@@ -543,25 +548,52 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     }
 
     LOGD("Response: \"%s\"\n", _response_buffer.c_str());
+    if (callback) {
+        callback(_response_buffer.c_str(), 0);
+    }
 
+    auto node_before_response = node;
     if (!resuming) {
         node->next = new state_node;
         if (node->next == nullptr) {
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
         }
         node = node->next;
+    } else {
+        auto ptr = _state_head;
+        while(ptr->next && ptr->next != node_before_response) {
+            ptr = ptr->next;
+        }
+        if (ptr->next == node) {
+            node_before_response = ptr;
+        }
     }
-    node->hash = hash_string(_response_buffer);
-    _backend->get_state(node->state);
-    start_idx = -1;
-    node = _state_head;
-    while(node->next) {
-        start_idx++;
-        node = node->next;
-    }
-    LOGD("New state node %i hash %llu\n", start_idx, node->hash);
-    if (callback) {
-        callback(_response_buffer.c_str(), 0);
+
+    if (_response_buffer.find("<think>") != std::string::npos && _response_buffer.find("</think>") != std::string::npos) {
+        LOGI("Starting prefilling thread to process response without thinking content\n");
+        auto content = _response_buffer.substr(_response_buffer.find("</think>") + 8);
+        auto str_to_prefill = _bos_token + _response_role + ": " + content;
+        _prefilling_thread = std::thread([this, str_to_prefill, content, node_before_response, node]() {
+            _backend->set_state(node_before_response->state);
+            _backend->free_state(node->state);
+            float *logits = nullptr;
+            eval_logits(_tokenizer->encode(str_to_prefill), logits);
+            _backend->free_logits_if_allocated(logits);
+            _backend->get_state(node->state);
+            node->hash = hash_string(content);
+            LOGI("Finished prefilling thread to process response without thinking content\n");
+        });
+        _prefilling_thread.detach();
+    } else {
+        node->hash = hash_string(_response_buffer);
+        _backend->get_state(node->state);
+        start_idx = -1;
+        node = _state_head;
+        while(node->next) {
+            start_idx++;
+            node = node->next;
+        }
+        LOGD("New state node %i hash %llu\n", start_idx, node->hash);
     }
 
     set_is_generating(false);
