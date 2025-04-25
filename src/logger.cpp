@@ -91,4 +91,9 @@ std::string logger_get_log() {
     return logger.get_log();
 }
 
+void logger_set_loglevel(int loglevel) {
+    logger.set_loglevel(loglevel);
+    return;
+}
+
 }

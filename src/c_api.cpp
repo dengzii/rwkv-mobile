@@ -611,5 +611,9 @@ const char * rwkvmobile_dump_log() {
     return logger_get_log().c_str();
 }
 
+void rwkvmobile_set_loglevel(int loglevel) {
+    logger_set_loglevel(loglevel);
+}
+
 } // extern "C"
 } // namespace rwkvmobile

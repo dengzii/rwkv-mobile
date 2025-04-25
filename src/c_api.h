@@ -134,7 +134,16 @@ const char * rwkvmobile_get_htp_arch();
 
 // logging
 
+enum {
+    RWKV_LOG_LEVEL_DEBUG = 0,
+    RWKV_LOG_LEVEL_INFO,
+    RWKV_LOG_LEVEL_WARN,
+    RWKV_LOG_LEVEL_ERROR,
+};
+
 const char * rwkvmobile_dump_log();
+
+void rwkvmobile_set_loglevel(int loglevel);
 
 #ifdef __cplusplus
 }

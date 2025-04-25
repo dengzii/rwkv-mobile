@@ -21,6 +21,8 @@ void LOGE(const char *fmt, ...);
 
 std::string logger_get_log();
 
+void logger_set_loglevel(int);
+
 #define LOG_BUFFER_SIZE 1024
 
 class Logger {
@@ -38,6 +40,11 @@ public:
             log += _buffer[i];
         }
         return log;
+    }
+
+    void set_loglevel(int loglevel) {
+        if (loglevel < RWKV_LOG_LEVEL_DEBUG || loglevel > RWKV_LOG_LEVEL_ERROR) return;
+        _level = loglevel;
     }
 
 private:
