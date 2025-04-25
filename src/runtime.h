@@ -80,8 +80,7 @@ public:
         std::string flow_encoder_path,
         std::string flow_decoder_estimator_path,
         std::string hift_generator_path,
-        std::string tts_tokenizer_path,
-        std::string spk_info_path
+        std::string tts_tokenizer_path
     );
 
     int cosyvoice_release_models();

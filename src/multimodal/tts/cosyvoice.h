@@ -82,7 +82,7 @@ private:
 
     std::vector<float> random_noise;
     std::vector<float> t_span;
-    int cfm_steps = 5;
+    int cfm_steps = 3;
 
     std::map<std::string, std::vector<float>> spk_info;
 

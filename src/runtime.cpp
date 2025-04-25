@@ -716,8 +716,7 @@ int runtime::cosyvoice_load_models(
     std::string flow_encoder_path,
     std::string flow_decoder_estimator_path,
     std::string hift_generator_path,
-    std::string tts_tokenizer_path,
-    std::string spk_info_path
+    std::string tts_tokenizer_path
 ) {
     _cosyvoice = std::make_unique<cosyvoice>();
     _cosyvoice->load_speech_tokenizer(speech_tokenizer_path);
@@ -725,7 +724,6 @@ int runtime::cosyvoice_load_models(
     _cosyvoice->load_flow_encoder(flow_encoder_path);
     _cosyvoice->load_flow_decoder_estimator(flow_decoder_estimator_path);
     _cosyvoice->load_hift_generator(hift_generator_path);
-    _cosyvoice->load_spk_info(spk_info_path);
 
     _tokenizer = std::unique_ptr<tokenizer_base, std::function<void(tokenizer_base*)>>(new trie_tokenizer,
         [](tokenizer_base *p) {
@@ -841,6 +839,8 @@ int runtime::run_tts(std::string tts_text, std::string instruction_text, std::st
     }
 
     std::vector<float> output_samples;
+    // HACK: ignore prompt_speech_text for now
+    prompt_speech_text = "";
     run_tts_internal(tts_text, instruction_text, prompt_wav_path, "", prompt_speech_text, output_samples);
 
     if (!output_wav_path.empty()) {

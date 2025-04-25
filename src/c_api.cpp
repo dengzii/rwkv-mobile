@@ -493,13 +493,13 @@ void rwkvmobile_runtime_free_token_ids(struct token_ids ids) {
     free(ids.ids);
 }
 
-int rwkvmobile_runtime_cosyvoice_load_models(rwkvmobile_runtime_t runtime, const char * speech_tokenizer_path, const char * campplus_path, const char * flow_encoder_path, const char * flow_decoder_estimator_path, const char * hift_generator_path, const char * tts_tokenizer_path, const char * spk_info_path) {
+int rwkvmobile_runtime_cosyvoice_load_models(rwkvmobile_runtime_t runtime, const char * speech_tokenizer_path, const char * campplus_path, const char * flow_encoder_path, const char * flow_decoder_estimator_path, const char * hift_generator_path, const char * tts_tokenizer_path) {
 #if ENABLE_TTS
     if (runtime == nullptr || speech_tokenizer_path == nullptr || campplus_path == nullptr || flow_encoder_path == nullptr || flow_decoder_estimator_path == nullptr || hift_generator_path == nullptr || tts_tokenizer_path == nullptr) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
     auto rt = static_cast<class runtime *>(runtime);
-    return rt->cosyvoice_load_models(speech_tokenizer_path, campplus_path, flow_encoder_path, flow_decoder_estimator_path, hift_generator_path, tts_tokenizer_path, spk_info_path);
+    return rt->cosyvoice_load_models(speech_tokenizer_path, campplus_path, flow_encoder_path, flow_decoder_estimator_path, hift_generator_path, tts_tokenizer_path);
 #else
     return RWKV_ERROR_UNSUPPORTED;
 #endif

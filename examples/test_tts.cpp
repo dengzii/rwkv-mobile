@@ -30,8 +30,7 @@ int main(int argc, char **argv) {
         encoder_path + "flow_encoder.fp16.onnx",
         encoder_path + "flow_decoder_estimator.ncnn.bin",
         encoder_path + "hift.onnx",
-        encoder_path + std::string(argv[4]),
-        encoder_path + "spk_info.msgpack"
+        encoder_path + std::string(argv[4])
     );
 
     std::string tts_text = "请助我一臂之力！";
