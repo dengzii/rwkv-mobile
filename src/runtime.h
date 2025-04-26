@@ -126,11 +126,6 @@ public:
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
         }
         clear_state();
-        if (_state_head != nullptr && _state_head->state.has_value()) {
-            _backend->free_state(_state_head->state);
-            delete _state_head;
-            _state_head = nullptr;
-        }
         int ret = _backend->release_model();
         if (ret != RWKV_SUCCESS) {
             return ret;
@@ -170,6 +165,8 @@ public:
     std::string get_response_role() { return _response_role; }
     std::string get_bos_token() { return _bos_token; }
     std::string get_eos_token() { return _eos_token; }
+
+    std::string apply_chat_template(std::vector<std::string> inputs, bool enable_reasoning = false);
 
     int get_vocab_size() { return _vocab_size; }
 
@@ -216,7 +213,7 @@ public:
     // for state management
     struct state_node {
         std::any state;
-        unsigned long long hash = 0;
+        std::vector<int> ids;
         struct state_node * next = nullptr;
     } * _state_head = nullptr;
 
@@ -313,14 +310,6 @@ private:
     std::vector<int32_t> _response_buffer_ids;
 
     void apply_logits_penalties(float * logits, int vocab_size, float presence_penalty, float frequency_penalty, float penalty_decay);
-
-    unsigned long long hash_string(std::string str) {
-        unsigned long long hash = 0, p = 13131;
-        for (size_t i = 0; i < str.size(); i++) {
-            hash = hash * p + str[i];
-        }
-        return hash;
-    }
 
     const int _decode_duration_window = 30;
     const int _prefill_duration_window = 10;

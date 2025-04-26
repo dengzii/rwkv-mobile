@@ -380,6 +380,33 @@ int runtime::chat(std::string input, const int max_length, void (*callback)(cons
     return RWKV_SUCCESS;
 }
 
+std::string runtime::apply_chat_template(std::vector<std::string> inputs, bool enable_reasoning) {
+    std::string text = _prompt;
+    for (int i = 0; i < inputs.size(); i++) {
+        if (i % 2 == 0) {
+            if (!_user_role.empty()) {
+                text += _bos_token + _user_role + ": " + inputs[i] + _eos_token;
+            } else {
+                text += inputs[i] + _eos_token;
+            }
+        } else {
+            if (i == inputs.size() - 1) {
+                text += _bos_token + _response_role + ": " + inputs[i];
+            } else {
+                text += _bos_token + _response_role + ": " + inputs[i] + _eos_token;
+            }
+        }
+    }
+
+    if (inputs.size() % 2 != 0) {
+        text += _bos_token + _response_role + ": ";
+        if (enable_reasoning) {
+            text += _thinking_token;
+        }
+    }
+    return text;
+}
+
 int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*callback)(const char *, const int), bool enable_reasoning) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
@@ -387,119 +414,82 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     set_is_generating(true);
     _stop_signal = false;
 
-    if (_prefilling_thread.joinable()) {
-        LOGI("Found prefilling thread, joining\n");
-        _prefilling_thread.join();
+    // if (_prefilling_thread.joinable()) {
+    //     LOGD("Found prefilling thread, joining\n");
+    //     _prefilling_thread.join();
+    //     LOGD("_prefilling_thread finished.\n");
+    // }
+
+    auto input_text = apply_chat_template(inputs, enable_reasoning);
+    LOGD("Applied chat template: \"%s\"\n", input_text.c_str());
+    std::vector<int> text_ids = _tokenizer->encode(input_text);
+    std::string debug_msg = "text_ids: ";
+    for (auto id : text_ids) {
+        debug_msg += std::to_string(id) + " ";
     }
+    LOGD("%s\n", debug_msg.c_str());
 
     struct state_node *node = _state_head;
-    int start_idx = 0;
-    bool edited = false;
-    while (node && node->next && (start_idx < (int)inputs.size())) {
-        unsigned long long input_hash = hash_string(inputs[start_idx]);
-        if (node->next->hash != input_hash) {
-            edited = true;
-            struct state_node *ptr = node;
-            while(ptr->next) {
-                struct state_node *tmp = ptr->next;
-                ptr->next = ptr->next->next;
-                _backend->free_state(tmp->state);
-                delete tmp;
-            }
-            node->next = nullptr;
+    size_t compare_pos = 0;
+
+    // find the last node that matches the input text
+    while (node->next) {
+        std::string debug_msg = "node->next->ids: ";
+        for (auto id : node->next->ids) {
+            debug_msg += std::to_string(id) + " ";
+        }
+        LOGD("%s\n", debug_msg.c_str());
+        if (compare_pos + node->next->ids.size() >= text_ids.size() || !std::equal(text_ids.begin() + compare_pos, text_ids.begin() + compare_pos + node->next->ids.size(), node->next->ids.begin())) {
+            // the text will diverge at next node
             break;
         }
-        start_idx++;
+        compare_pos += node->next->ids.size();
         node = node->next;
     }
 
-    if (edited == false && start_idx % 2 == 1) {
-        node = _state_head;
-        start_idx--;
-        for (int i = 0; i < start_idx; i++) {
-            node = node->next;
-        }
-        while(node->next) {
-            struct state_node *tmp = node->next;
-            node->next = node->next->next;
-            _backend->free_state(tmp->state);
-            delete tmp;
-        }
-        edited = true;
+    _backend->set_state(node->state);
+    while (node->next) {
+        auto tmp = node->next->next;
+        _backend->free_state(node->next->state);
+        delete node->next;
+        node->next = tmp;
     }
 
-    LOGI("Loading state node %i hash %llu\n", start_idx-1, node->hash);
-    _backend->set_state(node->state);
-
     float *logits = nullptr;
-    _response_buffer = "";
-    _response_buffer_ids.clear();
-    int ret;
-    for (int i = start_idx; i < (int)inputs.size(); i++) {
-        std::string prompt;
-        if (i % 2 == 0) {
-            if (!_user_role.empty()) {
-                prompt = _bos_token + _user_role + ": " + inputs[i] + _eos_token;
-            } else {
-                prompt = inputs[i] + _eos_token;
-            }
-        } else {
-            if (i == inputs.size() - 1) {
-                prompt = _bos_token + _response_role + ": " + inputs[i];
-            } else {
-                prompt = _bos_token + _response_role + ": " + inputs[i] + _eos_token;
-            }
+
+    std::vector<int> tokens_to_prefill = std::vector<int>(text_ids.begin() + compare_pos, text_ids.end());
+    if (tokens_to_prefill.size() > 0) {
+        std::string debug_msg = "tokens_to_prefill: ";
+        for (auto id : tokens_to_prefill) {
+            debug_msg += std::to_string(id) + " ";
         }
-        LOGD("Processing history %i: \"%s\"\n", i, prompt.c_str());
-        if (i == inputs.size() - 1) {
-            if (i % 2 == 0) {
-                if (enable_reasoning) {
-                    prompt += _response_role + ": " + _thinking_token;
-                    _response_buffer += " " + _thinking_token;
-                    auto tmp_ids = _tokenizer->encode(" " + _thinking_token);
-                    _response_buffer_ids.insert(_response_buffer_ids.end(), tmp_ids.begin(), tmp_ids.end());
-                } else {
-                    prompt += _response_role + ":";
-                }
-            } else {
-                _response_buffer = inputs[i];
-                _response_buffer_ids = _tokenizer->encode(inputs[i]);
-            }
-        }
-        std::vector<int> ids = _tokenizer->encode(prompt);
-        ret = eval_logits(ids, logits);
-        if (ret) return ret;
+        LOGD("%s\n", debug_msg.c_str());
+        eval_logits(tokens_to_prefill, logits);
+        _backend->free_logits_if_allocated(logits);
         node->next = new state_node;
         if (node->next == nullptr) {
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
         }
         node = node->next;
-        node->hash = hash_string(inputs[i]);
+        node->ids = std::move(tokens_to_prefill);
         _backend->get_state(node->state);
-        LOGD("New state node %i hash %llu\n", i, node->hash);
+        // TODO: add a state checkpoint more frequently in between the tokens
     }
 
-    if (edited || start_idx == 0) {
-        _occurences.clear();
-        for (int i = 1; i < inputs.size(); i += 2) {
-            std::vector<int> ids = _tokenizer->encode(" " + inputs[i]);
-            for (auto id: ids) {
-                for (auto &[_id, occurence] : _occurences) {
-                    _occurences[_id] *= _penalty_decay;
-                }
-                _occurences[id]++;
+    _response_buffer = input_text.substr(input_text.rfind(_response_role + ":") + (_response_role + ":").size());
+    LOGI("Response buffer: \"%s\"\n", _response_buffer.c_str());
+    _response_buffer_ids = _tokenizer->encode(_response_buffer);
+    int ret;
+
+    _occurences.clear();
+    for (int i = 1; i < inputs.size(); i += 2) {
+        std::vector<int> ids = _tokenizer->encode(" " + inputs[i]);
+        for (auto id: ids) {
+            for (auto &[_id, occurence] : _occurences) {
+                _occurences[_id] *= _penalty_decay;
             }
+            _occurences[id]++;
         }
-    }
-
-    bool resuming = false;
-    if (!edited && inputs.size() % 2 == 0) {
-        // case that resume generation from the last assistant message
-        _response_buffer = inputs[inputs.size() - 1];
-        _response_buffer_ids = _tokenizer->encode(inputs[inputs.size() - 1]);
-        auto ret = eval_logits(_response_buffer_ids.back(), logits);
-        if (ret) return ret;
-        resuming = true;
     }
 
     for (int i = 0; i < max_length; i++) {
@@ -543,7 +533,9 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
 
     // only eval stop code if generation is not forced to stop
     if (!_stop_signal) {
-        ret = eval_logits(_tokenizer->encode(_stop_codes[0]), logits);
+        std::vector<int> stop_code_ids = _tokenizer->encode(_stop_codes[0]);
+        ret = eval_logits(stop_code_ids, logits);
+        _response_buffer_ids.insert(_response_buffer_ids.end(), stop_code_ids.begin(), stop_code_ids.end());
         if (ret) return ret;
     }
 
@@ -552,49 +544,13 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         callback(_response_buffer.c_str(), 0);
     }
 
-    auto node_before_response = node;
-    if (!resuming) {
-        node->next = new state_node;
-        if (node->next == nullptr) {
-            return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
-        }
-        node = node->next;
-    } else {
-        auto ptr = _state_head;
-        while(ptr->next && ptr->next != node_before_response) {
-            ptr = ptr->next;
-        }
-        if (ptr->next == node) {
-            node_before_response = ptr;
-        }
+    node->next = new state_node;
+    if (node->next == nullptr) {
+        return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
     }
-
-    if (_response_buffer.find("<think>") != std::string::npos && _response_buffer.find("</think>") != std::string::npos) {
-        LOGI("Starting prefilling thread to process response without thinking content\n");
-        auto content = _response_buffer.substr(_response_buffer.find("</think>") + 8);
-        auto str_to_prefill = _bos_token + _response_role + ": " + content;
-        _prefilling_thread = std::thread([this, str_to_prefill, content, node_before_response, node]() {
-            _backend->set_state(node_before_response->state);
-            _backend->free_state(node->state);
-            float *logits = nullptr;
-            eval_logits(_tokenizer->encode(str_to_prefill), logits);
-            _backend->free_logits_if_allocated(logits);
-            _backend->get_state(node->state);
-            node->hash = hash_string(content);
-            LOGI("Finished prefilling thread to process response without thinking content\n");
-        });
-        _prefilling_thread.detach();
-    } else {
-        node->hash = hash_string(_response_buffer);
-        _backend->get_state(node->state);
-        start_idx = -1;
-        node = _state_head;
-        while(node->next) {
-            start_idx++;
-            node = node->next;
-        }
-        LOGD("New state node %i hash %llu\n", start_idx, node->hash);
-    }
+    node = node->next;
+    node->ids = std::vector<int>(_response_buffer_ids);
+    _backend->get_state(node->state);
 
     set_is_generating(false);
     _stop_signal = false;
@@ -605,33 +561,35 @@ int runtime::set_prompt(std::string prompt) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
-    unsigned long long hash;
+
     LOGD("Setting and processing prompt: \"%s\"\n", prompt.c_str());
-    if (prompt.empty()) {
-        hash = 0;
-    } else {
-        hash = hash_string(prompt);
+    std::vector<int> ids = _tokenizer->encode(prompt);
+    if (_state_head->next == nullptr) {
+        _state_head->next = new state_node;
+        if (_state_head->next == nullptr) {
+            return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
+        }
     }
-    if (_state_head->hash == hash) {
+
+    if (_state_head->next->ids == ids) {
         return RWKV_SUCCESS;
     }
     _prompt = prompt;
-    clear_state();
-    _state_head->hash = hash;
+    _backend->clear_state();
+    _state_head->next->ids = ids;
 
-    if (prompt.empty()) {
+    if (ids.empty()) {
         return RWKV_SUCCESS;
     }
-    if (_state_head->state.has_value()) {
-        _backend->free_state(_state_head->state);
+    if (_state_head->next->state.has_value()) {
+        _backend->free_state(_state_head->next->state);
     }
     float *logits = nullptr;
-    std::vector<int> ids = _tokenizer->encode(prompt);
     int ret = eval_logits(ids, logits);
     if (ret) {
         return ret;
     }
-    _backend->get_state(_state_head->state);
+    _backend->get_state(_state_head->next->state);
     _backend->free_logits_if_allocated(logits);
     return RWKV_SUCCESS;
 }
@@ -645,21 +603,20 @@ int runtime::set_image_prompt(std::string path) {
     if (_backend == nullptr || _tokenizer == nullptr || _vision_encoder == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
-    unsigned long long hash;
     std::string prompt = "<img src=\"" + path + "\">";
-    hash = hash_string(prompt);
-    if (_state_head->hash == hash) {
+    std::vector<int> ids = _tokenizer->encode(prompt);
+    if (_state_head->next->ids == ids) {
         return RWKV_SUCCESS;
     }
     _prompt = prompt;
-    clear_state();
-    _state_head->hash = hash;
+    _backend->set_state(_state_head->state);
+    _state_head->next->ids = ids;
 
-    if (prompt.empty()) {
+    if (ids.empty()) {
         return RWKV_SUCCESS;
     }
-    if (_state_head->state.has_value()) {
-        _backend->free_state(_state_head->state);
+    if (_state_head->next->state.has_value()) {
+        _backend->free_state(_state_head->next->state);
     }
 
     auto embd = llava_image_embed_make_with_filename(_vision_encoder.get(), 4, path.c_str());
@@ -672,7 +629,7 @@ int runtime::set_image_prompt(std::string path) {
     if (ret) {
         return ret;
     }
-    _backend->get_state(_state_head->state);
+    _backend->get_state(_state_head->next->state);
     llava_image_embed_free(embd);
     _backend->free_logits_if_allocated(logits);
     return RWKV_SUCCESS;
@@ -684,21 +641,20 @@ int runtime::set_audio_prompt(std::string path) {
     if (_backend == nullptr || _tokenizer == nullptr || _whisper_encoder == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
-    unsigned long long hash;
     std::string prompt = "<audio src=\"" + path + "\">";
-    hash = hash_string(prompt);
-    if (_state_head->hash == hash) {
+    std::vector<int> ids = _tokenizer->encode(prompt);
+    if (_state_head->next->ids == ids) {
         return RWKV_SUCCESS;
     }
     _prompt = prompt;
     clear_state();
-    _state_head->hash = hash;
+    _state_head->next->ids = ids;
 
-    if (prompt.empty()) {
+    if (ids.empty()) {
         return RWKV_SUCCESS;
     }
-    if (_state_head->state.has_value()) {
-        _backend->free_state(_state_head->state);
+    if (_state_head->next->state.has_value()) {
+        _backend->free_state(_state_head->next->state);
     }
 
     wav_file wav;
@@ -722,7 +678,7 @@ int runtime::set_audio_prompt(std::string path) {
     if (ret) {
         return ret;
     }
-    _backend->get_state(_state_head->state);
+    _backend->get_state(_state_head->next->state);
     _backend->free_logits_if_allocated(logits);
     return RWKV_SUCCESS;
 }
