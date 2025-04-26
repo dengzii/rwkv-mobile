@@ -68,7 +68,7 @@ RpcMemTensorData* RpcMem::getRpcMemTensorData(Qnn_Tensor_t* tensor) {
   if (tensor == nullptr) return nullptr;
   Qnn_MemHandle_t mem_handle = QNN_TENSOR_GET_MEM_HANDLE(tensor);
   if (mem_handle == nullptr) return nullptr;
-  rwkvmobile::LOGI("RpcMem :: getRpcMemTensorData %s mem_handle=%p", QNN_TENSOR_GET_NAME(tensor), mem_handle);
+  // rwkvmobile::LOGI("RpcMem :: getRpcMemTensorData %s mem_handle=%p", QNN_TENSOR_GET_NAME(tensor), mem_handle);
   return &m_memHandleToRpcMem.at(mem_handle);
 }
 

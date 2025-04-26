@@ -59,7 +59,7 @@ private:
     Qnn_Tensor_t *outputTensorsPrefill[8] = {nullptr};
     Qnn_Tensor_t *logitsOutputTensor = nullptr;
 
-    IOTensor qnnIOTensorUtils;
+    IOTensor* qnnIOTensorUtils = nullptr;
 
     std::vector<std::unordered_map<std::string, void*>> decodeGraphsTensorNameToTensorPointer;
     std::vector<std::unordered_map<std::string, size_t>> decodeGraphsTensorNameToSize;

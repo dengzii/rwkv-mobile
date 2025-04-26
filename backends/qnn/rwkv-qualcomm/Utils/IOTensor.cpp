@@ -17,7 +17,7 @@
 #include "IOTensor.hpp"
 #include "QnnTypeMacros.hpp"
 #include "RpcMem.hpp"
-
+#include "logger.h"
 #ifdef _WIN32
 #define __strdup _strdup
 #else
@@ -31,8 +31,10 @@ IOTensor::IOTensor(BufferAlloc bufferAllocIn, QNN_INTERFACE_VER_TYPE* qnnInterfa
 
 bool IOTensor::initialize(Qnn_ContextHandle_t contextHandle) {
   if (m_bufferAlloc == BufferAlloc::SHARED_BUFFER) {
+    rwkvmobile::LOGI("[QNN] Using RpcMem as buffer manager");
     m_bufferManager = std::unique_ptr<IBufferAlloc>(new RpcMem(contextHandle, m_qnnInterface));
   } else if (m_bufferAlloc == BufferAlloc::DMABUF) {
+    rwkvmobile::LOGI("[QNN] Using DmaBufferAllocator as buffer manager");
 #ifdef _WIN32
     return false;
 #else

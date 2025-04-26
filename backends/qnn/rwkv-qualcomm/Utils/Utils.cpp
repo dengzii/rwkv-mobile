@@ -125,7 +125,6 @@ bool rwkv_app::copyTensorsInfo(const Qnn_Tensor_t *tensorsInfoSrc,
   }
   if (returnStatus) {
     for (size_t tIdx = 0; tIdx < tensorsCount; tIdx++) {
-      rwkvmobile::LOGD("Extracting tensorInfo for tensor Idx: %zu", tIdx);
       tensorWrappers[tIdx] = QNN_TENSOR_INIT;
       deepCopyQnnTensorInfo(&tensorWrappers[tIdx], &tensorsInfoSrc[tIdx]);
     }
