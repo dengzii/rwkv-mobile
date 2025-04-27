@@ -413,6 +413,8 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     }
     set_is_generating(true);
     _stop_signal = false;
+    _response_buffer.clear();
+    _response_buffer_ids.clear();
 
     // if (_prefilling_thread.joinable()) {
     //     LOGD("Found prefilling thread, joining\n");
