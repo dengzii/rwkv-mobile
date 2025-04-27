@@ -58,6 +58,7 @@ private:
     Qnn_Tensor_t *inputTensorsPrefill[8] = {nullptr};
     Qnn_Tensor_t *outputTensorsPrefill[8] = {nullptr};
     Qnn_Tensor_t *logitsOutputTensor = nullptr;
+    Qnn_Tensor_t *tokenInputTensorPrefill = nullptr;
 
     IOTensor* qnnIOTensorUtils = nullptr;
 

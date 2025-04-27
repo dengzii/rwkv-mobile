@@ -680,7 +680,7 @@ int qnn_backend::qnn_initialize_tensors() {
                     tensorName = std::stoi(tensorName.substr(0, tensorName.find("_")).substr(5));
                 }
 
-                if (state_num % 3 == 1 || QNN_TENSOR_GET_DATA_TYPE(outputTensors[graph_id][i]) == QNN_DATATYPE_FLOAT_16)
+                if (QNN_TENSOR_GET_DATA_TYPE(outputTensors[graph_id][i]) == QNN_DATATYPE_FLOAT_16)
                     memset(buffer, 0, datautil::calculateElementCount(dims) * sizeof(uint16_t));
                 else if (QNN_TENSOR_GET_DATA_TYPE(outputTensors[graph_id][i]) == QNN_DATATYPE_FLOAT_32)
                     memset(buffer, 0, datautil::calculateElementCount(dims) * sizeof(float));
@@ -770,6 +770,7 @@ int qnn_backend::qnn_initialize_tensors() {
                 prefillSequenceLength *= *(QNN_TENSOR_GET_DIMENSIONS(tensor) + i);
             }
             LOGI("Prefill sequence length: %d", prefillSequenceLength);
+            tokenInputTensorPrefill = tensor;
         }
         isTensorInitialized = true;
     }
@@ -836,15 +837,15 @@ int qnn_backend::eval(std::vector<int> ids, float *& logits) {
             }
         }
     } else {
-        int *token_input = (int*)qnnIOTensorUtils->getBuffer(&inputTensorsPrefill[0][0]);
+        int *token_input = (int*)qnnIOTensorUtils->getBuffer(tokenInputTensorPrefill);
         int idx = 0;
 
         bool is_prefilling_usable = true;
         for (; (idx + prefillSequenceLength) < ids.size(); idx += prefillSequenceLength) {
             for (int i = 0; i < prefillSequenceLength; i++) {
-                *token_input = ids[idx + i];
+                token_input[i] = ids[idx + i];
             }
-            LOGD("Prefilling using seq mode from %d to %d", idx, idx + prefillSequenceLength);
+            // LOGD("Prefilling using seq mode from %d to %d", idx, idx + prefillSequenceLength);
 
             for (int graph_id = 0; graph_id < qnnPrefillGraphsCount; graph_id++) {
                 auto graphInfo     = (*qnnPrefillGraphsInfo)[graph_id];
@@ -868,7 +869,7 @@ int qnn_backend::eval(std::vector<int> ids, float *& logits) {
             }
         }
 
-        LOGD("Prefilling tails using decode mode from %d to %d", idx, ids.size());
+        // LOGD("Prefilling tails using decode mode from %d to %d", idx, ids.size());
         for (; idx < ids.size(); idx++) {
             token_input = (int*)qnnIOTensorUtils->getBuffer(&inputTensors[0][0]);
             *token_input = ids[idx];
@@ -931,13 +932,7 @@ int qnn_backend::clear_state() {
                 element_count *= *(QNN_TENSOR_GET_DIMENSIONS(outputTensors[graph_id][i]) + j);
             }
             void *buffer = qnnIOTensorUtils->getBuffer(&outputTensors[graph_id][i]);
-            auto tensorName = std::string(QNN_TENSOR_GET_NAME(outputTensors[graph_id][i]));
-            int state_num = 0;
-            if (tensorName.find("state") != std::string::npos) {
-                tensorName = std::stoi(tensorName.substr(0, tensorName.find("_")).substr(5));
-            }
-
-            if (state_num % 3 == 1 || QNN_TENSOR_GET_DATA_TYPE(outputTensors[graph_id][i]) == QNN_DATATYPE_FLOAT_16)
+            if (QNN_TENSOR_GET_DATA_TYPE(outputTensors[graph_id][i]) == QNN_DATATYPE_FLOAT_16)
                 memset(buffer, 0, element_count * sizeof(uint16_t));
             else if (QNN_TENSOR_GET_DATA_TYPE(outputTensors[graph_id][i]) == QNN_DATATYPE_FLOAT_32)
                 memset(buffer, 0, element_count * sizeof(float));
@@ -958,7 +953,7 @@ int qnn_backend::get_state(std::any &state) {
             std::string outputName = std::string(QNN_TENSOR_GET_NAME(outputTensors[graph_id][i]));
             
             if (outputName.find("state") != std::string::npos) {
-                new_state.push_back(std::vector<uint8_t>((uint8_t*)qnnIOTensorUtils->getBuffer(& outputTensors[graph_id][i]), (uint8_t*)qnnIOTensorUtils->getBuffer(&outputTensors[graph_id][i]) + qnnIOTensorUtils->getBufferSize(&outputTensors[graph_id][i])));
+                new_state.push_back(std::vector<uint8_t>((uint8_t*)qnnIOTensorUtils->getBuffer(&outputTensors[graph_id][i]), (uint8_t*)qnnIOTensorUtils->getBuffer(&outputTensors[graph_id][i]) + qnnIOTensorUtils->getBufferSize(&outputTensors[graph_id][i])));
             }
         }
     }

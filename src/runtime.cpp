@@ -399,9 +399,9 @@ std::string runtime::apply_chat_template(std::vector<std::string> inputs, bool e
     }
 
     if (inputs.size() % 2 != 0) {
-        text += _bos_token + _response_role + ": ";
+        text += _bos_token + _response_role + ":";
         if (enable_reasoning) {
-            text += _thinking_token;
+            text += " " + _thinking_token;
         }
     }
     return text;
@@ -439,7 +439,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             debug_msg += std::to_string(id) + " ";
         }
         LOGD("%s\n", debug_msg.c_str());
-        if (compare_pos + node->next->ids.size() >= text_ids.size() || !std::equal(text_ids.begin() + compare_pos, text_ids.begin() + compare_pos + node->next->ids.size(), node->next->ids.begin())) {
+        if (compare_pos + node->next->ids.size() > text_ids.size() || !std::equal(text_ids.begin() + compare_pos, text_ids.begin() + compare_pos + node->next->ids.size(), node->next->ids.begin())) {
             // the text will diverge at next node
             break;
         }
@@ -479,6 +479,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     _response_buffer = input_text.substr(input_text.rfind(_response_role + ":") + (_response_role + ":").size());
     LOGI("Response buffer: \"%s\"\n", _response_buffer.c_str());
     _response_buffer_ids = _tokenizer->encode(_response_buffer);
+    std::vector<int> response_ids_raw;
     int ret;
 
     _occurences.clear();
@@ -492,16 +493,23 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         }
     }
 
+    if (logits == nullptr) {
+        // we are resuming from a previous generation
+        ret = eval_logits(text_ids.back(), logits);
+        if (ret) return ret;
+    }
+
+    int decoded_idx = 0;
     for (int i = 0; i < max_length; i++) {
         apply_logits_penalties(logits, _vocab_size, _presence_penalty, _frequency_penalty, _penalty_decay);
 
-        int idx = _sampler->sample(logits, _vocab_size, _temperature, _top_k, _top_p);
+        decoded_idx = _sampler->sample(logits, _vocab_size, _temperature, _top_k, _top_p);
         _backend->free_logits_if_allocated(logits);
-        if (idx == 0) {
+        if (decoded_idx == 0) {
             break;
         }
 
-        std::string decoded = _tokenizer->decode(idx);
+        std::string decoded = _tokenizer->decode(decoded_idx);
         std::string tmp = _response_buffer + decoded;
         bool stopping = false;
         for (auto &stop_code : _stop_codes) {
@@ -512,22 +520,27 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             }
         }
 
-        if (stopping || _stop_signal) {
+        if (stopping) {
             break;
         }
 
         _response_buffer += decoded;
-        _response_buffer_ids.emplace_back(idx);
+        _response_buffer_ids.emplace_back(decoded_idx);
+        response_ids_raw.emplace_back(decoded_idx);
         if (i == 0 && _response_buffer[0] == ' ') {
             _response_buffer = _response_buffer.substr(1);
         }
 
-        _occurences[idx]++;
-        if (callback) {
-            callback(_response_buffer.c_str(), idx);
+        if (_stop_signal) {
+            break;
         }
 
-        ret = eval_logits(idx, logits);
+        _occurences[decoded_idx]++;
+        if (callback) {
+            callback(_response_buffer.c_str(), decoded_idx);
+        }
+
+        ret = eval_logits(decoded_idx, logits);
         if (ret) return ret;
     }
 
@@ -535,7 +548,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     if (!_stop_signal) {
         std::vector<int> stop_code_ids = _tokenizer->encode(_stop_codes[0]);
         ret = eval_logits(stop_code_ids, logits);
-        _response_buffer_ids.insert(_response_buffer_ids.end(), stop_code_ids.begin(), stop_code_ids.end());
+        response_ids_raw.insert(response_ids_raw.end(), stop_code_ids.begin(), stop_code_ids.end());
         if (ret) return ret;
     }
 
@@ -549,7 +562,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
     }
     node = node->next;
-    node->ids = std::vector<int>(_response_buffer_ids);
+    node->ids = std::move(response_ids_raw);
     _backend->get_state(node->state);
 
     set_is_generating(false);
@@ -647,7 +660,7 @@ int runtime::set_audio_prompt(std::string path) {
         return RWKV_SUCCESS;
     }
     _prompt = prompt;
-    clear_state();
+    _backend->clear_state();
     _state_head->next->ids = ids;
 
     if (ids.empty()) {
@@ -787,7 +800,7 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
     // std::thread llm_thread([&]() {
     {
         auto start = std::chrono::high_resolution_clock::now();
-        clear_state();
+        _backend->clear_state();
         float *logits = nullptr;
         eval_logits(llm_tokens, logits);
         const int speech_vocab_size = 6562;
