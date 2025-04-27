@@ -439,11 +439,11 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
 
     // find the last node that matches the input text
     while (node->next) {
-        std::string debug_msg = "node->next->ids: ";
-        for (auto id : node->next->ids) {
-            debug_msg += std::to_string(id) + " ";
-        }
-        LOGD("%s\n", debug_msg.c_str());
+        // std::string debug_msg = "node->next->ids: ";
+        // for (auto id : node->next->ids) {
+        //     debug_msg += std::to_string(id) + " ";
+        // }
+        // LOGD("%s\n", debug_msg.c_str());
         if (compare_pos + node->next->ids.size() > text_ids.size() || !std::equal(text_ids.begin() + compare_pos, text_ids.begin() + compare_pos + node->next->ids.size(), node->next->ids.begin())) {
             // the text will diverge at next node
             break;
@@ -464,21 +464,26 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
 
     std::vector<int> tokens_to_prefill = std::vector<int>(text_ids.begin() + compare_pos, text_ids.end());
     if (tokens_to_prefill.size() > 0) {
-        std::string debug_msg = "tokens_to_prefill: ";
+        std::string debug_msg = "new tokens_to_prefill: ";
         for (auto id : tokens_to_prefill) {
             debug_msg += std::to_string(id) + " ";
         }
         LOGD("%s\n", debug_msg.c_str());
-        eval_logits(tokens_to_prefill, logits);
-        _backend->free_logits_if_allocated(logits);
-        node->next = new state_node;
-        if (node->next == nullptr) {
-            return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
+
+        // save a state checkpoint every about 256 tokens
+        int checkpoint_interval = 256;
+        for (int i = 0; i < tokens_to_prefill.size(); i += checkpoint_interval) {
+            std::vector<int> tokens_to_prefill_chunk = std::vector<int>(tokens_to_prefill.begin() + i, tokens_to_prefill.begin() + std::min(i + checkpoint_interval, (int)tokens_to_prefill.size()));
+            eval_logits(tokens_to_prefill_chunk, logits);
+            _backend->free_logits_if_allocated(logits);
+            node->next = new state_node;
+            if (node->next == nullptr) {
+                return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
+            }
+            node = node->next;
+            node->ids = std::move(tokens_to_prefill_chunk);
+            _backend->get_state(node->state);
         }
-        node = node->next;
-        node->ids = std::move(tokens_to_prefill);
-        _backend->get_state(node->state);
-        // TODO: add a state checkpoint more frequently in between the tokens
     }
 
     std::string response_buffer = input_text.substr(input_text.rfind(_response_role + ":") + (_response_role + ":").size());
@@ -556,7 +561,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     }
 
     // only eval stop code if generation is not forced to stop
-    if (!_stop_signal) {
+    if (!_stop_signal && !silent_run) {
         std::vector<int> stop_code_ids = _tokenizer->encode(_stop_codes[0]);
         ret = eval_logits(stop_code_ids, logits);
         response_ids_raw.insert(response_ids_raw.end(), stop_code_ids.begin(), stop_code_ids.end());
@@ -580,6 +585,9 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         // start a new thread to prefill the content without thinking part
         if (_response_buffer.find("<think>") != std::string::npos && _response_buffer.find("</think>") != std::string::npos) {
             auto response_without_thinking = _response_buffer.substr(_response_buffer.find("</think>") + 8);
+            while (response_without_thinking[0] == ' ' || response_without_thinking[0] == '\n') {
+                response_without_thinking = response_without_thinking.substr(1);
+            }
             LOGI("Response without thinking: \"%s\"\n", response_without_thinking.c_str());
             auto inputs_new = inputs;
             inputs_new.emplace_back(response_without_thinking);
