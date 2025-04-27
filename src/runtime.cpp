@@ -407,17 +407,15 @@ std::string runtime::apply_chat_template(std::vector<std::string> inputs, bool e
     return text;
 }
 
-int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*callback)(const char *, const int), bool enable_reasoning, bool silent_run) {
+int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*callback)(const char *, const int), bool enable_reasoning) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
 
-    if (!silent_run) {
-        set_is_generating(true);
-        _stop_signal = false;
-        _response_buffer.clear();
-        _response_buffer_ids.clear();
-    }
+    set_is_generating(true);
+    _stop_signal = false;
+    _response_buffer.clear();
+    _response_buffer_ids.clear();
 
     if (_prefilling_thread.joinable() && _prefilling_thread.get_id() != std::this_thread::get_id()) {
         LOGD("Found prefilling thread, joining\n");
@@ -453,6 +451,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     }
 
     _backend->set_state(node->state);
+    bool diverged = false;
     while (node->next) {
         auto tmp = node->next->next;
         _backend->free_state(node->next->state);
@@ -464,7 +463,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
 
     std::vector<int> tokens_to_prefill = std::vector<int>(text_ids.begin() + compare_pos, text_ids.end());
     if (tokens_to_prefill.size() > 0) {
-        std::string debug_msg = "new tokens_to_prefill: ";
+        std::string debug_msg = "new tokens to prefill: ";
         for (auto id : tokens_to_prefill) {
             debug_msg += std::to_string(id) + " ";
         }
@@ -486,13 +485,9 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         }
     }
 
-    std::string response_buffer = input_text.substr(input_text.rfind(_response_role + ":") + (_response_role + ":").size());
+    _response_buffer = input_text.substr(input_text.rfind(_response_role + ":") + (_response_role + ":").size());
     std::vector<int> response_ids_raw;
-    LOGI("Response buffer: \"%s\"\n", response_buffer.c_str());
-    if (!silent_run) {
-        _response_buffer = response_buffer;
-        _response_buffer_ids = _tokenizer->encode(_response_buffer);
-    }
+    _response_buffer_ids = _tokenizer->encode(_response_buffer);
     int ret;
 
     _occurences.clear();
@@ -523,7 +518,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         }
 
         std::string decoded = _tokenizer->decode(decoded_idx);
-        std::string tmp = response_buffer + decoded;
+        std::string tmp = _response_buffer + decoded;
         bool stopping = false;
         for (auto &stop_code : _stop_codes) {
             if (tmp.size() >= stop_code.size() &&
@@ -537,14 +532,11 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             break;
         }
 
-        response_buffer += decoded;
         response_ids_raw.emplace_back(decoded_idx);
-        if (!silent_run) {
-            _response_buffer += decoded;
-            _response_buffer_ids.emplace_back(decoded_idx);
-            if (i == 0 && _response_buffer[0] == ' ') {
-                _response_buffer = _response_buffer.substr(1);
-            }
+        _response_buffer += decoded;
+        _response_buffer_ids.emplace_back(decoded_idx);
+        if (i == 0 && _response_buffer[0] == ' ') {
+            _response_buffer = _response_buffer.substr(1);
         }
 
         if (_stop_signal) {
@@ -552,7 +544,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         }
 
         _occurences[decoded_idx]++;
-        if (!silent_run && callback) {
+        if (callback) {
             callback(_response_buffer.c_str(), decoded_idx);
         }
 
@@ -560,15 +552,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         if (ret) return ret;
     }
 
-    // only eval stop code if generation is not forced to stop
-    if (!_stop_signal && !silent_run) {
-        std::vector<int> stop_code_ids = _tokenizer->encode(_stop_codes[0]);
-        ret = eval_logits(stop_code_ids, logits);
-        response_ids_raw.insert(response_ids_raw.end(), stop_code_ids.begin(), stop_code_ids.end());
-        if (ret) return ret;
-    }
-
-    if (!silent_run && callback) {
+    if (callback) {
         LOGD("Response: \"%s\"\n", _response_buffer.c_str());
         callback(_response_buffer.c_str(), 0);
     }
@@ -581,21 +565,21 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     node->ids = std::move(response_ids_raw);
     _backend->get_state(node->state);
 
-    if (enable_reasoning && !_stop_signal) {
-        // start a new thread to prefill the content without thinking part
-        if (_response_buffer.find("<think>") != std::string::npos && _response_buffer.find("</think>") != std::string::npos) {
-            auto response_without_thinking = _response_buffer.substr(_response_buffer.find("</think>") + 8);
-            while (response_without_thinking[0] == ' ' || response_without_thinking[0] == '\n') {
-                response_without_thinking = response_without_thinking.substr(1);
-            }
-            LOGI("Response without thinking: \"%s\"\n", response_without_thinking.c_str());
-            auto inputs_new = inputs;
-            inputs_new.emplace_back(response_without_thinking);
-            _prefilling_thread = std::thread([this, inputs_new]() {
-                chat(inputs_new, 0, nullptr, false, true);
-            });
-        }
-    }
+    // if (enable_reasoning && !_stop_signal) {
+    //     // start a new thread to prefill the content without thinking part
+    //     if (_response_buffer.find("<think>") != std::string::npos && _response_buffer.find("</think>") != std::string::npos) {
+    //         auto response_without_thinking = _response_buffer.substr(_response_buffer.find("</think>") + 8);
+    //         while (response_without_thinking[0] == ' ' || response_without_thinking[0] == '\n') {
+    //             response_without_thinking = response_without_thinking.substr(1);
+    //         }
+    //         LOGI("Response without thinking: \"%s\"\n", response_without_thinking.c_str());
+    //         auto inputs_new = inputs;
+    //         inputs_new.emplace_back(response_without_thinking);
+    //         _prefilling_thread = std::thread([this, inputs_new]() {
+    //             chat(inputs_new, 0, nullptr, false, true);
+    //         });
+    //     }
+    // }
 
     set_is_generating(false);
     _stop_signal = false;

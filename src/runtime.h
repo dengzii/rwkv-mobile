@@ -59,7 +59,7 @@ public:
     int chat(std::string input, const int max_length, void (*callback)(const char *, const int) = nullptr, bool enable_reasoning = false);
 
     // with history
-    int chat(std::vector<std::string> inputs, const int max_length, void (*callback)(const char *, const int) = nullptr, bool enable_reasoning = false, bool silent_run = false);
+    int chat(std::vector<std::string> inputs, const int max_length, void (*callback)(const char *, const int) = nullptr, bool enable_reasoning = false);
     int gen_completion(std::string prompt, int max_length, int stop_code, void (*callback)(const char *, const int));
 
     int set_prompt(std::string prompt);
