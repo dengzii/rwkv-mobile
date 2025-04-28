@@ -637,6 +637,14 @@ int runtime::set_image_prompt(std::string path) {
     }
     std::string prompt = "<img src=\"" + path + "\">";
     std::vector<int> ids = _tokenizer->encode(prompt);
+
+    if (_state_head->next == nullptr) {
+        _state_head->next = new state_node;
+        if (_state_head->next == nullptr) {
+            return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
+        }
+    }
+
     if (_state_head->next->ids == ids) {
         return RWKV_SUCCESS;
     }
@@ -675,6 +683,14 @@ int runtime::set_audio_prompt(std::string path) {
     }
     std::string prompt = "<audio src=\"" + path + "\">";
     std::vector<int> ids = _tokenizer->encode(prompt);
+
+    if (_state_head->next == nullptr) {
+        _state_head->next = new state_node;
+        if (_state_head->next == nullptr) {
+            return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
+        }
+    }
+
     if (_state_head->next->ids == ids) {
         return RWKV_SUCCESS;
     }
