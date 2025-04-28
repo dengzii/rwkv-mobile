@@ -161,9 +161,9 @@ void wav_file::resample(int new_sample_rate) {
     }
     LOGI("[WAV] resampling from %d to %d", sample_rate, new_sample_rate);
     LOGD("[WAV] origin num_samples: %d", num_samples);
-    LOGD("[WAV] new num_samples: %d", num_samples / sample_rate * new_sample_rate);
+    LOGD("[WAV] new num_samples: %d", (int)(num_samples * (float)new_sample_rate / (float)sample_rate));
 
-    std::vector<float> resampled_samples(num_samples / sample_rate * new_sample_rate);
+    std::vector<float> resampled_samples((int)(num_samples * (float)new_sample_rate / (float)sample_rate));
     auto soxr_ret = soxr_oneshot(sample_rate, new_sample_rate, num_channels, samples.data(), samples.size(), NULL, resampled_samples.data(), resampled_samples.size(), NULL, NULL, NULL, NULL);
     if (soxr_ret != 0) {
         LOGE("[WAV] soxr_oneshot failed");
