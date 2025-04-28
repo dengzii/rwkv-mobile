@@ -859,8 +859,6 @@ int runtime::run_tts(std::string tts_text, std::string instruction_text, std::st
     }
 
     std::vector<float> output_samples;
-    // HACK: ignore prompt_speech_text for now
-    prompt_speech_text = "";
     run_tts_internal(tts_text, instruction_text, prompt_wav_path, "", prompt_speech_text, output_samples);
 
     if (!output_wav_path.empty()) {
