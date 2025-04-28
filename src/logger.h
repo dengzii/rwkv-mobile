@@ -23,12 +23,12 @@ std::string logger_get_log();
 
 void logger_set_loglevel(int);
 
-#define LOG_BUFFER_SIZE 1024
+#define LOG_RING_BUFFER_SIZE 1024
 
 class Logger {
 public:
     Logger() {
-        _buffer.resize(LOG_BUFFER_SIZE);
+        _buffer.resize(LOG_RING_BUFFER_SIZE);
     }
     ~Logger() = default;
     void log(const std::string &msg, const int level = RWKV_LOG_LEVEL_INFO);
@@ -36,7 +36,7 @@ public:
     std::string get_log() {
         std::lock_guard<std::mutex> lock(_mutex);
         std::string log;
-        for (int i = _buffer_start; i != _buffer_end; i = (i + 1) % LOG_BUFFER_SIZE) {
+        for (int i = _buffer_start; i != _buffer_end; i = (i + 1) % LOG_RING_BUFFER_SIZE) {
             log += _buffer[i];
         }
         return log;
