@@ -505,6 +505,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         // we are resuming from a previous generation
         ret = eval_logits(text_ids.back(), logits);
         if (ret) return ret;
+        response_ids_raw.emplace_back(text_ids.back());
     }
 
     int decoded_idx = 0;
@@ -557,13 +558,15 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         callback(_response_buffer.c_str(), 0);
     }
 
-    node->next = new state_node;
-    if (node->next == nullptr) {
-        return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
+    if (!response_ids_raw.empty()) {
+        node->next = new state_node;
+        if (node->next == nullptr) {
+            return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
+        }
+        node = node->next;
+        node->ids = std::move(response_ids_raw);
+        _backend->get_state(node->state);
     }
-    node = node->next;
-    node->ids = std::move(response_ids_raw);
-    _backend->get_state(node->state);
 
     // if (enable_reasoning && !_stop_signal) {
     //     // start a new thread to prefill the content without thinking part
