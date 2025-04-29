@@ -460,7 +460,7 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
         random_noise.resize(len_mu);
         std::generate(random_noise.begin(), random_noise.end(), [&]() { return distribution(generator); });
     }
-    if (t_span.empty()) {
+    if (t_span.empty() || t_span.size() != n_timesteps + 1) {
         t_span.resize(n_timesteps + 1);
         for (int i = 0; i < n_timesteps + 1; i++) {
             t_span[i] = i * 1.0f / n_timesteps;
