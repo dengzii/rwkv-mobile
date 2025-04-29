@@ -214,6 +214,7 @@ public:
     struct state_node {
         std::any state;
         std::vector<int> ids;
+        std::vector<float> last_logits;
         struct state_node * next = nullptr;
     } * _state_head = nullptr;
 

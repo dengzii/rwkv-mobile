@@ -5,6 +5,7 @@
 #include <chrono>
 #include <fstream>
 #include <cstdlib>
+#include <cstring>
 #include <thread>
 #ifdef ENABLE_WEBRWKV
 #include "web_rwkv_backend.h"
@@ -451,7 +452,6 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     }
 
     _backend->set_state(node->state);
-    bool diverged = false;
     while (node->next) {
         auto tmp = node->next->next;
         _backend->free_state(node->next->state);
@@ -474,7 +474,6 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         for (int i = 0; i < tokens_to_prefill.size(); i += checkpoint_interval) {
             std::vector<int> tokens_to_prefill_chunk = std::vector<int>(tokens_to_prefill.begin() + i, tokens_to_prefill.begin() + std::min(i + checkpoint_interval, (int)tokens_to_prefill.size()));
             eval_logits(tokens_to_prefill_chunk, logits);
-            _backend->free_logits_if_allocated(logits);
             node->next = new state_node;
             if (node->next == nullptr) {
                 return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
@@ -482,6 +481,9 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             node = node->next;
             node->ids = std::move(tokens_to_prefill_chunk);
             _backend->get_state(node->state);
+            node->last_logits.resize(_vocab_size);
+            memcpy(node->last_logits.data(), logits, _vocab_size * sizeof(float));
+            _backend->free_logits_if_allocated(logits);
         }
     }
 
@@ -502,10 +504,14 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     }
 
     if (logits == nullptr) {
-        // we are resuming from a previous generation
-        ret = eval_logits(text_ids.back(), logits);
-        if (ret) return ret;
-        response_ids_raw.emplace_back(text_ids.back());
+        if (node->last_logits.size() == _vocab_size) {
+            logits = node->last_logits.data();
+        } else {
+            LOGE("no logits found, neither from saved state nor from new tokens to prefill\n");
+            ret = eval_logits(text_ids.back(), logits);
+            if (ret) return ret;
+            response_ids_raw.emplace_back(text_ids.back());
+        }
     }
 
     int decoded_idx = 0;
@@ -513,7 +519,9 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         apply_logits_penalties(logits, _vocab_size, _presence_penalty, _frequency_penalty, _penalty_decay);
 
         decoded_idx = _sampler->sample(logits, _vocab_size, _temperature, _top_k, _top_p);
-        _backend->free_logits_if_allocated(logits);
+        if (i != 0 || logits != node->last_logits.data()) {
+            _backend->free_logits_if_allocated(logits);
+        }
         if (decoded_idx == 0) {
             break;
         }
@@ -529,9 +537,12 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             }
         }
 
-        if (stopping) {
+        if (stopping || _stop_signal) {
             break;
         }
+
+        ret = eval_logits(decoded_idx, logits);
+        if (ret) return ret;
 
         response_ids_raw.emplace_back(decoded_idx);
         _response_buffer += decoded;
@@ -540,17 +551,10 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             _response_buffer = _response_buffer.substr(1);
         }
 
-        if (_stop_signal) {
-            break;
-        }
-
         _occurences[decoded_idx]++;
         if (callback) {
             callback(_response_buffer.c_str(), decoded_idx);
         }
-
-        ret = eval_logits(decoded_idx, logits);
-        if (ret) return ret;
     }
 
     if (callback) {
@@ -566,6 +570,12 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         node = node->next;
         node->ids = std::move(response_ids_raw);
         _backend->get_state(node->state);
+        node->last_logits.resize(_vocab_size);
+        memcpy(node->last_logits.data(), logits, _vocab_size * sizeof(float));
+    }
+
+    if (logits != node->last_logits.data()) {
+        _backend->free_logits_if_allocated(logits);
     }
 
     // if (enable_reasoning && !_stop_signal) {
@@ -622,6 +632,8 @@ int runtime::set_prompt(std::string prompt) {
         return ret;
     }
     _backend->get_state(_state_head->next->state);
+    _state_head->next->last_logits.resize(_vocab_size);
+    memcpy(_state_head->next->last_logits.data(), logits, _vocab_size * sizeof(float));
     _backend->free_logits_if_allocated(logits);
     return RWKV_SUCCESS;
 }
@@ -670,6 +682,8 @@ int runtime::set_image_prompt(std::string path) {
         return ret;
     }
     _backend->get_state(_state_head->next->state);
+    _state_head->next->last_logits.resize(_vocab_size);
+    memcpy(_state_head->next->last_logits.data(), logits, _vocab_size * sizeof(float));
     llava_image_embed_free(embd);
     _backend->free_logits_if_allocated(logits);
     return RWKV_SUCCESS;
@@ -727,6 +741,8 @@ int runtime::set_audio_prompt(std::string path) {
         return ret;
     }
     _backend->get_state(_state_head->next->state);
+    _state_head->next->last_logits.resize(_vocab_size);
+    memcpy(_state_head->next->last_logits.data(), logits, _vocab_size * sizeof(float));
     _backend->free_logits_if_allocated(logits);
     return RWKV_SUCCESS;
 }
