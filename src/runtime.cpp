@@ -519,9 +519,6 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         apply_logits_penalties(logits, _vocab_size, _presence_penalty, _frequency_penalty, _penalty_decay);
 
         decoded_idx = _sampler->sample(logits, _vocab_size, _temperature, _top_k, _top_p);
-        if (i != 0 || logits != node->last_logits.data()) {
-            _backend->free_logits_if_allocated(logits);
-        }
         if (decoded_idx == 0) {
             break;
         }
@@ -541,6 +538,9 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             break;
         }
 
+        if (i != 0 || logits != node->last_logits.data()) {
+            _backend->free_logits_if_allocated(logits);
+        }
         ret = eval_logits(decoded_idx, logits);
         if (ret) return ret;
 
@@ -562,7 +562,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         callback(_response_buffer.c_str(), 0);
     }
 
-    if (!response_ids_raw.empty()) {
+    if (response_ids_raw.size() > 0) {
         node->next = new state_node;
         if (node->next == nullptr) {
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
