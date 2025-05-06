@@ -39,19 +39,23 @@ jobs:
         cmake --build . --config Release -j 8 -- CODE_SIGNING_ALLOWED=NO
         mkdir ../release-build ../debug-build
         cp librwkv_mobile.a ../release-build/librwkv_mobile.a
+        cp _deps/ncnn-build/src/Release-iphoneos/libncnn.a ../release-build/libncnn.a
+        cp ../src/multimodal/utils/onnxruntime/obj/ios-arm64/libonnxruntime.a ../release-build/libonnxruntime.a
         rm librwkv_mobile.a
         cmake --build . --config Debug -j 8 -- CODE_SIGNING_ALLOWED=NO
         cp librwkv_mobile.a ../debug-build/librwkv_mobile.a
+        cp _deps/ncnn-build/src/Release-iphoneos/libncnn.a ../debug-build/libncnn.a
+        cp ../src/multimodal/utils/onnxruntime/obj/ios-arm64/libonnxruntime.a ../debug-build/libonnxruntime.a
         rm librwkv_mobile.a
         cd ..
 
     - name: package
       run: |
         pushd release-build
-        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip librwkv_mobile.a
+        zip -9 -y -r ../${{ env.PACKAGENAME }}.zip *.a
         popd
         pushd debug-build
-        zip -9 -y -r ../${{ env.PACKAGENAME }}-debug.zip librwkv_mobile.a
+        zip -9 -y -r ../${{ env.PACKAGENAME }}-debug.zip *.a
         popd
     - name: upload-zip
       uses: actions/upload-artifact@v4
