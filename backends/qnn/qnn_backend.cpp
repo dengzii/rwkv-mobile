@@ -216,7 +216,9 @@ int qnn_backend::load_model(std::string model_path) {
         soc_detect.detect_platform();
         std::string htp_arch = soc_detect.get_htp_arch();
         std::string custom_op_name = "libQnnRwkvWkvOpPackage.so";
-        if (htp_arch == "v75") {
+        if (htp_arch == "v79") {
+            custom_op_name = "libQnnRwkvWkvOpPackageV79.so";
+        } else if (htp_arch == "v75") {
             custom_op_name = "libQnnRwkvWkvOpPackageV75.so";
         } else if (htp_arch == "v73") {
             custom_op_name = "libQnnRwkvWkvOpPackageV73.so";
