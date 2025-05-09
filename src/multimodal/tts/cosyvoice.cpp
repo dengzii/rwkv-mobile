@@ -346,43 +346,6 @@ bool cosyvoice::process_zeroshot(const std::string prompt_audio_path, std::vecto
     return true;
 }
 
-std::vector<int> cosyvoice::get_llm_tokens(const std::vector<int> tts_tokens, const std::vector<int> prompt_tokens, int &min_len, int &max_len) {
-    std::vector<int> tokens(tts_tokens.size() + prompt_tokens.size());
-    for (int i = 0; i < prompt_tokens.size(); i++) {
-        tokens[i] = prompt_tokens[i];
-    }
-    for (int i = 0; i < tts_tokens.size(); i++) {
-        tokens[prompt_tokens.size() + i] = tts_tokens[i];
-    }
-
-    int content_length = tokens.size();
-    for (int i = 0; i < tokens.size(); i++) {
-        if (tokens[i] == 65531) {
-            content_length = content_length - (i + 1);
-            break;
-        }
-    }
-
-    float max_token_text_ratio = 20;
-    float min_token_text_ratio = 2;
-    min_len = content_length * min_token_text_ratio;
-    max_len = content_length * max_token_text_ratio;
-    LOGI("[TTS] min_len: %d, max_len: %d", min_len, max_len);
-
-    int sos_eos_token = 72110;
-    int task_token = 72111;
-    tokens.insert(tokens.begin(), sos_eos_token);
-    tokens.push_back(task_token);
-
-    std::string debug_msg = "tokens: [";
-    for (int i = 0; i < tokens.size(); i++) {
-        debug_msg += std::to_string(tokens[i]) + ", ";
-    }
-    LOGI("[TTS] %s]", debug_msg.c_str());
-
-    return tokens;
-}
-
 bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::vector<std::vector<float>> speech_features, const std::vector<float> speech_embedding, std::vector<float> &output_samples) {
     if (flow_encoder_session == nullptr) {
         LOGE("[TTS] Flow encoder is not loaded");

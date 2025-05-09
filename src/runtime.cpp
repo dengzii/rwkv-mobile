@@ -809,22 +809,37 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
     auto start = std::chrono::high_resolution_clock::now();
 
     // prepare input tokens for llm
-    tts_text = _cosyvoice->normalize_text(tts_text);
-    std::vector<int> tts_tokens = _tokenizer->encode(tts_text);
-    std::vector<int> prompt_tokens;
+    std::vector<int> llm_tokens;
     std::string input_text = "";
     if (!prompt_speech_text.empty()) {
-        prompt_tokens = _tokenizer->encode(prompt_speech_text);
         input_text = prompt_speech_text;
-    } else if (!instruction_text.empty()) {
-        prompt_tokens = _tokenizer->encode(instruction_text + "<|endofprompt|>");
-        input_text = instruction_text + "<|endofprompt|>";
     }
+    if (!instruction_text.empty()) {
+        input_text = instruction_text + "<|endofprompt|>" + input_text;
+    }
+
     input_text += tts_text;
+    llm_tokens = _tokenizer->encode(input_text);
     LOGD("[TTS] input text: %s", input_text.c_str());
 
-    int min_len, max_len;
-    std::vector<int> llm_tokens = _cosyvoice->get_llm_tokens(tts_tokens, prompt_tokens, min_len, max_len);
+    int content_length = llm_tokens.size();
+    for (int i = 0; i < llm_tokens.size(); i++) {
+        if (llm_tokens[i] == 65531) {
+            content_length = content_length - (i + 1);
+            break;
+        }
+    }
+
+    float max_token_text_ratio = 20;
+    float min_token_text_ratio = 2;
+    int min_len = content_length * min_token_text_ratio;
+    int max_len = content_length * max_token_text_ratio;
+    LOGI("[TTS] min_len: %d, max_len: %d", min_len, max_len);
+
+    int sos_eos_token = 72110;
+    int task_token = 72111;
+    llm_tokens.insert(llm_tokens.begin(), sos_eos_token);
+    llm_tokens.push_back(task_token);
 
     std::vector<int> speech_tokens;
     std::vector<std::vector<float>> speech_features(80);
@@ -843,12 +858,17 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
     }
 
     const int speech_vocab_offset = 65548;
-    if (!instruction_text.empty() && !prompt_speech_text.empty()) {
-        // llm_tokens.insert(llm_tokens.end(), speech_tokens.begin(), speech_tokens.end());
+    if (!prompt_speech_text.empty()) {
         for (auto token : speech_tokens) {
             llm_tokens.push_back(token + speech_vocab_offset);
         }
     }
+
+    std::string debug_msg = "tokens: [";
+    for (int i = 0; i < llm_tokens.size(); i++) {
+        debug_msg += std::to_string(llm_tokens[i]) + ", ";
+    }
+    LOGD("[TTS] %s]", debug_msg.c_str());
 
     std::vector<int> decoded_tokens;
     // bool is_llm_decoding = true;
