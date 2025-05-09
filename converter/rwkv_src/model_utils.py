@@ -24,10 +24,12 @@ def get_dummy_state(batch_size, model_cfg, device):
         state += [_cache(state_0, model_cfg.fp16), _cache(state_1, model_cfg.fp16), _cache(state_2, model_cfg.fp16)]
     return state
 
-def get_dummy_input_for_rwkv_causal_llm(batch_size, input_length, device, model_cfg=None):
+def get_dummy_input_for_rwkv_causal_llm(batch_size, input_length, device, model_cfg=None, dict_output=False):
     input_ids = torch.LongTensor([[0]*input_length for _ in range(batch_size)]).to(device)
-    # inputs = {'in0': input_ids, 'state': get_dummy_state(batch_size, model_cfg, device)}
-    inputs = [input_ids] + get_dummy_state(batch_size, model_cfg, device)
+    if dict_output:
+        inputs = {'in0': input_ids, 'state': get_dummy_state(batch_size, model_cfg, device)}
+    else:
+        inputs = [input_ids] + get_dummy_state(batch_size, model_cfg, device)
     return inputs
 
 def init_inputs_for_rwkv_onnx(n_heads, head_size, n_layers, batch_size, input_length, dtype=np.float16):

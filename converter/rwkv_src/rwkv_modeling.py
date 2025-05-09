@@ -104,6 +104,8 @@ class RWKV_RNN(torch.nn.Module):
         emb_weight = F.layer_norm(emb_weight, emb_weight.size()[-1:], weight=w['blocks.0.ln0.weight'].flatten(), bias=w['blocks.0.ln0.bias'].flatten())
         if self.args.USE_EMBEDDING:
             self.embedding = torch.nn.Embedding.from_pretrained(emb_weight)
+            if self.args.fp16:
+                self.embedding.half()
         else:
             if self.args.fp16:
                 self.emb_weight = emb_weight.half()
@@ -119,6 +121,9 @@ class RWKV_RNN(torch.nn.Module):
 
         if self.gpu:
             self.to(self.device)
+        
+        if self.args.fp16:
+            self.half()
 
     def forward(self, in0, *args):
         state = [*args]
