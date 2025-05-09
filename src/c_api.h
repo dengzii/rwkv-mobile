@@ -141,6 +141,8 @@ const char * rwkvmobile_dump_log();
 
 void rwkvmobile_set_loglevel(int loglevel);
 
+void rwkvmobile_set_cache_dir(rwkvmobile_runtime_t runtime, const char * cache_dir);
+
 #ifdef __cplusplus
 }
 #endif

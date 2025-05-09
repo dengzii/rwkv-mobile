@@ -2,6 +2,7 @@
 #include "backend.h"
 #include "logger.h"
 #include <functional>
+#include <filesystem>
 #include <chrono>
 #include <fstream>
 #include <cstdlib>
@@ -843,12 +844,110 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
     std::vector<int> speech_tokens;
     std::vector<std::vector<float>> speech_features(80);
     std::vector<float> speech_embedding;
-    if (!prompt_wav_path.empty()) {
+
+    auto calc_checksum = [](const std::string &path) -> unsigned int {
+        std::ifstream file(path, std::ios::binary);
+        if (!file) {
+            LOGE("[TTS] Failed to open prompt wav file: %s", path.c_str());
+            return 0;
+        }
+
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        std::string content = buffer.str();
+        file.close();
+
+        // Simple checksum calculation
+        uint32_t checksum = 0;
+        for (char c : content) {
+            checksum = ((checksum << 5) + checksum) + c;
+        }
+        return checksum;
+    };
+
+    bool read_from_cache = false;
+    if (!_cache_dir.empty() && !prompt_speech_text.empty()) {
+        uint32_t checksum = calc_checksum(prompt_wav_path);
+        if (checksum == 0) {
+            LOGE("[TTS] Failed to calculate checksum of prompt wav file: %s", prompt_wav_path.c_str());
+            return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+        }
+
+        std::string cache_dir = _cache_dir + "/tts_cache/";
+        if (!std::filesystem::exists(cache_dir)) {
+            std::filesystem::create_directory(cache_dir);
+        }
+
+        std::string cache_file = cache_dir + std::to_string(checksum) + ".cache";
+
+        if (std::filesystem::exists(cache_file)) {
+            std::ifstream cache(cache_file, std::ios::binary);
+            if (cache) {
+                LOGI("[TTS] Loading cached speech tokens/features/embedding");
+                
+                size_t tokens_size;
+                cache.read(reinterpret_cast<char*>(&tokens_size), sizeof(size_t));
+                speech_tokens.resize(tokens_size);
+                cache.read(reinterpret_cast<char*>(speech_tokens.data()), tokens_size * sizeof(int));
+
+                size_t features_size;
+                cache.read(reinterpret_cast<char*>(&features_size), sizeof(size_t));
+                for (size_t i = 0; i < features_size; i++) {
+                    size_t feature_len;
+                    cache.read(reinterpret_cast<char*>(&feature_len), sizeof(size_t));
+                    speech_features[i].resize(feature_len);
+                    cache.read(reinterpret_cast<char*>(speech_features[i].data()), feature_len * sizeof(float));
+                }
+
+                size_t embedding_size; 
+                cache.read(reinterpret_cast<char*>(&embedding_size), sizeof(size_t));
+                speech_embedding.resize(embedding_size);
+                cache.read(reinterpret_cast<char*>(speech_embedding.data()), embedding_size * sizeof(float));
+
+                cache.close();
+                read_from_cache = true;
+                LOGI("[TTS] Loaded speech tokens/features/embedding from cache file: %s", cache_file.c_str());
+            }
+        }
+    }
+
+    if (!read_from_cache && !prompt_wav_path.empty()) {
         if (_cosyvoice->process_zeroshot(prompt_wav_path, speech_tokens, speech_features, speech_embedding, 24000) != true) {
             LOGE("[TTS] Failed to process prompt audio");
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
         }
-    } else {
+
+        // save to cache if the prompt wav has corresponding prompt speech text
+        if (!_cache_dir.empty() && !prompt_speech_text.empty()) {
+            uint32_t checksum = calc_checksum(prompt_wav_path);
+            if (checksum == 0) {
+                LOGE("[TTS] Failed to calculate checksum of prompt wav file: %s", prompt_wav_path.c_str());
+                return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+            }
+
+            std::string cache_file = _cache_dir + "/tts_cache/" + std::to_string(checksum) + ".cache";
+            std::ofstream cache(cache_file, std::ios::binary);
+            if (cache) {
+                size_t tokens_size = speech_tokens.size();
+                cache.write(reinterpret_cast<const char*>(&tokens_size), sizeof(size_t));
+                cache.write(reinterpret_cast<const char*>(speech_tokens.data()), speech_tokens.size() * sizeof(int));
+
+                size_t features_size = speech_features.size();
+                cache.write(reinterpret_cast<const char*>(&features_size), sizeof(size_t));
+                for (size_t i = 0; i < features_size; i++) {
+                    size_t feature_len = speech_features[i].size();
+                    cache.write(reinterpret_cast<const char*>(&feature_len), sizeof(size_t));
+                    cache.write(reinterpret_cast<const char*>(speech_features[i].data()), feature_len * sizeof(float));
+                }
+
+                size_t embedding_size = speech_embedding.size();
+                cache.write(reinterpret_cast<const char*>(&embedding_size), sizeof(size_t));
+                cache.write(reinterpret_cast<const char*>(speech_embedding.data()), speech_embedding.size() * sizeof(float));
+                cache.close();
+                LOGI("[TTS] Saved speech tokens/features/embedding to cache file: %s", cache_file.c_str());
+            }
+        }
+    } else if (prompt_wav_path.empty()) {
         LOGE("[TTS] No prompt wav path provided");
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }

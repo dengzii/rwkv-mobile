@@ -271,10 +271,14 @@ public:
         }
         return _sampler->sample(logits.data(), logits.size(), _temperature, _top_k, _top_p);
     }
+
+    inline void set_cache_dir(std::string cache_dir) { _cache_dir = cache_dir; }
 private:
     std::unique_ptr<execution_provider, std::function<void(execution_provider*)>> _backend;
     std::unique_ptr<tokenizer_base, std::function<void(tokenizer_base*)>> _tokenizer;
     std::unique_ptr<sampler> _sampler;
+
+    std::string _cache_dir = "";
 
     soc_detect _soc_detect;
 

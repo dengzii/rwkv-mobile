@@ -585,5 +585,13 @@ void rwkvmobile_set_loglevel(int loglevel) {
     logger_set_loglevel(loglevel);
 }
 
+void rwkvmobile_set_cache_dir(rwkvmobile_runtime_t runtime, const char * cache_dir) {
+    if (cache_dir == nullptr) {
+        return;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    rt->set_cache_dir(std::string(cache_dir));
+}
+
 } // extern "C"
 } // namespace rwkvmobile
