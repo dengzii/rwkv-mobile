@@ -812,11 +812,16 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
     tts_text = _cosyvoice->normalize_text(tts_text);
     std::vector<int> tts_tokens = _tokenizer->encode(tts_text);
     std::vector<int> prompt_tokens;
+    std::string input_text = "";
     if (!prompt_speech_text.empty()) {
         prompt_tokens = _tokenizer->encode(prompt_speech_text);
+        input_text = prompt_speech_text;
     } else if (!instruction_text.empty()) {
         prompt_tokens = _tokenizer->encode(instruction_text + "<|endofprompt|>");
+        input_text = instruction_text + "<|endofprompt|>";
     }
+    input_text += tts_text;
+    LOGD("[TTS] input text: %s", input_text.c_str());
 
     int min_len, max_len;
     std::vector<int> llm_tokens = _cosyvoice->get_llm_tokens(tts_tokens, prompt_tokens, min_len, max_len);
