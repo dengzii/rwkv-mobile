@@ -541,36 +541,6 @@ int rwkvmobile_runtime_run_tts(rwkvmobile_runtime_t runtime, const char * tts_te
 #endif
 }
 
-int rwkvmobile_runtime_run_tts_with_predefined_spks(rwkvmobile_runtime_t runtime, const char * tts_text, const char * instruction_text, const char * spk_name, const char * output_wav_path) {
-#if ENABLE_TTS
-    if (runtime == nullptr || tts_text == nullptr || spk_name == nullptr || output_wav_path == nullptr) {
-        return RWKV_ERROR_INVALID_PARAMETERS;
-    }
-    auto rt = static_cast<class runtime *>(runtime);
-    std::string instruction_text_str;
-    if (instruction_text == nullptr) {
-        instruction_text_str = "";
-    } else {
-        instruction_text_str = std::string(instruction_text);
-    }
-    return rt->run_tts_with_predefined_spks(tts_text, instruction_text_str, spk_name, output_wav_path);
-#else
-    return RWKV_ERROR_UNSUPPORTED;
-#endif
-}
-
-const char * rwkvmobile_runtime_cosyvoice_get_spk_names(rwkvmobile_runtime_t runtime) {
-#if ENABLE_TTS
-    if (runtime == nullptr) {
-        return nullptr;
-    }
-    auto rt = static_cast<class runtime *>(runtime);
-    return rt->cosyvoice_get_spk_names().c_str();
-#else
-    return nullptr;
-#endif
-}
-
 int rwkvmobile_runtime_cosyvoice_set_cfm_steps(rwkvmobile_runtime_t runtime, int cfm_steps) {
 #if ENABLE_TTS
     if (runtime == nullptr) {

@@ -793,7 +793,7 @@ int runtime::cosyvoice_release_models() {
 }
 
 int runtime::run_tts_internal(std::string tts_text, std::string instruction_text,
-    const std::string prompt_wav_path, const std::string spk_name, const std::string prompt_speech_text,
+    const std::string prompt_wav_path, const std::string prompt_speech_text,
     std::vector<float> &output_samples) {
 #ifdef __ANDROID__
     setenv("KMP_DUPLICATE_LIB_OK", "1", 1);
@@ -823,21 +823,20 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
     LOGD("[TTS] input text: %s", input_text.c_str());
 
     int content_length = llm_tokens.size();
-    for (int i = 0; i < llm_tokens.size(); i++) {
-        if (llm_tokens[i] == 65531) {
-            content_length = content_length - (i + 1);
-            break;
-        }
+    auto it = std::find(llm_tokens.begin(), llm_tokens.end(), 65531);
+    if (it != llm_tokens.end()) {
+        content_length = std::distance(llm_tokens.begin(), it);
     }
 
-    float max_token_text_ratio = 20;
-    float min_token_text_ratio = 2;
-    int min_len = content_length * min_token_text_ratio;
-    int max_len = content_length * max_token_text_ratio;
+    const float max_token_text_ratio = 20;
+    const float min_token_text_ratio = 2;
+    const int min_len = content_length * min_token_text_ratio;
+    const int max_len = content_length * max_token_text_ratio;
     LOGI("[TTS] min_len: %d, max_len: %d", min_len, max_len);
 
-    int sos_eos_token = 72110;
-    int task_token = 72111;
+    const int sos_eos_token = 72110;
+    const int task_token = 72111;
+    const int speech_vocab_offset = 65548;
     llm_tokens.insert(llm_tokens.begin(), sos_eos_token);
     llm_tokens.push_back(task_token);
 
@@ -849,15 +848,11 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
             LOGE("[TTS] Failed to process prompt audio");
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
         }
-    } else if (!spk_name.empty()) {
-        speech_embedding = _cosyvoice->get_spk_embedding(spk_name);
-        if (speech_embedding.empty()) {
-            LOGE("[TTS] Failed to get spk embedding");
-            return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
-        }
+    } else {
+        LOGE("[TTS] No prompt wav path provided");
+        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
 
-    const int speech_vocab_offset = 65548;
     if (!prompt_speech_text.empty()) {
         for (auto token : speech_tokens) {
             llm_tokens.push_back(token + speech_vocab_offset);
@@ -915,7 +910,7 @@ int runtime::run_tts(std::string tts_text, std::string instruction_text, std::st
     }
 
     std::vector<float> output_samples;
-    run_tts_internal(tts_text, instruction_text, prompt_wav_path, "", prompt_speech_text, output_samples);
+    run_tts_internal(tts_text, instruction_text, prompt_wav_path, prompt_speech_text, output_samples);
 
     if (!output_wav_path.empty()) {
         save_samples_to_wav(output_samples, output_wav_path);
@@ -924,29 +919,6 @@ int runtime::run_tts(std::string tts_text, std::string instruction_text, std::st
     return RWKV_SUCCESS;
 }
 
-int runtime::run_tts_with_predefined_spks(std::string tts_text, std::string instruction_text, std::string spks_name, std::string output_wav_path) {
-    if (_cosyvoice == nullptr) {
-        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
-    }
-
-    std::vector<float> speech_embedding = _cosyvoice->get_spk_embedding(spks_name);
-    
-    std::vector<float> output_samples;
-    run_tts_internal(tts_text, instruction_text, "", spks_name, "", output_samples);
-
-    if (!output_wav_path.empty()) {
-        save_samples_to_wav(output_samples, output_wav_path);
-    }
-
-    return RWKV_SUCCESS;
-}
-
-std::string runtime::cosyvoice_get_spk_names() {
-    if (_cosyvoice == nullptr) {
-        return "";
-    }
-    return _cosyvoice->get_spk_names();
-}
 #endif
 
 int runtime::gen_completion(std::string prompt, int max_length, int stop_code, void (*callback)(const char *, const int)) {

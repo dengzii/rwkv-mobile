@@ -117,49 +117,6 @@ bool cosyvoice::load_hift_generator(const std::string model_path) {
     return true;
 }
 
-bool cosyvoice::load_spk_info(const std::string spk_info_path) {
-    try {
-        std::ifstream ifs(spk_info_path, std::ios::binary);
-        if (!ifs.is_open()) {
-            LOGE("[TTS] Failed to open spk_info file: %s", spk_info_path.c_str());
-            return false;
-        }
-        ifs.seekg(0, std::ios::end);
-        auto size = ifs.tellg();
-        ifs.seekg(0, std::ios::beg);
-
-        std::vector<uint8_t> buffer(size);
-        ifs.read(reinterpret_cast<char*>(buffer.data()), size);
-        msgpack::object_handle oh = msgpack::unpack(reinterpret_cast<const char*>(buffer.data()), buffer.size());
-        msgpack::object obj = oh.get();
-        spk_info = obj.as<std::map<std::string, std::vector<float>>>();
-        return true;
-    } catch (const std::exception& e) {
-        LOGE("[TTS] Failed to load spk_info: %s", e.what());
-        return false;
-    }
-}
-
-int cosyvoice::get_spk_count() {
-    return spk_info.size();
-}
-
-std::string cosyvoice::get_spk_names() {
-    std::string spk_names;
-    for (auto& [key, value] : spk_info) {
-        spk_names += "'" + key + "',";
-    }
-    return spk_names;
-}
-
-std::vector<float> cosyvoice::get_spk_embedding(const std::string spk_name) {
-    if (spk_info.find(spk_name) == spk_info.end()) {
-        LOGE("[TTS] Spk name not found: %s", spk_name.c_str());
-        return std::vector<float>();
-    }
-    return spk_info[spk_name];
-}
-
 std::vector<int> cosyvoice::extract_speech_tokens(std::vector<float> audio_samples, int sample_rate) {
     if (speech_tokenizer_session == nullptr) {
         LOGE("[TTS] speech_tokenizer model not loaded.");
@@ -582,7 +539,7 @@ int cosyvoice::speech_token_sampler(float *logits, size_t size, std::vector<int>
         }
 
         for (auto &[token, count] : rep_count) {
-            logits[token] -= count * 0.5 + 0.5;
+            logits[token] -= count * 0.5 + 0.2;
         }
 
         if (rep_count[token_id] >= win_size * tau_r) {
