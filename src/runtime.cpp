@@ -852,16 +852,20 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
             return 0;
         }
 
-        std::stringstream buffer;
-        buffer << file.rdbuf();
-        std::string content = buffer.str();
+        uint32_t checksum = 0;
+        char buffer[4096];
+        while (file.read(buffer, sizeof(buffer))) {
+            for (size_t i = 0; i < file.gcount(); i++) {
+                checksum = ((checksum << 5) + checksum) + buffer[i];
+            }
+        }
+        if (file.gcount() > 0) {
+            for (size_t i = 0; i < file.gcount(); i++) {
+                checksum = ((checksum << 5) + checksum) + buffer[i];
+            }
+        }
         file.close();
 
-        // Simple checksum calculation
-        uint32_t checksum = 0;
-        for (char c : content) {
-            checksum = ((checksum << 5) + checksum) + c;
-        }
         return checksum;
     };
 
