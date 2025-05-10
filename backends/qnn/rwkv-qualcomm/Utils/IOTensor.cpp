@@ -348,7 +348,7 @@ bool IOTensor::mapFusedBufferOffset(
       Qnn_Tensor_t* tensor    = &GET_TENSOR_WRAPPER_TENSOR(tensor_wrapper);
       std::string tensor_name = std::string(GET_TENSOR_WRAPPER_NAME(tensor_wrapper));
 
-      if (!graph_allocs.contains(tensor_name)) continue;
+      if (graph_allocs.find(tensor_name) == graph_allocs.end()) continue;
       auto& [alloc_idx, offset, size] = graph_allocs.at(tensor_name);
       ret &= m_bufferManager->mapFusedBufferOffset(tensor, alloc_idx, offset, context_handle, size);
     }

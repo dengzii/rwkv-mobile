@@ -364,7 +364,7 @@ bool RpcMem::mapFusedBufferOffset(Qnn_Tensor_t* tensor,
     // For inital tensors, we need to check if the tensor can re-use a memHandle
     // from another tensor in the same context
     auto memConfig = std::make_tuple(fd, offset, contextHandle);
-    if (memConfigList.contains(memConfig)) {
+    if (memConfigList.find(memConfig) != memConfigList.end()) {
       auto& parentTensor              = memConfigList[memConfig];
       Qnn_MemHandle_t parentMemHandle = QNN_TENSOR_GET_MEM_HANDLE(parentTensor);
       QNN_TENSOR_SET_MEM_TYPE(tensor, QNN_TENSORMEMTYPE_MEMHANDLE);
