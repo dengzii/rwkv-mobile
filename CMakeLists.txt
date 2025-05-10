@@ -325,7 +325,12 @@ if (BUILD_STATIC_LIB)
     # endif()
 
     if (ENABLE_WHISPER OR ENABLE_TTS)
-        set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST} $<TARGET_FILE:soxr> $<TARGET_FILE:kaldi-native-fbank-core>)
+        set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST}
+            $<TARGET_FILE:soxr>
+            $<TARGET_FILE:kaldi-native-fbank-core>
+            $<TARGET_FILE:kaldifst_core>
+            $<TARGET_FILE:fst>
+        )
         # if (IOS)
         #     set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST} ${CMAKE_SOURCE_DIR}/src/multimodal/utils/onnxruntime/obj/ios-arm64/libonnxruntime.a)
         # endif()
