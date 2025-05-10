@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(rwkv-mobile CXX)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 
 include(FetchContent)
 
@@ -130,6 +130,8 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
             src/multimodal/tts/cosyvoice.cpp
             src/multimodal/tts/frontend_utils.cpp
         )
+
+        include(kaldifst)
     endif()
 
     message(CHECK_START "Fetching Eigen3")
@@ -192,7 +194,7 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
         elseif (APPLE AND NOT IOS)
             target_link_directories(rwkv_mobile_internal PUBLIC src/multimodal/utils/onnxruntime/obj/macos-arm64/)
         endif()
-        target_link_libraries(rwkv_mobile_internal PUBLIC $<TARGET_OBJECTS:kaldi-native-fbank-core>)
+        target_link_libraries(rwkv_mobile_internal PUBLIC $<TARGET_OBJECTS:kaldi-native-fbank-core> kaldifst_core)
         if (ANDROID)
             target_link_libraries(rwkv_mobile_internal PUBLIC absl_bad_optional_access absl_bad_variant_access absl_base absl_city absl_civil_time absl_cord absl_cord_internal absl_cordz_functions absl_cordz_handle absl_cordz_info absl_crc32c absl_crc_cord_state absl_crc_cpu_detect absl_crc_internal absl_debugging_internal absl_decode_rust_punycode absl_demangle_internal absl_demangle_rust absl_examine_stack absl_exponential_biased absl_flags_commandlineflag absl_flags_commandlineflag_internal absl_flags_config absl_flags_internal absl_flags_marshalling absl_flags_private_handle_accessor absl_flags_program_name absl_flags_reflection absl_graphcycles_internal absl_hash absl_hashtablez_sampler absl_int128 absl_kernel_timeout_internal absl_log_entry absl_log_globals absl_log_internal_check_op absl_log_internal_conditions absl_log_internal_fnmatch absl_log_internal_format absl_log_internal_globals absl_log_internal_log_sink_set absl_log_internal_message absl_log_internal_nullguard absl_log_internal_proto absl_log_severity absl_log_sink absl_low_level_hash absl_malloc_internal absl_raw_hash_set absl_raw_logging_internal absl_spinlock_wait absl_stacktrace absl_strerror absl_str_format_internal absl_strings absl_strings_internal absl_string_view absl_symbolize absl_synchronization absl_throw_delegate absl_time absl_time_zone absl_utf8_for_code_point absl_vlog_config_internal cpuinfo flatbuffers nsync_cpp onnx onnx_proto onnxruntime_common onnxruntime_flatbuffers onnxruntime_framework onnxruntime_graph onnxruntime_lora onnxruntime_mlas onnxruntime_optimizer onnxruntime_providers onnxruntime_session onnxruntime_util protobuf-lite re2)
         elseif (NOT IOS)
