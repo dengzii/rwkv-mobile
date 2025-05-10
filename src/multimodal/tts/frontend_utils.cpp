@@ -8,6 +8,8 @@
 #include <iomanip>
 #include <iostream>
 
+#include "frontend_utils.h"
+
 namespace rwkvmobile {
 
 namespace tts_frontend_utils {
@@ -105,10 +107,10 @@ std::vector<std::string> split_paragraph(
     const std::string& text,
     const std::function<std::vector<int>(const std::string&)>& tokenize,
     const bool is_chinese,
-    size_t token_max_n = 80,
-    size_t token_min_n = 60,
-    size_t merge_len = 20,
-    bool comma_split = false
+    size_t token_max_n,
+    size_t token_min_n,
+    size_t merge_len,
+    bool comma_split
 ) {
     // Lambda function to calculate utterance length
     auto calc_utt_length = [&tokenize, &is_chinese](const std::string& text) -> size_t {
@@ -206,10 +208,11 @@ std::vector<std::string> split_paragraph(
 std::vector<std::string> process_text(
     const std::string& text,
     const std::function<std::vector<int>(const std::string&)>& tokenize,
-    size_t token_max_n = 80,
-    size_t token_min_n = 60,
-    size_t merge_len = 20,
-    bool comma_split = false
+    std::vector<std::unique_ptr<kaldifst::TextNormalizer>> & tn_list_zh,
+    size_t token_max_n,
+    size_t token_min_n,
+    size_t merge_len,
+    bool comma_split
 ) {
     const bool is_chinese = contains_chinese(text);
 
@@ -226,6 +229,12 @@ std::vector<std::string> process_text(
     // TODO: add text_normalizer libraries like WeTextProcessing
     std::string processed_text = text;
     if (is_chinese) {
+        if (!tn_list_zh.empty()) {
+            for (const auto& tn : tn_list_zh) {
+                processed_text = tn->Normalize(processed_text);
+            }
+        }
+
         processed_text = replace_text(processed_text, "\n", "");
         processed_text = replace_blank(processed_text);
         processed_text = replace_corner_mark(processed_text);

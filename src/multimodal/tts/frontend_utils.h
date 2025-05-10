@@ -5,6 +5,8 @@
 #include <vector>
 #include <functional>
 
+#include "kaldifst/csrc/text-normalizer.h"
+
 namespace rwkvmobile {
 
 namespace tts_frontend_utils {
@@ -37,6 +39,7 @@ std::vector<std::string> split_paragraph(
 std::vector<std::string> process_text(
     const std::string& text,
     const std::function<std::vector<int>(const std::string&)>& tokenize,
+    std::vector<std::unique_ptr<kaldifst::TextNormalizer>> & tn_list_zh,
     size_t token_max_n = 80,
     size_t token_min_n = 60,
     size_t merge_len = 20,

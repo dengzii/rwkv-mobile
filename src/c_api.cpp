@@ -553,6 +553,18 @@ int rwkvmobile_runtime_cosyvoice_set_cfm_steps(rwkvmobile_runtime_t runtime, int
 #endif
 }
 
+int rwkvmobile_runtime_tts_register_text_normalizer(rwkvmobile_runtime_t runtime, const char * path) {
+#if ENABLE_TTS
+    if (runtime == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->tts_register_text_normalizer(std::string(path));
+#else
+    return RWKV_ERROR_UNSUPPORTED;
+#endif
+}
+
 const char * rwkvmobile_get_platform_name() {
     soc_detect soc_detect;
     soc_detect.detect_platform();

@@ -25,6 +25,7 @@
 
 #ifdef ENABLE_TTS
 #include "cosyvoice.h"
+#include "kaldifst/csrc/text-normalizer.h"
 #endif
 
 namespace rwkvmobile {
@@ -96,6 +97,15 @@ public:
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
         }
         _cosyvoice->set_cfm_steps(cfm_steps);
+        return RWKV_SUCCESS;
+    }
+
+    int tts_register_text_normalizer(std::string path) {
+        if (!std::ifstream(path).good()) {
+            LOGE("[TTS] Failed to load text normalizer file %s\n", path.c_str());
+            return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+        }
+        _tn_list.push_back(std::make_unique<kaldifst::TextNormalizer>(path));
         return RWKV_SUCCESS;
     }
 #endif
@@ -329,6 +339,7 @@ private:
 
 #ifdef ENABLE_TTS
     std::unique_ptr<cosyvoice> _cosyvoice;
+    std::vector<std::unique_ptr<kaldifst::TextNormalizer>> _tn_list;
 #endif
 };
 
