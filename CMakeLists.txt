@@ -123,11 +123,16 @@ endif()
 if (ENABLE_WHISPER OR ENABLE_TTS)
     set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS}
         src/multimodal/utils/audio.cpp
-        src/multimodal/tts/cosyvoice.cpp
-        src/multimodal/tts/frontend_utils.cpp
     )
-    message(CHECK_START "Fetching Eigen3")
 
+    if (ENABLE_TTS)
+        set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS}
+            src/multimodal/tts/cosyvoice.cpp
+            src/multimodal/tts/frontend_utils.cpp
+        )
+    endif()
+
+    message(CHECK_START "Fetching Eigen3")
     FetchContent_Declare(
         Eigen
         GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
@@ -170,24 +175,6 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     option(KALDI_NATIVE_FBANK_BUILD_PYTHON "" OFF)
     option(KALDI_NATIVE_FBANK_BUILD_TESTS "" OFF)
     FetchContent_MakeAvailable(kaldi_native_fbank)
-
-    FetchContent_Declare(
-        msgpack
-        GIT_REPOSITORY https://github.com/msgpack/msgpack-c
-        GIT_TAG cpp-6.1.0
-        SYSTEM
-    )
-    option(MSGPACK_USE_BOOST "" OFF)
-    FetchContent_MakeAvailable(msgpack)
-
-    # FetchContent_Declare(
-    #     WeTextProcessing
-    #     GIT_REPOSITORY https://github.com/MollySophia/WeTextProcessing
-    #     GIT_TAG master
-    # )
-    # FetchContent_MakeAvailable(WeTextProcessing)
-    # set(HAVE_EXECINFO_H 0)
-    # add_subdirectory(${CMAKE_BINARY_DIR}/_deps/wetextprocessing-src/runtime)
 endif()
 
 add_library(rwkv_mobile_internal STATIC ${RWKV_MOBILE_SRCS})
@@ -195,8 +182,7 @@ target_include_directories(rwkv_mobile_internal PUBLIC src)
 
 if (ENABLE_WHISPER OR ENABLE_TTS)
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_TTS)
-    target_compile_definitions(rwkv_mobile_internal PUBLIC MSGPACK_NO_BOOST)
-    target_link_libraries(rwkv_mobile_internal PUBLIC Eigen3::Eigen msgpack-cxx)
+    target_link_libraries(rwkv_mobile_internal PUBLIC Eigen3::Eigen)
     target_link_libraries(rwkv_mobile_internal PRIVATE $<TARGET_OBJECTS:soxr>)
     if (ENABLE_TTS)
         if (ANDROID)
@@ -216,8 +202,7 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     endif()
     target_include_directories(rwkv_mobile_internal PUBLIC ${Eigen_SOURCE_DIR} ${libsoxr_SOURCE_DIR}/src 
         src/multimodal/tts src/multimodal/utils 
-        src/multimodal/utils/onnxruntime/include
-        ${msgpack_SOURCE_DIR}/include)
+        src/multimodal/utils/onnxruntime/include)
 endif()
 
 if (ENABLE_WEBRWKV_BACKEND)
