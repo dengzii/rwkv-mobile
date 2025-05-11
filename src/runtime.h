@@ -106,6 +106,12 @@ public:
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
         }
         _tn_list.push_back(std::make_unique<kaldifst::TextNormalizer>(path));
+        LOGI("[TTS] Loaded text normalizer file %s\n", path.c_str());
+        return RWKV_SUCCESS;
+    }
+
+    int tts_clear_text_normalizer() {
+        _tn_list.clear();
         return RWKV_SUCCESS;
     }
 

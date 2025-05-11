@@ -499,6 +499,7 @@ int rwkvmobile_runtime_cosyvoice_load_models(rwkvmobile_runtime_t runtime, const
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
     auto rt = static_cast<class runtime *>(runtime);
+    rt->tts_clear_text_normalizer();
     return rt->cosyvoice_load_models(speech_tokenizer_path, campplus_path, flow_encoder_path, flow_decoder_estimator_path, hift_generator_path, tts_tokenizer_path);
 #else
     return RWKV_ERROR_UNSUPPORTED;
