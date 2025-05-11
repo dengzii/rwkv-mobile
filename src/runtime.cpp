@@ -33,6 +33,10 @@
 #include "whisper.h"
 #endif
 
+#ifdef ENABLE_TTS
+#include "frontend_utils.h"
+#endif
+
 #if defined(ENABLE_TTS) || defined(ENABLE_WHISPER)
 #include "audio.h"
 #endif
@@ -796,9 +800,6 @@ int runtime::cosyvoice_release_models() {
 int runtime::run_tts_internal(std::string tts_text, std::string instruction_text,
     const std::string prompt_wav_path, const std::string prompt_speech_text,
     std::vector<float> &output_samples) {
-#ifdef __ANDROID__
-    setenv("KMP_DUPLICATE_LIB_OK", "1", 1);
-#endif
     if (_cosyvoice == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
@@ -845,7 +846,7 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
     std::vector<std::vector<float>> speech_features(80);
     std::vector<float> speech_embedding;
 
-    auto calc_checksum = [](const std::string &path) -> unsigned int {
+    static auto calc_checksum = [](const std::string &path) -> unsigned int {
         std::ifstream file(path, std::ios::binary);
         if (!file) {
             LOGE("[TTS] Failed to open prompt wav file: %s", path.c_str());
@@ -1012,11 +1013,28 @@ int runtime::run_tts(std::string tts_text, std::string instruction_text, std::st
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
 
-    std::vector<float> output_samples;
-    run_tts_internal(tts_text, instruction_text, prompt_wav_path, prompt_speech_text, output_samples);
+    _tts_last_output_files.clear();
 
-    if (!output_wav_path.empty()) {
-        save_samples_to_wav(output_samples, output_wav_path);
+    auto texts = tts_frontend_utils::process_text(tts_text,
+        [this](const std::string& text) -> std::vector<int> {
+            return tokenizer_encode(text);
+        },
+        _tn_list
+    );
+
+    if (output_wav_path.find(".wav") != std::string::npos) {
+        output_wav_path = output_wav_path.substr(0, output_wav_path.find(".wav"));
+    }
+
+    for (int i = 0; i < texts.size(); i++) {
+        LOGI("[TTS] Split text %i: %s\n", i, texts[i].c_str());
+        std::vector<float> output_samples;
+        run_tts_internal(texts[i], instruction_text, prompt_wav_path, prompt_speech_text, output_samples);
+
+        auto output_file = output_wav_path + "." + std::to_string(i) + ".wav";
+        save_samples_to_wav(output_samples, output_file);
+        LOGI("[TTS] Saved file %s\n", output_file.c_str());
+        _tts_last_output_files.push_back(output_file);
     }
 
     return RWKV_SUCCESS;

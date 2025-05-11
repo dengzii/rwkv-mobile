@@ -121,6 +121,10 @@ int rwkvmobile_runtime_cosyvoice_set_cfm_steps(rwkvmobile_runtime_t runtime, int
 
 int rwkvmobile_runtime_tts_register_text_normalizer(rwkvmobile_runtime_t runtime, const char * path);
 
+const char * rwkvmobile_runtime_tts_get_last_output_files(rwkvmobile_runtime_t runtime);
+
+float rwkvmobile_runtime_tts_get_generation_progress(rwkvmobile_runtime_t runtime);
+
 // platform info
 const char * rwkvmobile_get_platform_name();
 

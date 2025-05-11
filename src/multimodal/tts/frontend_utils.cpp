@@ -226,9 +226,11 @@ std::vector<std::string> process_text(
         return result;
     };
 
-    // TODO: add text_normalizer libraries like WeTextProcessing
     std::string processed_text = text;
     if (is_chinese) {
+        std::regex percentage_pattern("([0-9]+\\.?[0-9]*|π|e)%");
+        processed_text = std::regex_replace(processed_text, percentage_pattern, "百分之$1");
+
         if (!tn_list_zh.empty()) {
             for (const auto& tn : tn_list_zh) {
                 processed_text = tn->Normalize(processed_text);
@@ -241,6 +243,7 @@ std::vector<std::string> process_text(
         processed_text = replace_text(processed_text, ".", "。");
         processed_text = replace_text(processed_text, " - ", "，");
         processed_text = remove_bracket(processed_text);
+
         const std::regex punctuation_pattern("[，,、]+$");
         processed_text = std::regex_replace(processed_text, punctuation_pattern, "。");
     } else {

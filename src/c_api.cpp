@@ -565,6 +565,23 @@ int rwkvmobile_runtime_tts_register_text_normalizer(rwkvmobile_runtime_t runtime
 #endif
 }
 
+const char * rwkvmobile_runtime_tts_get_last_output_files(rwkvmobile_runtime_t runtime) {
+#if ENABLE_TTS
+    if (runtime == nullptr) {
+        return nullptr;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->tts_get_last_output_files().c_str();
+#else
+    return nullptr;
+#endif
+}
+
+float rwkvmobile_runtime_tts_get_generation_progress(rwkvmobile_runtime_t runtime) {
+    // TODO
+    return 0;
+}
+
 const char * rwkvmobile_get_platform_name() {
     soc_detect soc_detect;
     soc_detect.detect_platform();

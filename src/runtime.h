@@ -108,6 +108,14 @@ public:
         _tn_list.push_back(std::make_unique<kaldifst::TextNormalizer>(path));
         return RWKV_SUCCESS;
     }
+
+    std::string tts_get_last_output_files() {
+        std::string ret = "";
+        for (auto file : _tts_last_output_files) {
+            ret += '"' + file + "\",";
+        }
+        return ret;
+    }
 #endif
 
     int clear_state() {
@@ -340,6 +348,7 @@ private:
 #ifdef ENABLE_TTS
     std::unique_ptr<cosyvoice> _cosyvoice;
     std::vector<std::unique_ptr<kaldifst::TextNormalizer>> _tn_list;
+    std::vector<std::string> _tts_last_output_files;
 #endif
 };
 

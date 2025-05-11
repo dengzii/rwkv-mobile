@@ -550,6 +550,38 @@ late final _rwkvmobile_runtime_cosyvoice_set_cfm_stepsPtr = _lookup<
     ffi.NativeFunction<ffi.Int Function(rwkvmobile_runtime_t , ffi.Int )>>('rwkvmobile_runtime_cosyvoice_set_cfm_steps');
 late final _rwkvmobile_runtime_cosyvoice_set_cfm_steps = _rwkvmobile_runtime_cosyvoice_set_cfm_stepsPtr.asFunction<int Function(rwkvmobile_runtime_t , int )>();
 
+int rwkvmobile_runtime_tts_register_text_normalizer(rwkvmobile_runtime_t runtime,
+ffi.Pointer<ffi.Char> path,
+) {
+  return _rwkvmobile_runtime_tts_register_text_normalizer(runtime,
+path,
+);
+}
+
+late final _rwkvmobile_runtime_tts_register_text_normalizerPtr = _lookup<
+    ffi.NativeFunction<ffi.Int Function(rwkvmobile_runtime_t , ffi.Pointer<ffi.Char> )>>('rwkvmobile_runtime_tts_register_text_normalizer');
+late final _rwkvmobile_runtime_tts_register_text_normalizer = _rwkvmobile_runtime_tts_register_text_normalizerPtr.asFunction<int Function(rwkvmobile_runtime_t , ffi.Pointer<ffi.Char> )>();
+
+ffi.Pointer<ffi.Char> rwkvmobile_runtime_tts_get_last_output_files(rwkvmobile_runtime_t runtime,
+) {
+  return _rwkvmobile_runtime_tts_get_last_output_files(runtime,
+);
+}
+
+late final _rwkvmobile_runtime_tts_get_last_output_filesPtr = _lookup<
+    ffi.NativeFunction<ffi.Pointer<ffi.Char> Function(rwkvmobile_runtime_t )>>('rwkvmobile_runtime_tts_get_last_output_files');
+late final _rwkvmobile_runtime_tts_get_last_output_files = _rwkvmobile_runtime_tts_get_last_output_filesPtr.asFunction<ffi.Pointer<ffi.Char> Function(rwkvmobile_runtime_t )>();
+
+double rwkvmobile_runtime_tts_get_generation_progress(rwkvmobile_runtime_t runtime,
+) {
+  return _rwkvmobile_runtime_tts_get_generation_progress(runtime,
+);
+}
+
+late final _rwkvmobile_runtime_tts_get_generation_progressPtr = _lookup<
+    ffi.NativeFunction<ffi.Float Function(rwkvmobile_runtime_t )>>('rwkvmobile_runtime_tts_get_generation_progress');
+late final _rwkvmobile_runtime_tts_get_generation_progress = _rwkvmobile_runtime_tts_get_generation_progressPtr.asFunction<double Function(rwkvmobile_runtime_t )>();
+
 ffi.Pointer<ffi.Char> rwkvmobile_get_platform_name() {
   return _rwkvmobile_get_platform_name();
 }
