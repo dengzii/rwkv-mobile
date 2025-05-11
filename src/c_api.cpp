@@ -71,7 +71,7 @@ int rwkvmobile_runtime_eval_logits(rwkvmobile_runtime_t handle, const int * ids,
     return RWKV_SUCCESS;
 }
 
-int rwkvmobile_runtime_eval_chat(
+int rwkvmobile_runtime_eval_chat_async(
     rwkvmobile_runtime_t handle,
     const char * input,
     const int max_tokens,
@@ -97,7 +97,7 @@ int rwkvmobile_runtime_eval_chat(
     return RWKV_SUCCESS;
 }
 
-int rwkvmobile_runtime_eval_chat_with_history(
+int rwkvmobile_runtime_eval_chat_with_history_async(
     rwkvmobile_runtime_t handle,
     const char ** inputs,
     const int num_inputs,
@@ -130,7 +130,7 @@ int rwkvmobile_runtime_eval_chat_with_history(
     return RWKV_SUCCESS;
 }
 
-int rwkvmobile_runtime_gen_completion(
+int rwkvmobile_runtime_gen_completion_async(
     rwkvmobile_runtime_t handle,
     const char * prompt,
     const int max_tokens,
@@ -157,7 +157,7 @@ int rwkvmobile_runtime_gen_completion(
     return RWKV_SUCCESS;
 }
 
-int rwkvmobile_runtime_gen_completion_blocking(
+int rwkvmobile_runtime_gen_completion(
     rwkvmobile_runtime_t handle,
     const char * prompt,
     const int max_tokens,
@@ -541,6 +541,39 @@ int rwkvmobile_runtime_run_tts(rwkvmobile_runtime_t runtime, const char * tts_te
 #endif
 }
 
+int rwkvmobile_runtime_run_tts_async(rwkvmobile_runtime_t runtime, const char * tts_text, const char * instruction_text, const char * prompt_speech_text, const char * prompt_wav_path, const char * output_wav_path) {
+#if ENABLE_TTS
+    if (runtime == nullptr || tts_text == nullptr || prompt_wav_path == nullptr || output_wav_path == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    std::string instruction_text_str;
+    if (instruction_text == nullptr) {
+        instruction_text_str = "";
+    } else {
+        instruction_text_str = std::string(instruction_text);
+    }
+    std::string prompt_speech_text_str;
+    if (prompt_speech_text == nullptr) {
+        prompt_speech_text_str = "";
+    } else {
+        prompt_speech_text_str = std::string(prompt_speech_text);
+    }
+
+    rt->set_is_generating(true);
+    rt->set_stop_signal(false);
+    std::thread generation_thread([=]() {
+        int ret = rt->run_tts(tts_text, instruction_text_str, prompt_speech_text_str, prompt_wav_path, output_wav_path);
+        return ret;
+    });
+
+    generation_thread.detach();
+    return RWKV_SUCCESS;
+#else
+    return RWKV_ERROR_UNSUPPORTED;
+#endif
+}
+
 int rwkvmobile_runtime_cosyvoice_set_cfm_steps(rwkvmobile_runtime_t runtime, int cfm_steps) {
 #if ENABLE_TTS
     if (runtime == nullptr) {
@@ -578,8 +611,15 @@ const char * rwkvmobile_runtime_tts_get_last_output_files(rwkvmobile_runtime_t r
 }
 
 float rwkvmobile_runtime_tts_get_generation_progress(rwkvmobile_runtime_t runtime) {
-    // TODO
+#if ENABLE_TTS
+    if (runtime == nullptr) {
+        return 0;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->tts_get_generation_progress();
+#else
     return 0;
+#endif
 }
 
 const char * rwkvmobile_get_platform_name() {

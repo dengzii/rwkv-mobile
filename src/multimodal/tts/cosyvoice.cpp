@@ -300,7 +300,7 @@ bool cosyvoice::process_zeroshot(const std::string prompt_audio_path, std::vecto
     return true;
 }
 
-bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::vector<std::vector<float>> speech_features, const std::vector<float> speech_embedding, std::vector<float> &output_samples) {
+bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::vector<std::vector<float>> speech_features, const std::vector<float> speech_embedding, std::vector<float> &output_samples, std::function<void(float)> progress_callback) {
     if (flow_encoder_session == nullptr) {
         LOGE("[TTS] Flow encoder is not loaded");
         return false;

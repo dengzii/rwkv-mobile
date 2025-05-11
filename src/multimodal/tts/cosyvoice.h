@@ -43,7 +43,7 @@ public:
 
     bool process_zeroshot(const std::string prompt_audio_path, std::vector<int> &speech_tokens, std::vector<std::vector<float>> &speech_features, std::vector<float> &speech_embedding, const int resample_rate = 24000);
 
-    bool speech_token_to_wav(const std::vector<int> tokens, const std::vector<std::vector<float>> speech_features, const std::vector<float> speech_embedding, std::vector<float> &output_samples);
+    bool speech_token_to_wav(const std::vector<int> tokens, const std::vector<std::vector<float>> speech_features, const std::vector<float> speech_embedding, std::vector<float> &output_samples, std::function<void(float)> progress_callback = nullptr);
 
     std::vector<int> extract_speech_tokens(std::vector<float> audio_samples, int sample_rate);
 

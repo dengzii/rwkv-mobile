@@ -808,6 +808,7 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
 
+    _tts_generation_progress = 0.0;
     auto start = std::chrono::high_resolution_clock::now();
 
     // prepare input tokens for llm
@@ -963,6 +964,7 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
         }
     }
 
+    _tts_generation_progress = 0.2;
     std::string debug_msg = "tokens: [";
     for (int i = 0; i < llm_tokens.size(); i++) {
         debug_msg += std::to_string(llm_tokens[i]) + ", ";
@@ -986,6 +988,7 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
             }
             decoded_tokens.push_back(token_id);
             eval_logits(token_id + speech_vocab_offset, logits);
+            _tts_generation_progress = 0.2 + 0.3 * (float)i / max_len;
         }
         auto end = std::chrono::high_resolution_clock::now();
         LOGI("[TTS] llm decode time: %f ms", std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000.0);
@@ -999,12 +1002,18 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
     // }
 
     decoded_tokens.insert(decoded_tokens.begin(), speech_tokens.begin(), speech_tokens.end());
+    _tts_generation_progress = 0.5;
 
-    _cosyvoice->speech_token_to_wav(decoded_tokens, speech_features, speech_embedding, output_samples);
+    _cosyvoice->speech_token_to_wav(decoded_tokens, speech_features, speech_embedding, output_samples, 
+        [this](float progress) {
+            _tts_generation_progress = 0.5 + progress * 0.5;
+        }
+    );
     auto end = std::chrono::high_resolution_clock::now();
     LOGI("[TTS] total time: %f ms", std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000.0);
     LOGI("[TTS] output samples length: %f", output_samples.size() / 24000.0);
     LOGI("[TTS] rtf: %f", std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1e6f * 24000.0 / output_samples.size());
+    _tts_generation_progress = 1.0;
     return RWKV_SUCCESS;
 }
 
@@ -1037,6 +1046,7 @@ int runtime::run_tts(std::string tts_text, std::string instruction_text, std::st
         _tts_last_output_files.push_back(output_file);
     }
 
+    set_is_generating(false);
     return RWKV_SUCCESS;
 }
 

@@ -116,6 +116,10 @@ public:
         }
         return ret;
     }
+
+    float tts_get_generation_progress() {
+        return _tts_generation_progress;
+    }
 #endif
 
     int clear_state() {
@@ -349,6 +353,8 @@ private:
     std::unique_ptr<cosyvoice> _cosyvoice;
     std::vector<std::unique_ptr<kaldifst::TextNormalizer>> _tn_list;
     std::vector<std::string> _tts_last_output_files;
+
+    float _tts_generation_progress = 0.0;
 #endif
 };
 

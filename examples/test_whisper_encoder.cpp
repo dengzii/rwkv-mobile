@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
 
     rwkvmobile_runtime_set_audio_prompt(runtime, argv[4]);
 
-    rwkvmobile_runtime_eval_chat(runtime, "", 100, nullptr, 0);
+    rwkvmobile_runtime_eval_chat_async(runtime, "", 100, nullptr, 0);
 
     while (rwkvmobile_runtime_is_generating(runtime)) {
         sleep(1);
