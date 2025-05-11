@@ -676,10 +676,13 @@ int runtime::set_image_prompt(std::string path) {
         _backend->free_state(_state_head->next->state);
     }
 
+    auto start = std::chrono::high_resolution_clock::now();
     auto embd = llava_image_embed_make_with_filename(_vision_encoder.get(), 4, path.c_str());
     if (embd == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    LOGI("siglip duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
     float *logits = nullptr;
 
     int ret = eval_logits_with_embeddings(embd->embed, embd->n_image_pos, logits);
