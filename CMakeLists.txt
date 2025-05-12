@@ -103,6 +103,9 @@ if (ENABLE_MNN_BACKEND)
 
     if (ANDROID)
         option(MNN_ARM82 "" ON)
+    else()
+        # TODO: fix iOS MNN_ARM82
+        option(MNN_ARM82 "" OFF)
     endif()
 
     if (ANDROID)
