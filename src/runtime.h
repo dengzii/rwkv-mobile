@@ -115,12 +115,16 @@ public:
         return RWKV_SUCCESS;
     }
 
-    std::string tts_get_last_output_files() {
+    std::string tts_get_current_output_files() {
         std::string ret = "";
         for (auto file : _tts_last_output_files) {
             ret += '"' + file + "\",";
         }
         return ret;
+    }
+
+    int tts_get_num_total_output_wavs() {
+        return _tts_total_num_output_wavs;
     }
 
     float tts_get_generation_progress() {
@@ -361,6 +365,7 @@ private:
     std::vector<std::string> _tts_last_output_files;
 
     float _tts_generation_progress = 0.0;
+    int _tts_total_num_output_wavs = 0;
 #endif
 };
 

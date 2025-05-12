@@ -1034,6 +1034,8 @@ int runtime::run_tts(std::string tts_text, std::string instruction_text, std::st
         _tn_list
     );
 
+    _tts_total_num_output_wavs = texts.size();
+
     if (output_wav_path.find(".wav") != std::string::npos) {
         output_wav_path = output_wav_path.substr(0, output_wav_path.find(".wav"));
     }

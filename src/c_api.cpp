@@ -599,15 +599,27 @@ int rwkvmobile_runtime_tts_register_text_normalizer(rwkvmobile_runtime_t runtime
 #endif
 }
 
-const char * rwkvmobile_runtime_tts_get_last_output_files(rwkvmobile_runtime_t runtime) {
+const char * rwkvmobile_runtime_tts_get_current_output_files(rwkvmobile_runtime_t runtime) {
 #if ENABLE_TTS
     if (runtime == nullptr) {
         return nullptr;
     }
     auto rt = static_cast<class runtime *>(runtime);
-    return rt->tts_get_last_output_files().c_str();
+    return rt->tts_get_current_output_files().c_str();
 #else
     return nullptr;
+#endif
+}
+
+const int rwkvmobile_runtime_tts_get_num_total_output_wavs(rwkvmobile_runtime_t runtime) {
+#if ENABLE_TTS
+    if (runtime == nullptr) {
+        return 0;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->tts_get_num_total_output_wavs();
+#else
+    return 0;
 #endif
 }
 
