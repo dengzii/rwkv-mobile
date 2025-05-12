@@ -40,12 +40,10 @@ jobs:
         mkdir ../release-build ../debug-build
         cp librwkv_mobile.a ../release-build/librwkv_mobile.a
         cp _deps/ncnn-build/src/Release-iphoneos/libncnn.a ../release-build/libncnn.a
-        cp ../src/multimodal/utils/onnxruntime/obj/ios-arm64/libonnxruntime.a ../release-build/libonnxruntime.a
         rm librwkv_mobile.a
         cmake --build . --config Debug -j 8 -- CODE_SIGNING_ALLOWED=NO
         cp librwkv_mobile.a ../debug-build/librwkv_mobile.a
         cp _deps/ncnn-build/src/Release-iphoneos/libncnn.a ../debug-build/libncnn.a
-        cp ../src/multimodal/utils/onnxruntime/obj/ios-arm64/libonnxruntime.a ../debug-build/libonnxruntime.a
         rm librwkv_mobile.a
         cd ..
 
@@ -114,10 +112,6 @@ jobs:
     - uses: actions/checkout@v4
     - name: build-arm64
       run: |
-        # wget -q https://github.com/csukuangfj/onnxruntime-libs/releases/download/v1.20.2/onnxruntime.xcframework-1.20.2.tar.bz2
-        # tar -xvf onnxruntime.xcframework-1.20.2.tar.bz2
-        # mkdir -p src/multimodal/utils/onnxruntime/obj/macos-arm64
-        # cp ./onnxruntime.xcframework/macos-arm64_x86_64/onnxruntime.a src/multimodal/utils/onnxruntime/obj/macos-arm64/libonnxruntime.a
         rm -rf build-arm64 build-arm64-debug
         mkdir build-arm64 && cd build-arm64
         cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_TTS=OFF -DCMAKE_BUILD_TYPE=Release

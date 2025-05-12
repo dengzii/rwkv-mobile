@@ -4,30 +4,34 @@
 #include <map>
 #include "sampler.h"
 #include "tokenizer.h"
-#include "onnxruntime_cxx_api.h"
-#include "net.h"
+
+#include "MNN/Interpreter.hpp"
+#include <MNN/expr/Module.hpp>
 
 namespace rwkvmobile {
 
 class cosyvoice {
 public:
-    cosyvoice() {};
+    cosyvoice() {
+        MNN::ScheduleConfig config;
+        mnn_runtime = MNN::Interpreter::createRuntime({config});
+    };
 
     ~cosyvoice() {
-        if (speech_tokenizer_session) {
-            delete speech_tokenizer_session;
+        if (hift_generator_interpretor) {
+            delete hift_generator_interpretor;
         }
-        if (campplus_session) {
-            delete campplus_session;
+        if (speech_tokenizer_module) {
+            delete speech_tokenizer_module;
         }
-        if (flow_encoder_session) {
-            delete flow_encoder_session;
+        if (campplus_interpretor) {
+            delete campplus_interpretor;
         }
-        if (hift_generator_session) {
-            delete hift_generator_session;
+        if (flow_encoder_interpretor) {
+            delete flow_encoder_interpretor;
         }
-        if (env) {
-            delete env;
+        if (flow_decoder_interpretor) {
+            delete flow_decoder_interpretor;
         }
     };
 
@@ -49,8 +53,6 @@ public:
 
     std::vector<float> extract_speech_embedding(std::vector<float> audio_samples, int sample_rate);
 
-    std::string normalize_text(std::string text);
-
     int speech_token_sampler(float *logits, size_t size, std::vector<int> decoded_tokens, bool ignore_eos = false);
 
     int set_cfm_steps(int cfm_steps) {
@@ -62,13 +64,21 @@ public:
     }
 
 private:
-    Ort::Env *env = nullptr;
-    Ort::Session *speech_tokenizer_session = nullptr;
-    Ort::Session *campplus_session = nullptr;
-    Ort::Session *flow_encoder_session = nullptr;
-    Ort::Session *hift_generator_session = nullptr;
+    MNN::Interpreter *hift_generator_interpretor = nullptr;
+    MNN::Session *hift_generator_mnn_session = nullptr;
 
-    ncnn::Net flow_decoder_estimator_net;
+    MNN::Express::Module *speech_tokenizer_module = nullptr;
+
+    MNN::Interpreter *campplus_interpretor = nullptr;
+    MNN::Session *campplus_mnn_session = nullptr;
+
+    MNN::Interpreter *flow_encoder_interpretor = nullptr;
+    MNN::Session *flow_encoder_mnn_session = nullptr;
+
+    MNN::Interpreter *flow_decoder_interpretor = nullptr;
+    MNN::Session *flow_decoder_mnn_session = nullptr;
+
+    MNN::RuntimeInfo mnn_runtime;
 
     std::vector<float> random_noise;
     std::vector<float> t_span;

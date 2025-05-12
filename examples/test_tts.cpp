@@ -25,11 +25,11 @@ int main(int argc, char **argv) {
     std::string encoder_path = argv[3];
 
     runtime.cosyvoice_load_models(
-        encoder_path + "speech_tokenizer_v2.onnx",
-        encoder_path + "campplus.onnx",
-        encoder_path + "flow_encoder.fp16.onnx",
-        encoder_path + "flow_decoder_estimator.ncnn.bin",
-        encoder_path + "hift.onnx",
+        encoder_path + "speech_tokenizer_v2.mnn",
+        encoder_path + "campplus.mnn",
+        encoder_path + "flow_encoder.mnn",
+        encoder_path + "flow_decoder_estimator.mnn",
+        encoder_path + "hift.mnn",
         encoder_path + std::string(argv[4])
     );
 

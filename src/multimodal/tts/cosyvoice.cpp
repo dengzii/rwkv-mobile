@@ -6,21 +6,23 @@
 #include "audio.h"
 #include "logger.h"
 #include "librosa.h"
-#include "onnxruntime_cxx_api.h"
 #include "kaldi-native-fbank/csrc/feature-fbank.h"
 #include "kaldi-native-fbank/csrc/online-feature.h"
 #include "kaldi-native-fbank/csrc/istft.h"
 
-#include "net.h"
-#include "cpu.h"
-#include "mat.h"
+#include <MNN/AutoTime.hpp>
+#include <MNN/Interpreter.hpp>
+#include <MNN/expr/Expr.hpp>
+#include <MNN/expr/ExprCreator.hpp>
+#include <MNN/expr/Executor.hpp>
+#include <MNN/expr/Module.hpp>
 
 #define PRINT_FEATURE_INFO 0
 #define ORT_LOGGING_LEVEL ORT_LOGGING_LEVEL_WARNING
 
 static void debug_print_mean_std(std::vector<float> feat, std::string name) {
 #if PRINT_FEATURE_INFO
-    LOGI("[TTS] %s.size(): %d", name.c_str(), feat.size());
+    rwkvmobile::LOGI("[TTS] %s.size(): %d", name.c_str(), feat.size());
     float mean = 0.0f;
     float std = 0.0f;
     for (int i = 0; i < feat.size(); i++) {
@@ -31,13 +33,13 @@ static void debug_print_mean_std(std::vector<float> feat, std::string name) {
         std += (feat[i] - mean) * (feat[i] - mean);
     }
     std = std::sqrt(std / (feat.size()));
-    LOGI("[TTS] %s Mean: %f, Std: %f", name.c_str(), mean, std);
+    rwkvmobile::LOGI("[TTS] %s Mean: %f, Std: %f", name.c_str(), mean, std);
 #endif
 }
 
 static void debug_print_mean_std_2d(std::vector<std::vector<float>> feat, std::string name) {
 #if PRINT_FEATURE_INFO
-    LOGI("[TTS] %s.size(): %dx%d", name.c_str(), feat.size(), feat[0].size());
+    rwkvmobile::LOGI("[TTS] %s.size(): %dx%d", name.c_str(), feat.size(), feat[0].size());
     float mean = 0.0f;
     float std = 0.0f;
     for (int i = 0; i < feat.size(); i++) {
@@ -52,70 +54,53 @@ static void debug_print_mean_std_2d(std::vector<std::vector<float>> feat, std::s
         }
     }
     std = std::sqrt(std / (feat.size() * feat[0].size()));
-    LOGI("[TTS] %s Mean: %f, Std: %f", name.c_str(), mean, std);
+    rwkvmobile::LOGI("[TTS] %s Mean: %f, Std: %f", name.c_str(), mean, std);
 #endif
 }
 
 namespace rwkvmobile {
 
 bool cosyvoice::load_speech_tokenizer(const std::string model_path) {
-    if (env == nullptr) {
-        env = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, "rwkv_mobile");
-    }
-    Ort::SessionOptions session_options;
-    speech_tokenizer_session = new Ort::Session(*env, model_path.c_str(), session_options);
+    MNN::Express::Module::Config mdconfig;
+    speech_tokenizer_module = MNN::Express::Module::load({"feats", "feats_length"}, {"indices"}, model_path.c_str(), &mdconfig);
+
     return true;
 }
 
 bool cosyvoice::load_campplus(const std::string model_path) {
-    if (env == nullptr) {
-        env = new Ort::Env(ORT_LOGGING_LEVEL, "RWKV-MOBILE");
-    }
-    Ort::SessionOptions session_options;
-    campplus_session = new Ort::Session(*env, model_path.c_str(), session_options);
+    campplus_interpretor = MNN::Interpreter::createFromFile(model_path.c_str());
+    MNN::ScheduleConfig conf;
+    campplus_mnn_session = campplus_interpretor->createSession(conf, mnn_runtime);
+
     return true;
 }
 
 bool cosyvoice::load_flow_encoder(const std::string model_path) {
-    if (env == nullptr) {
-        env = new Ort::Env(ORT_LOGGING_LEVEL, "RWKV-MOBILE");
-    }
-    Ort::SessionOptions session_options;
-    flow_encoder_session = new Ort::Session(*env, model_path.c_str(), session_options);
+    flow_encoder_interpretor = MNN::Interpreter::createFromFile(model_path.c_str());
+    MNN::ScheduleConfig conf;
+    flow_encoder_mnn_session = flow_encoder_interpretor->createSession(conf, mnn_runtime);
+
     return true;
 }
 
 bool cosyvoice::load_flow_decoder_estimator(const std::string model_path) {
-    size_t pos = model_path.find_last_of(".");
-    std::string param_path = model_path.substr(0, pos) + ".param";
-    std::string bin_path = model_path.substr(0, pos) + ".bin";
+    flow_decoder_interpretor = MNN::Interpreter::createFromFile(model_path.c_str());
+    MNN::ScheduleConfig conf;
+    flow_decoder_mnn_session = flow_decoder_interpretor->createSession(conf, mnn_runtime);
 
-    ncnn::set_cpu_powersave(2);
-    flow_decoder_estimator_net.opt.num_threads = ncnn::get_physical_big_cpu_count() / 2;
-    int ret = flow_decoder_estimator_net.load_param(param_path.c_str());
-    if (ret != 0) {
-        LOGE("[TTS] Failed to load param: %s", param_path.c_str());
-        return false;
-    }
-    ret = flow_decoder_estimator_net.load_model(bin_path.c_str());
-    if (ret != 0) {
-        LOGE("[TTS] Failed to load model: %s", bin_path.c_str());
-        return false;
-    }
     return true;
 }
 
 bool cosyvoice::load_hift_generator(const std::string model_path) {
-    if (env == nullptr) {
-        env = new Ort::Env(ORT_LOGGING_LEVEL, "RWKV-MOBILE");
-    }
-    Ort::SessionOptions session_options;
-    hift_generator_session = new Ort::Session(*env, model_path.c_str(), session_options);
+    hift_generator_interpretor = MNN::Interpreter::createFromFile(model_path.c_str());
+    MNN::ScheduleConfig conf;
+    hift_generator_mnn_session = hift_generator_interpretor->createSession(conf, mnn_runtime);
+
     return true;
 }
 
 std::vector<int> cosyvoice::extract_speech_tokens(std::vector<float> audio_samples, int sample_rate) {
-    if (speech_tokenizer_session == nullptr) {
+    if (speech_tokenizer_module == nullptr) {
         LOGE("[TTS] speech_tokenizer model not loaded.");
         return std::vector<int>();
     }
@@ -132,38 +117,31 @@ std::vector<int> cosyvoice::extract_speech_tokens(std::vector<float> audio_sampl
 
     debug_print_mean_std_2d(mels, "24000Hz mel");
 
-    Ort::RunOptions run_options;
-    Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-    Ort::AllocatorWithDefaultOptions allocator;
+    std::vector<MNN::Express::VARP> inputs(2);
+    inputs[0] = MNN::Express::_Input({1, static_cast<int>(mels.size()), static_cast<int>(mels[0].size())}, MNN::Express::NCHW, halide_type_of<float>());
+    inputs[1] = MNN::Express::_Input({1}, MNN::Express::NCHW, halide_type_of<int>());
 
-    std::vector<int64_t> input_shape = {1, static_cast<int64_t>(mels.size()), static_cast<int64_t>(mels[0].size())};
-    std::vector<int64_t> feat_len_shape = {1};
+    float *feat_input_pointer = inputs[0]->writeMap<float>();
+    int *feat_len_pointer = inputs[1]->writeMap<int>();
 
-    int32_t feat_len = mels[0].size();
-    Ort::Value feat_input = Ort::Value::CreateTensor<float>(allocator, input_shape.data(), input_shape.size());
     for (int i = 0; i < mels.size(); i++) {
-        memcpy(feat_input.GetTensorMutableData<float>() + i * mels[i].size(), mels[i].data(), mels[i].size() * sizeof(float));
+        memcpy(feat_input_pointer + i * mels[i].size(), mels[i].data(), mels[i].size() * sizeof(float));
     }
-    Ort::Value feat_len_input = Ort::Value::CreateTensor<int32_t>(memory_info, &feat_len, 1, feat_len_shape.data(), feat_len_shape.size());
+    *feat_len_pointer = mels[0].size();
 
-    std::vector<const char*> input_names = {"feats", "feats_length"};
-    std::vector<const char*> output_names = {"indices"};
-    std::vector<Ort::Value> inputs;
-    inputs.push_back(std::move(feat_input));
-    inputs.push_back(std::move(feat_len_input));
-
-    auto encoder_output = speech_tokenizer_session->Run(run_options, input_names.data(), inputs.data(), 2, output_names.data(), 1);
-    auto output = encoder_output[0].GetTensorMutableData<int32_t>();
-    int64_t output_size = encoder_output[0].GetTensorTypeAndShapeInfo().GetElementCount();
-    std::vector<int> output_vector(output_size);
-    std::memcpy(output_vector.data(), output, output_size * sizeof(int32_t));
+    std::vector<MNN::Express::VARP> outputs = speech_tokenizer_module->onForward(inputs);
+    auto output_info = outputs[0]->getInfo();
+    auto output_ptr = outputs[0]->readMap<int>();
+    int output_size = output_info->size;
+    std::vector<int> output_vector((int*)output_ptr, (int*)output_ptr + output_size);
+    outputs[0]->unMap();
 
     return output_vector;
 }
 
 std::vector<float> cosyvoice::extract_speech_embedding(std::vector<float> audio_samples, int sample_rate) {
-    if (campplus_session == nullptr) {
-        LOGE("[TTS] speech_tokenizer model not loaded.");
+    if (campplus_mnn_session == nullptr) {
+        LOGE("[TTS] campplus model not loaded.");
         return std::vector<float>();
     }
 
@@ -196,26 +174,26 @@ std::vector<float> cosyvoice::extract_speech_embedding(std::vector<float> audio_
         }
     }
 
-    Ort::RunOptions run_options;
-    Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-    Ort::AllocatorWithDefaultOptions allocator;
+    auto input_tensors = campplus_interpretor->getSessionInputAll(campplus_mnn_session);
+    std::vector<int> input_shape = {1, static_cast<int>(feat_kaldi.size()), static_cast<int>(feat_kaldi[0].size())};
+    campplus_interpretor->resizeTensor(input_tensors["input"], input_shape);
+    campplus_interpretor->resizeSession(campplus_mnn_session);
 
-    std::vector<int64_t> input_shape = {1, static_cast<int64_t>(feat_kaldi.size()), static_cast<int64_t>(feat_kaldi[0].size())};
-    Ort::Value feat_input = Ort::Value::CreateTensor<float>(allocator, input_shape.data(), input_shape.size());
+    auto nchw_tensor = new MNN::Tensor(input_tensors["input"], MNN::Tensor::CAFFE);
     for (int i = 0; i < feat_kaldi.size(); i++) {
-        memcpy(feat_input.GetTensorMutableData<float>() + i * feat_kaldi[i].size(), feat_kaldi[i].data(), feat_kaldi[i].size() * sizeof(float));
+        memcpy((float*)nchw_tensor->host<float>() + i * feat_kaldi[i].size(), feat_kaldi[i].data(), feat_kaldi[i].size() * sizeof(float));
     }
+    input_tensors["input"]->copyFromHostTensor(nchw_tensor);
+    delete nchw_tensor;
 
-    std::vector<const char*> input_names = {"input"};
-    std::vector<const char*> output_names = {"output"};
-    std::vector<Ort::Value> inputs;
-    inputs.push_back(std::move(feat_input));
+    campplus_interpretor->runSession(campplus_mnn_session);
 
-    auto encoder_output = campplus_session->Run(run_options, input_names.data(), inputs.data(), 1, output_names.data(), 1);
-    auto output = encoder_output[0].GetTensorMutableData<float>();
-    int64_t output_size = encoder_output[0].GetTensorTypeAndShapeInfo().GetElementCount();
-    std::vector<float> output_vector(output_size);
-    std::memcpy(output_vector.data(), output, output_size * sizeof(float));
+    auto output_tensors = campplus_interpretor->getSessionOutputAll(campplus_mnn_session);
+    void *output_ptr = output_tensors["output"]->map(MNN::Tensor::MAP_TENSOR_READ, output_tensors["output"]->getDimensionType());
+    int output_size = output_tensors["output"]->elementSize();
+    std::vector<float> output_vector((float*)output_ptr, (float*)output_ptr + output_size);
+    output_tensors["output"]->unmap(MNN::Tensor::MAP_TENSOR_READ, output_tensors["output"]->getDimensionType(), output_ptr);
+
     LOGD("[TTS] speech embedding size: %d", output_vector.size());
     debug_print_mean_std(output_vector, "speech_embedding");
 
@@ -223,7 +201,7 @@ std::vector<float> cosyvoice::extract_speech_embedding(std::vector<float> audio_
 }
 
 bool cosyvoice::process_zeroshot(const std::string prompt_audio_path, std::vector<int> &speech_tokens, std::vector<std::vector<float>> &speech_features, std::vector<float> &speech_embedding, const int resample_rate) {
-    if (speech_tokenizer_session == nullptr) {
+    if (speech_tokenizer_module == nullptr) {
         LOGE("[TTS] Speech tokenizer is not loaded");
         return false;
     }
@@ -301,12 +279,12 @@ bool cosyvoice::process_zeroshot(const std::string prompt_audio_path, std::vecto
 }
 
 bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::vector<std::vector<float>> speech_features, const std::vector<float> speech_embedding, std::vector<float> &output_samples, std::function<void(float)> progress_callback) {
-    if (flow_encoder_session == nullptr) {
+    if (flow_encoder_mnn_session == nullptr) {
         LOGE("[TTS] Flow encoder is not loaded");
         return false;
     }
 
-    if (hift_generator_session == nullptr) {
+    if (hift_generator_mnn_session == nullptr) {
         LOGE("[TTS] Hift generator is not loaded");
         return false;
     }
@@ -324,39 +302,45 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
     // Flow encoder
 
     auto start = std::chrono::high_resolution_clock::now();
-    Ort::RunOptions run_options;
-    Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-    Ort::AllocatorWithDefaultOptions allocator;
 
-    std::vector<int64_t> token_input_shape = {1, static_cast<int64_t>(tokens.size())};
-    std::vector<int64_t> speech_feature_input_shape = {1, static_cast<int64_t>(speech_features.size()), static_cast<int64_t>(speech_features[0].size())};
-    std::vector<int64_t> speech_embedding_input_shape = {1, static_cast<int64_t>(speech_embedding.size())};
-    Ort::Value token_input = Ort::Value::CreateTensor<int32_t>(allocator, token_input_shape.data(), token_input_shape.size());
-    Ort::Value speech_feature_input = Ort::Value::CreateTensor<float>(allocator, speech_feature_input_shape.data(), speech_feature_input_shape.size());
-    Ort::Value speech_embedding_input = Ort::Value::CreateTensor<float>(allocator, speech_embedding_input_shape.data(), speech_embedding_input_shape.size());
+    auto encoder_inputs = flow_encoder_interpretor->getSessionInputAll(flow_encoder_mnn_session);
+    flow_encoder_interpretor->resizeTensor(encoder_inputs["token"], {1, static_cast<int>(tokens.size())});
+    flow_encoder_interpretor->resizeTensor(encoder_inputs["prompt_feat"], {1, static_cast<int>(speech_features.size()), static_cast<int>(speech_features[0].size())});
+    flow_encoder_interpretor->resizeTensor(encoder_inputs["embedding"], {1, static_cast<int>(speech_embedding.size())});
+    flow_encoder_interpretor->resizeSession(flow_encoder_mnn_session);
 
-    memcpy(token_input.GetTensorMutableData<int32_t>(), tokens.data(), tokens.size() * sizeof(int32_t));
-    memcpy(speech_embedding_input.GetTensorMutableData<float>(), speech_embedding.data(), speech_embedding.size() * sizeof(float));
-    for (int i = 0; i < speech_features.size(); i++) {
-        memcpy(speech_feature_input.GetTensorMutableData<float>() + i * speech_features[i].size(), speech_features[i].data(), speech_features[i].size() * sizeof(float));
+    auto token_input_tensor = new MNN::Tensor(encoder_inputs["token"], MNN::Tensor::CAFFE);
+    for (int i = 0; i < tokens.size(); i++) {
+        memcpy((int*)token_input_tensor->host<int>() + i, &tokens[i], sizeof(int));
     }
+    encoder_inputs["token"]->copyFromHostTensor(token_input_tensor);
+    delete token_input_tensor;
 
-    std::vector<const char*> input_names = {"token", "prompt_feat", "embedding"};
-    std::vector<const char*> output_names = {"mu", "embedding_out", "conds"};
-    std::vector<Ort::Value> inputs;
-    inputs.push_back(std::move(token_input));
-    inputs.push_back(std::move(speech_feature_input));
-    inputs.push_back(std::move(speech_embedding_input));
+    auto feature_input_tensor = new MNN::Tensor(encoder_inputs["prompt_feat"], MNN::Tensor::CAFFE);
+    for (int i = 0; i < speech_features.size(); i++) {
+        memcpy((float*)feature_input_tensor->host<float>() + i * speech_features[i].size(), speech_features[i].data(), speech_features[i].size() * sizeof(float));
+    }
+    encoder_inputs["prompt_feat"]->copyFromHostTensor(feature_input_tensor);
+    delete feature_input_tensor;
 
-    auto encoder_output = flow_encoder_session->Run(run_options, input_names.data(), inputs.data(), 3, output_names.data(), 3);
-    auto mu = encoder_output[0].GetTensorMutableData<float>();
-    auto embedding_out = encoder_output[1].GetTensorMutableData<float>();
-    auto conds = encoder_output[2].GetTensorMutableData<float>();
-    LOGD("[TTS] mu size: %dx%dx%d", encoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[0], encoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[1], encoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[2]);
-    LOGD("[TTS] embedding_out size: %dx%d", encoder_output[1].GetTensorTypeAndShapeInfo().GetShape()[0], encoder_output[1].GetTensorTypeAndShapeInfo().GetShape()[1]);
-    LOGD("[TTS] conds size: %dx%dx%d", encoder_output[2].GetTensorTypeAndShapeInfo().GetShape()[0], encoder_output[2].GetTensorTypeAndShapeInfo().GetShape()[1], encoder_output[2].GetTensorTypeAndShapeInfo().GetShape()[2]);
+    auto embd_input_tensor = new MNN::Tensor(encoder_inputs["embedding"], MNN::Tensor::CAFFE);
+    memcpy((float*)embd_input_tensor->host<float>(), speech_embedding.data(), speech_embedding.size() * sizeof(float));
+    encoder_inputs["embedding"]->copyFromHostTensor(embd_input_tensor);
+    delete embd_input_tensor;
 
-    int feat_len = encoder_output[0].GetTensorTypeAndShapeInfo().GetShape()[2];
+    flow_encoder_interpretor->runSession(flow_encoder_mnn_session);
+
+    auto encoder_outputs = flow_encoder_interpretor->getSessionOutputAll(flow_encoder_mnn_session);
+
+    void *conds_output_host = encoder_outputs["conds"]->map(MNN::Tensor::MAP_TENSOR_READ, encoder_outputs["conds"]->getDimensionType());
+    void *embd_output_host = encoder_outputs["embedding_out"]->map(MNN::Tensor::MAP_TENSOR_READ, encoder_outputs["embedding_out"]->getDimensionType());
+    void *mu_output_host = encoder_outputs["mu"]->map(MNN::Tensor::MAP_TENSOR_READ, encoder_outputs["mu"]->getDimensionType());
+
+    LOGD("[TTS] mu size: %dx%dx%d", encoder_outputs["mu"]->shape()[0], encoder_outputs["mu"]->shape()[1], encoder_outputs["mu"]->shape()[2]);
+    LOGD("[TTS] embedding_out size: %dx%d", encoder_outputs["embedding_out"]->shape()[0], encoder_outputs["embedding_out"]->shape()[1]);
+    LOGD("[TTS] conds size: %dx%dx%d", encoder_outputs["conds"]->shape()[0], encoder_outputs["conds"]->shape()[1], encoder_outputs["conds"]->shape()[2]);
+
+    int feat_len = encoder_outputs["mu"]->shape()[2];
     int mel_len1 = speech_features[0].size();
     int mel_len2 = feat_len - mel_len1;
     LOGD("[TTS] mel_len1: %d, mel_len2: %d", mel_len1, mel_len2);
@@ -365,7 +349,7 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
 
     // Flow decoder
     const int n_timesteps = cfm_steps;
-    int len_mu = encoder_output[0].GetTensorTypeAndShapeInfo().GetElementCount();
+    int len_mu = encoder_outputs["mu"]->shape()[0] * encoder_outputs["mu"]->shape()[1] * encoder_outputs["mu"]->shape()[2];
     if (len_mu != 80 * feat_len) {
         LOGE("[TTS] size mismatch: len_mu: %d, feat_len: %d", len_mu, feat_len);
         return false;
@@ -395,90 +379,115 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
     const float inference_cfg_rate = 0.7;
 
     start = std::chrono::high_resolution_clock::now();
-    // memcpy(inputs_estimator[0].GetTensorMutableData<float>(), random_noise.data(), len_mu * sizeof(float));
-    // memcpy(inputs_estimator[0].GetTensorMutableData<float>() + len_mu, random_noise.data(), len_mu * sizeof(float));
     memcpy(x_vector.data(), random_noise.data(), len_mu * sizeof(float));
-    memcpy(x_vector.data() + len_mu, mu, len_mu * sizeof(float));
+    memcpy(x_vector.data() + len_mu, mu_output_host, len_mu * sizeof(float));
     #pragma omp parallel for
     for (int i = 0; i < 80; i++) {
         for (int j = 0; j < feat_len; j++) {
-            x_vector[2 * len_mu + i * feat_len + j] = embedding_out[i];
+            x_vector[2 * len_mu + i * feat_len + j] = ((float*)embd_output_host)[i];
         }
     }
-    memcpy(x_vector.data() + 3 * len_mu, conds, len_mu * sizeof(float));
+    memcpy(x_vector.data() + 3 * len_mu, conds_output_host, len_mu * sizeof(float));
 
     memcpy(x_cfg_vector.data(), random_noise.data(), len_mu * sizeof(float));
 
+    auto decoder_inputs = flow_decoder_interpretor->getSessionInputAll(flow_decoder_mnn_session);
+    flow_decoder_interpretor->resizeTensor(decoder_inputs["x"], {2, 320, feat_len});
+    flow_decoder_interpretor->resizeTensor(decoder_inputs["mask"], {2, 1, feat_len});
+    flow_decoder_interpretor->resizeTensor(decoder_inputs["t"], {2});
+    flow_decoder_interpretor->resizeSession(flow_decoder_mnn_session);
+
+    // unmap encoder output tensors
+    encoder_outputs["conds"]->unmap(MNN::Tensor::MAP_TENSOR_READ, encoder_outputs["conds"]->getDimensionType(), conds_output_host);
+    encoder_outputs["embedding_out"]->unmap(MNN::Tensor::MAP_TENSOR_READ, encoder_outputs["embedding_out"]->getDimensionType(), embd_output_host);
+    encoder_outputs["mu"]->unmap(MNN::Tensor::MAP_TENSOR_READ, encoder_outputs["mu"]->getDimensionType(), mu_output_host);
+
     for (int i = 1; i <= n_timesteps; i++) {
-        ncnn::Mat dphi_dt, dphi_dt_cfg;
-        ncnn::Mat x_in(feat_len, 320);
-        ncnn::Mat mask_in(feat_len, 1);
-        ncnn::Mat t_in(1);
-        ncnn::Mat x_cfg_in(feat_len, 320);
-        ncnn::Mat mask_cfg_in(feat_len, 1);
-        ncnn::Mat t_cfg_in(1);
+        auto x_input_tensor = new MNN::Tensor(decoder_inputs["x"], MNN::Tensor::CAFFE);
+        memcpy((float*)x_input_tensor->host<float>(), x_vector.data(),  320 * feat_len * sizeof(float));
+        memcpy((float*)x_input_tensor->host<float>() + 320 * feat_len, x_cfg_vector.data(), 320 * feat_len * sizeof(float));
+        decoder_inputs["x"]->copyFromHostTensor(x_input_tensor);
+        delete x_input_tensor;
 
-        mask_in.fill(1.0f);
-        t_in[0] = t;
+        auto mask_input_tensor = new MNN::Tensor(decoder_inputs["mask"], MNN::Tensor::CAFFE);
+        for (int j = 0; j < 2 * feat_len; j++) {
+            ((float*)mask_input_tensor->host<float>())[j] = 1.0f;
+        }
+        decoder_inputs["mask"]->copyFromHostTensor(mask_input_tensor);
+        delete mask_input_tensor;
 
-        memcpy(x_in.row(0), x_vector.data(), x_vector.size() * sizeof(float));
+        auto t_input_tensor = new MNN::Tensor(decoder_inputs["t"], MNN::Tensor::CAFFE);
+        ((float*)t_input_tensor->host<float>())[0] = t;
+        ((float*)t_input_tensor->host<float>())[1] = t;
+        decoder_inputs["t"]->copyFromHostTensor(t_input_tensor);
+        delete t_input_tensor;
 
-        x_cfg_in.fill(0.0f);
-        mask_cfg_in.fill(1.0f);
-        t_cfg_in[0] = t;
 
-        memcpy(x_cfg_in.row(0), x_cfg_vector.data(), len_mu * sizeof(float));
-        ncnn::Extractor ex = flow_decoder_estimator_net.create_extractor();
-        ex.input("in0", x_in);
-        ex.input("in1", mask_in);
-        ex.input("in2", t_in);
-        ex.extract("out0", dphi_dt);
-        ncnn::Extractor ex_cfg = flow_decoder_estimator_net.create_extractor();
-        ex_cfg.input("in0", x_cfg_in);
-        ex_cfg.input("in1", mask_cfg_in);
-        ex_cfg.input("in2", t_cfg_in);
-        ex_cfg.extract("out0", dphi_dt_cfg);
+        flow_decoder_interpretor->runSession(flow_decoder_mnn_session);
+
+        auto decoder_outputs = flow_decoder_interpretor->getSessionOutputAll(flow_decoder_mnn_session);
+        void *dphi_dt_output_host = decoder_outputs["output"]->map(MNN::Tensor::MAP_TENSOR_READ, decoder_outputs["output"]->getDimensionType());
 
         #pragma omp parallel for
         for (int j = 0; j < len_mu; j++) {
-            float dphi_dt_val = (1.0 + inference_cfg_rate) * dphi_dt[j] - inference_cfg_rate * dphi_dt_cfg[j];
+            float dphi_dt_val = (1.0 + inference_cfg_rate) * ((float*)dphi_dt_output_host)[j] - inference_cfg_rate * ((float*)dphi_dt_output_host)[j + len_mu];
             x_vector[j] += dphi_dt_val * dt;
             x_cfg_vector[j] += dphi_dt_val * dt;
         }
 
-        t += dt;
-        dt = t_span[i + 1] - t;
+        decoder_outputs["output"]->unmap(MNN::Tensor::MAP_TENSOR_READ, decoder_outputs["output"]->getDimensionType(), dphi_dt_output_host);
+
+        if (i != n_timesteps) {
+            t += dt;
+            dt = t_span[i + 1] - t;
+        }
     }
     end = std::chrono::high_resolution_clock::now();
     LOGI("[TTS] flow_decoder_estimator diffusion duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
     // Hift generator
     start = std::chrono::high_resolution_clock::now();
-    std::vector<int64_t> speech_feat_shape = {1, 80, mel_len2};
-    Ort::Value speech_feat_input = Ort::Value::CreateTensor<float>(allocator, speech_feat_shape.data(), speech_feat_shape.size());
+    auto hift_inputs = hift_generator_interpretor->getSessionInputAll(hift_generator_mnn_session);
+    // Resize input tensor
+    hift_generator_interpretor->resizeTensor(hift_inputs["speech_feat"], {1, 80, mel_len2});
+    hift_generator_interpretor->resizeSession(hift_generator_mnn_session);
+
+    // Map input tensor and copy data
+    void *speech_feat_input_host = hift_inputs["speech_feat"]->map(MNN::Tensor::MAP_TENSOR_WRITE, hift_inputs["speech_feat"]->getDimensionType());
     #pragma omp parallel for
     for (int i = 0; i < 80; i++) {
-        memcpy(speech_feat_input.GetTensorMutableData<float>() + i * mel_len2, x_vector.data() + i * (mel_len1 + mel_len2) + mel_len1, mel_len2 * sizeof(float));
+        memcpy(((float*)speech_feat_input_host) + i * mel_len2, x_vector.data() + i * (mel_len1 + mel_len2) + mel_len1, mel_len2 * sizeof(float));
     }
+    hift_inputs["speech_feat"]->unmap(MNN::Tensor::MAP_TENSOR_WRITE, hift_inputs["speech_feat"]->getDimensionType(), speech_feat_input_host);
 
-    std::vector<const char*> input_names_hift = {"speech_feat"};
-    std::vector<const char*> output_names_hift = {"real", "img"};
-    std::vector<Ort::Value> inputs_hift;
-    inputs_hift.push_back(std::move(speech_feat_input));
+    // Run inference
+    hift_generator_interpretor->runSession(hift_generator_mnn_session);
 
-    auto hift_output = hift_generator_session->Run(run_options, input_names_hift.data(), inputs_hift.data(), 1, output_names_hift.data(), 2);
-    auto real = hift_output[0].GetTensorMutableData<float>();
-    auto imag = hift_output[1].GetTensorMutableData<float>();
-    LOGD("[TTS] real size: %dx%dx%d", hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[0], hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[1], hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[2]);
-    LOGD("[TTS] img size: %dx%dx%d", hift_output[1].GetTensorTypeAndShapeInfo().GetShape()[0], hift_output[1].GetTensorTypeAndShapeInfo().GetShape()[1], hift_output[1].GetTensorTypeAndShapeInfo().GetShape()[2]);
-    std::vector<float> real_vector(real, real + hift_output[0].GetTensorTypeAndShapeInfo().GetElementCount());
-    std::vector<float> imag_vector(imag, imag + hift_output[1].GetTensorTypeAndShapeInfo().GetElementCount());
+    // Get output tensors
+    auto hift_outputs = hift_generator_interpretor->getSessionOutputAll(hift_generator_mnn_session);
+    void *real_output_host = hift_outputs["real"]->map(MNN::Tensor::MAP_TENSOR_READ, hift_outputs["real"]->getDimensionType());
+    void *imag_output_host = hift_outputs["img"]->map(MNN::Tensor::MAP_TENSOR_READ, hift_outputs["img"]->getDimensionType());
+
+    auto real_shape = hift_outputs["real"]->shape();
+    auto imag_shape = hift_outputs["img"]->shape();
+    LOGD("[TTS] real size: %dx%dx%d", real_shape[0], real_shape[1], real_shape[2]);
+    LOGD("[TTS] img size: %dx%dx%d", imag_shape[0], imag_shape[1], imag_shape[2]);
+
+    // Copy output data
+    int real_size = real_shape[0] * real_shape[1] * real_shape[2];
+    int imag_size = imag_shape[0] * imag_shape[1] * imag_shape[2];
+    std::vector<float> real_vector((float*)real_output_host, (float*)real_output_host + real_size);
+    std::vector<float> imag_vector((float*)imag_output_host, (float*)imag_output_host + imag_size);
+
+    // Unmap output tensors
+    hift_outputs["real"]->unmap(MNN::Tensor::MAP_TENSOR_READ, hift_outputs["real"]->getDimensionType(), real_output_host);
+    hift_outputs["img"]->unmap(MNN::Tensor::MAP_TENSOR_READ, hift_outputs["img"]->getDimensionType(), imag_output_host);
     debug_print_mean_std(real_vector, "real_vector");
     debug_print_mean_std(imag_vector, "imag_vector");
     knf::StftResult stft_result = {
         .real = std::move(real_vector),
         .imag = std::move(imag_vector),
-        .num_frames = static_cast<int32_t>(hift_output[0].GetTensorTypeAndShapeInfo().GetShape()[1])
+        .num_frames = static_cast<int32_t>(hift_outputs["real"]->shape()[1])
     };
 
     int istft_n_fft = 16;
@@ -549,31 +558,6 @@ int cosyvoice::speech_token_sampler(float *logits, size_t size, std::vector<int>
         num_trials++;
     }
     return token_id;
-}
-
-std::string cosyvoice::normalize_text(std::string text) {
-    auto replace = [](std::string &text, const std::string &from, const std::string &to) {
-        while (text.find(from) != std::string::npos) {
-            text.replace(text.find(from), from.length(), to);
-        }
-    };
-
-    replace(text, "\n", "");
-
-    // remove blank between chinese characters
-    // TODO
-
-    replace(text, "²", "平方");
-    replace(text, "³", "立方");
-    replace(text, "（", "");
-    replace(text, "）", "");
-    replace(text, "【", "");
-    replace(text, "】", "");
-    replace(text, "`", "");
-    replace(text, "”", "");
-    replace(text, "——", " ");
-
-    return text;
 }
 
 }

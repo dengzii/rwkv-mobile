@@ -10,6 +10,7 @@ option(ENABLE_NCNN_BACKEND "Enable NCNN backend" ON)
 option(ENABLE_WEBRWKV_BACKEND "Enable WebRWKV backend" ON)
 option(ENABLE_LLAMACPP_BACKEND "Enable llama.cpp backend" ON)
 option(ENABLE_QNN_BACKEND "Enable QNN backend" OFF)
+option(ENABLE_MNN_BACKEND "Enable MNN backend" ON)
 
 option(ENABLE_VISION "Enable vision" OFF)
 option(ENABLE_WHISPER "Enable whisper" OFF)
@@ -17,6 +18,10 @@ option(ENABLE_TTS "Enable TTS" OFF)
 
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_STATIC_LIB "Build static library" OFF)
+
+if (ENABLE_TTS AND NOT ENABLE_MNN_BACKEND)
+    message(FATAL_ERROR "TTS requires MNN backend")
+endif()
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
@@ -84,6 +89,37 @@ if (ENABLE_NCNN_BACKEND)
     option(NCNN_BUILD_BENCHMARK "" OFF)
     option(NCNN_DISABLE_EXCEPTION "" OFF)
     FetchContent_MakeAvailable(ncnn)
+endif()
+
+if (ENABLE_MNN_BACKEND)
+    # TODO: rwkv mnn
+    # set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/mnn/mnn_rwkv_backend.cpp)
+
+    FetchContent_Declare(
+        mnn
+        GIT_REPOSITORY https://github.com/alibaba/MNN
+        GIT_TAG 3.1.2
+    )
+
+    if (ANDROID)
+        option(MNN_ARM82 "" ON)
+    endif()
+
+    if (ANDROID)
+        option(MNN_SUPPORT_BF16 "" ON)
+        option(MNN_OPENCL "" ON)
+    endif()
+
+    if (APPLE)
+        option(MNN_METAL "" ON)
+        option(MNN_COREML "" ON)
+    endif()
+
+    option(MNN_BUILD_TOOLS "" OFF)
+    option(MNN_BUILD_SHARED_LIBS "" OFF)
+    option(MNN_SEP_BUILD "" OFF)
+    option(MNN_BUILD_TOOLS "" OFF)
+    FetchContent_MakeAvailable(mnn)
 endif()
 
 if (ENABLE_LLAMACPP_BACKEND)
@@ -189,32 +225,19 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     target_link_libraries(rwkv_mobile_internal PUBLIC Eigen3::Eigen)
     target_link_libraries(rwkv_mobile_internal PRIVATE $<TARGET_OBJECTS:soxr>)
     if (ENABLE_TTS)
-        if (ANDROID)
-            target_link_directories(rwkv_mobile_internal PUBLIC src/multimodal/utils/onnxruntime/obj/aarch64-android/)
-        elseif (LINUX)
-            target_link_directories(rwkv_mobile_internal PUBLIC src/multimodal/utils/onnxruntime/obj/x86_64-linux/)
-        elseif (APPLE AND NOT IOS)
-            target_link_directories(rwkv_mobile_internal PUBLIC src/multimodal/utils/onnxruntime/obj/macos-arm64/)
-        endif()
         target_link_libraries(rwkv_mobile_internal PUBLIC
             $<TARGET_OBJECTS:kaldi-native-fbank-core>
             $<TARGET_OBJECTS:kaldifst_core>
             $<TARGET_OBJECTS:fst>
         )
-        if (ANDROID)
-            target_link_libraries(rwkv_mobile_internal PUBLIC absl_bad_optional_access absl_bad_variant_access absl_base absl_city absl_civil_time absl_cord absl_cord_internal absl_cordz_functions absl_cordz_handle absl_cordz_info absl_crc32c absl_crc_cord_state absl_crc_cpu_detect absl_crc_internal absl_debugging_internal absl_decode_rust_punycode absl_demangle_internal absl_demangle_rust absl_examine_stack absl_exponential_biased absl_flags_commandlineflag absl_flags_commandlineflag_internal absl_flags_config absl_flags_internal absl_flags_marshalling absl_flags_private_handle_accessor absl_flags_program_name absl_flags_reflection absl_graphcycles_internal absl_hash absl_hashtablez_sampler absl_int128 absl_kernel_timeout_internal absl_log_entry absl_log_globals absl_log_internal_check_op absl_log_internal_conditions absl_log_internal_fnmatch absl_log_internal_format absl_log_internal_globals absl_log_internal_log_sink_set absl_log_internal_message absl_log_internal_nullguard absl_log_internal_proto absl_log_severity absl_log_sink absl_low_level_hash absl_malloc_internal absl_raw_hash_set absl_raw_logging_internal absl_spinlock_wait absl_stacktrace absl_strerror absl_str_format_internal absl_strings absl_strings_internal absl_string_view absl_symbolize absl_synchronization absl_throw_delegate absl_time absl_time_zone absl_utf8_for_code_point absl_vlog_config_internal cpuinfo flatbuffers nsync_cpp onnx onnx_proto onnxruntime_common onnxruntime_flatbuffers onnxruntime_framework onnxruntime_graph onnxruntime_lora onnxruntime_mlas onnxruntime_optimizer onnxruntime_providers onnxruntime_session onnxruntime_util protobuf-lite re2)
-        elseif (NOT IOS)
-            target_link_libraries(rwkv_mobile_internal PUBLIC onnxruntime)
-        endif()
-        
+
         target_include_directories(rwkv_mobile_internal PUBLIC
             ${kaldi_native_fbank_SOURCE_DIR}
             ${openfst_SOURCE_DIR}/src/include
             ${kaldifst_SOURCE_DIR})
     endif()
     target_include_directories(rwkv_mobile_internal PUBLIC ${Eigen_SOURCE_DIR} ${libsoxr_SOURCE_DIR}/src 
-        src/multimodal/tts src/multimodal/utils 
-        src/multimodal/utils/onnxruntime/include)
+        src/multimodal/tts src/multimodal/utils)
 endif()
 
 if (ENABLE_WEBRWKV_BACKEND)
@@ -285,6 +308,13 @@ if (ENABLE_QNN_BACKEND)
                                backends/qnn/rwkv-qualcomm/QNN/)
 endif()
 
+if (ENABLE_MNN_BACKEND)
+    target_link_libraries(rwkv_mobile_internal PUBLIC
+        $<LINK_LIBRARY:WHOLE_ARCHIVE,MNN>
+    )
+    target_include_directories(rwkv_mobile_internal PUBLIC ${mnn_SOURCE_DIR}/include)
+endif()
+
 if (BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
@@ -331,9 +361,9 @@ if (BUILD_STATIC_LIB)
             $<TARGET_FILE:kaldifst_core>
             $<TARGET_FILE:fst>
         )
-        # if (IOS)
-        #     set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST} ${CMAKE_SOURCE_DIR}/src/multimodal/utils/onnxruntime/obj/ios-arm64/libonnxruntime.a)
-        # endif()
+        if (IOS)
+            set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST} $<TARGET_FILE:MNN>)
+        endif()
     endif()
 
     add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/librwkv_mobile.a
