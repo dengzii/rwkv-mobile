@@ -28,6 +28,10 @@ int ncnn_rwkv_backend::load_model(std::string model_path) {
     std::string param_path = remove_extension(model_path) + ".param";
     std::string bin_path = remove_extension(model_path) + ".bin";
 
+    net.opt.use_fp16_packed = false;
+    net.opt.use_fp16_storage = false;
+    net.opt.use_fp16_arithmetic = false;
+
     int ret = 0;
     ret = net.load_param(param_path.c_str());
     if (ret == -1) {
