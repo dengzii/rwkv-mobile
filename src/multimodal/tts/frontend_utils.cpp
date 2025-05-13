@@ -157,8 +157,14 @@ std::vector<std::string> split_paragraph(
 
     // Add ending punctuation if not present
     std::string processed_text = text;
-    if (pounc.find(processed_text.substr(processed_text.length() - 3)) == pounc.end()) {
-        processed_text += (is_chinese) ? "。" : ".";
+    if (is_chinese) {
+        if (pounc.find(processed_text.substr(processed_text.length() - 3)) == pounc.end()) {
+            processed_text += "。";
+        }
+    } else {
+        if (pounc.find(processed_text.substr(processed_text.length() - 1)) == pounc.end()) {
+            processed_text += ".";
+        }
     }
 
     // Split into utterances
@@ -243,9 +249,6 @@ std::vector<std::string> process_text(
         processed_text = replace_text(processed_text, ".", "。");
         processed_text = replace_text(processed_text, " - ", "，");
         processed_text = remove_bracket(processed_text);
-
-        const std::regex punctuation_pattern("[，,、]+$");
-        processed_text = std::regex_replace(processed_text, punctuation_pattern, "。");
     } else {
         // TODO: add english inflect parser or use other method to spell out number
         // processed_text = spell_out_number(processed_text, inflect_parser);
