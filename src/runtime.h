@@ -57,11 +57,11 @@ public:
     }
 
     // without history
-    int chat(std::string input, const int max_length, void (*callback)(const char *, const int) = nullptr, bool enable_reasoning = false);
+    int chat(std::string input, const int max_length, void (*callback)(const char *, const int, const char *) = nullptr, bool enable_reasoning = false);
 
     // with history
-    int chat(std::vector<std::string> inputs, const int max_length, void (*callback)(const char *, const int) = nullptr, bool enable_reasoning = false);
-    int gen_completion(std::string prompt, int max_length, int stop_code, void (*callback)(const char *, const int));
+    int chat(std::vector<std::string> inputs, const int max_length, void (*callback)(const char *, const int, const char *) = nullptr, bool enable_reasoning = false);
+    int gen_completion(std::string prompt, int max_length, int stop_code, void (*callback)(const char *, const int, const char *));
 
     int set_prompt(std::string prompt);
     std::string get_prompt();

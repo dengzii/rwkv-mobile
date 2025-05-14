@@ -13,7 +13,7 @@ char msg1[] = "Hello! I'm your AI assistant. I'm here to help you with various t
 char msg2[] = "What's the weather like today?";
 
 std::string response;
-void callback(const char *msg, const int) {
+void callback(const char *msg, const int, const char *next) {
     // std::cout << "Callback: " << msg << std::endl;
     response = std::string(msg);
 };

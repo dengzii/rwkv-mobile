@@ -326,7 +326,7 @@ int runtime::eval_logits_with_embeddings(const float *embeddings, int n_tokens, 
     return _backend->eval_with_embeddings(embeddings, n_tokens, logits);
 }
 
-int runtime::chat(std::string input, const int max_length, void (*callback)(const char *, const int), bool enable_reasoning) {
+int runtime::chat(std::string input, const int max_length, void (*callback)(const char *, const int, const char *), bool enable_reasoning) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
@@ -356,10 +356,11 @@ int runtime::chat(std::string input, const int max_length, void (*callback)(cons
         }
         _occurences[idx]++;
 
-        _response_buffer += _tokenizer->decode(idx);
+        std::string next = _tokenizer->decode(idx);
+        _response_buffer += next;
         _response_buffer_ids.push_back(idx);
         if (callback) {
-            callback(_response_buffer.c_str(), idx);
+            callback(_response_buffer.c_str(), idx, next.c_str());
         }
 
         bool stopping = false;
@@ -375,10 +376,6 @@ int runtime::chat(std::string input, const int max_length, void (*callback)(cons
         if (ret) return ret;
         if (stopping) break;
         if (_stop_signal) break;
-    }
-
-    if (callback) {
-        callback(_response_buffer.c_str(), 0);
     }
 
     set_is_generating(false);
@@ -413,7 +410,7 @@ std::string runtime::apply_chat_template(std::vector<std::string> inputs, bool e
     return text;
 }
 
-int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*callback)(const char *, const int), bool enable_reasoning) {
+int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*callback)(const char *, const int, const char *), bool enable_reasoning) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
@@ -558,13 +555,8 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
 
         _occurences[decoded_idx]++;
         if (callback) {
-            callback(_response_buffer.c_str(), decoded_idx);
+            callback(_response_buffer.c_str(), decoded_idx, decoded.c_str());
         }
-    }
-
-    if (callback) {
-        LOGD("Response: \"%s\"\n", _response_buffer.c_str());
-        callback(_response_buffer.c_str(), 0);
     }
 
     if (response_ids_raw.size() > 0) {
@@ -1057,7 +1049,7 @@ int runtime::run_tts(std::string tts_text, std::string instruction_text, std::st
 
 #endif
 
-int runtime::gen_completion(std::string prompt, int max_length, int stop_code, void (*callback)(const char *, const int)) {
+int runtime::gen_completion(std::string prompt, int max_length, int stop_code, void (*callback)(const char *, const int, const char *)) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
@@ -1086,7 +1078,7 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
         _response_buffer_ids.push_back(idx);
         ret = eval_logits(idx, logits);
         if (callback) {
-            callback(_response_buffer.c_str(), idx);
+            callback(_response_buffer.c_str(), idx, next.c_str());
         }
 
         if (stopping || _stop_signal) {
@@ -1096,9 +1088,6 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
         _occurences[idx]++;
     }
 
-    if (callback) {
-        callback(_response_buffer.c_str(), 0);
-    }
     set_is_generating(false);
     _stop_signal = false;
     return RWKV_SUCCESS;

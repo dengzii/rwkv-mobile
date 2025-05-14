@@ -75,7 +75,7 @@ int rwkvmobile_runtime_eval_chat_async(
     rwkvmobile_runtime_t handle,
     const char * input,
     const int max_tokens,
-    void (*callback)(const char *, const int),
+    void (*callback)(const char *, const int, const char *),
     int enable_reasoning) {
     if (handle == nullptr || input == nullptr || max_tokens <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
@@ -102,7 +102,7 @@ int rwkvmobile_runtime_eval_chat_with_history_async(
     const char ** inputs,
     const int num_inputs,
     const int max_tokens,
-    void (*callback)(const char *, const int),
+    void (*callback)(const char *, const int, const char *),
     int enable_reasoning) {
     if (handle == nullptr || inputs == nullptr || num_inputs == 0 || max_tokens <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
@@ -135,7 +135,7 @@ int rwkvmobile_runtime_gen_completion_async(
     const char * prompt,
     const int max_tokens,
     const int stop_code,
-    void (*callback)(const char *, const int)) {
+    void (*callback)(const char *, const int, const char *)) {
     if (handle == nullptr || prompt == nullptr || max_tokens <= 0) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
@@ -162,7 +162,7 @@ int rwkvmobile_runtime_gen_completion(
     const char * prompt,
     const int max_tokens,
     const int stop_code,
-    void (*callback)(const char *, const int)) {
+    void (*callback)(const char *, const int, const char *)) {
     if (handle == nullptr || prompt == nullptr || max_tokens <= 0 || callback == nullptr) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }

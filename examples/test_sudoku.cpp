@@ -7,8 +7,16 @@
 
 #define ENSURE_SUCCESS_OR_LOG_EXIT(x, msg) if (x != rwkvmobile::RWKV_SUCCESS) { std::cout << msg << std::endl; return 1; }
 
-void callback(const char *msg, const int) {
-    std::cout << msg;
+int current_length = 0;
+long long num_tokens = 0;
+void callback(const char *msg, const int, const char *next) {
+    std::string msg_str(msg);
+    std::cout << msg_str.substr(current_length);
+    current_length = msg_str.length();
+    num_tokens += 1;
+    if (num_tokens % 1000 == 0) {
+        std::cout << "\n\n Tokens: " << num_tokens << std::endl << std::endl;
+    }
 }
 
 int main(int argc, char **argv) {
