@@ -348,8 +348,8 @@ private:
     const int _decode_duration_window = 30;
     const int _prefill_duration_window = 10;
 
-    std::vector<double> _decode_durations_ms;
-    std::vector<double> _prefill_durations_ms;
+    std::vector<double> _decode_durations_us;
+    std::vector<double> _prefill_durations_us;
 
 #ifdef ENABLE_VISION
     std::unique_ptr<clip_ctx, std::function<void(clip_ctx*)>> _vision_encoder;

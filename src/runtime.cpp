@@ -298,9 +298,9 @@ int runtime::eval_logits(int id, float *& logits) {
     auto start = std::chrono::high_resolution_clock::now();
     int ret = _backend->eval(id, logits);
     auto end = std::chrono::high_resolution_clock::now();
-    _decode_durations_ms.push_back(std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
-    if (_decode_durations_ms.size() > _decode_duration_window) {
-        _decode_durations_ms.erase(_decode_durations_ms.begin());
+    _decode_durations_us.push_back(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+    if (_decode_durations_us.size() > _decode_duration_window) {
+        _decode_durations_us.erase(_decode_durations_us.begin());
     }
     return ret;
 }
@@ -312,9 +312,9 @@ int runtime::eval_logits(std::vector<int> ids, float *& logits) {
     auto start = std::chrono::high_resolution_clock::now();
     int ret = _backend->eval(ids, logits);
     auto end = std::chrono::high_resolution_clock::now();
-    _prefill_durations_ms.push_back(std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / (double)ids.size());
-    if (_prefill_durations_ms.size() > _prefill_duration_window) {
-        _prefill_durations_ms.erase(_prefill_durations_ms.begin());
+    _prefill_durations_us.push_back(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / (double)ids.size());
+    if (_prefill_durations_us.size() > _prefill_duration_window) {
+        _prefill_durations_us.erase(_prefill_durations_us.begin());
     }
     return ret;
 }
@@ -1094,28 +1094,28 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
 }
 
 double runtime::get_avg_decode_speed() {
-    if (_decode_durations_ms.size() == 0) {
+    if (_decode_durations_us.size() == 0) {
         return 0.0;
     } else {
         double avg_time = 0.0;
-        for (auto duration : _decode_durations_ms) {
+        for (auto duration : _decode_durations_us) {
             avg_time += duration;
         }
-        avg_time /= _decode_durations_ms.size();
-        return 1000.0 / avg_time;
+        avg_time /= _decode_durations_us.size();
+        return 1e6f / avg_time;
     }
 }
 
 double runtime::get_avg_prefill_speed() {
-    if (_prefill_durations_ms.size() == 0) {
+    if (_prefill_durations_us.size() == 0) {
         return 0.0;
     } else {
         double avg_time = 0.0;
-        for (auto duration : _prefill_durations_ms) {
+        for (auto duration : _prefill_durations_us) {
             avg_time += duration;
         }
-        avg_time /= _prefill_durations_ms.size();
-        return 1000.0 / avg_time;
+        avg_time /= _prefill_durations_us.size();
+        return 1e6f / avg_time;
     }
 }
 
