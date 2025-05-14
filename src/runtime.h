@@ -115,12 +115,12 @@ public:
         return RWKV_SUCCESS;
     }
 
-    std::string tts_get_current_output_files() {
-        std::string ret = "";
+    std::string& tts_get_current_output_files() {
+        _tts_last_output_files_str = "";
         for (auto file : _tts_last_output_files) {
-            ret += '"' + file + "\",";
+            _tts_last_output_files_str += file + ",";
         }
-        return ret;
+        return _tts_last_output_files_str;
     }
 
     int tts_get_num_total_output_wavs() {
@@ -363,6 +363,7 @@ private:
     std::unique_ptr<cosyvoice> _cosyvoice;
     std::vector<std::unique_ptr<kaldifst::TextNormalizer>> _tn_list;
     std::vector<std::string> _tts_last_output_files;
+    std::string _tts_last_output_files_str = "";
 
     float _tts_generation_progress = 0.0;
     int _tts_total_num_output_wavs = 0;
