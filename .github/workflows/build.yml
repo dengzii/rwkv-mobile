@@ -14,7 +14,7 @@ jobs:
       id: get_version
       run: echo "VERSION=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
   
-  build-windows-x64-library:
+  build-windows-library-x64:
     needs: [setup]
     runs-on: windows-latest
     env:
@@ -27,6 +27,16 @@ jobs:
         cmake .. -DENABLE_NCNN_BACKEND=ON -DENABLE_WEBRWKV_BACKEND=ON -DENABLE_LLAMACPP_BACKEND=ON -DENABLE_MNN_BACKEND=ON -DENABLE_TTS=ON
         cmake --build . --config Release -j 8
     
+    - name: package
+      run: |
+        cd build
+        7z a ../${{ env.PACKAGENAME }}.zip Release/librwkv_mobile.dll
+    
+    - name: upload-zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.PACKAGENAME }}
+        path: ${{ env.PACKAGENAME }}.zip
 
   build-ios-library:
     needs: [setup]
@@ -319,7 +329,7 @@ jobs:
         path: ${{ env.PACKAGENAME }}.zip
 
   upload-dev-release:
-    needs: [setup, build-ios-library, build-android-library, build-macos-library-aarch64]
+    needs: [setup, build-ios-library, build-android-library, build-macos-library-aarch64, build-windows-library-x64]
     runs-on: ubuntu-latest
     steps:
       - name: download-ios
@@ -359,6 +369,11 @@ jobs:
         with:
           name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-linux-aarch64
 
+      - name: download-windows-x64
+        uses: actions/download-artifact@v4
+        with:
+          name: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-windows-x64
+
       - name: rename-dev-artifacts
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
@@ -370,6 +385,7 @@ jobs:
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-aarch64-android-ndk-r25c-debug.zip librwkv_mobile-dev-latest-aarch64-android-ndk-r25c-debug.zip
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-linux-x86_64.zip librwkv_mobile-dev-latest-linux-x86_64.zip
           mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-linux-aarch64.zip librwkv_mobile-dev-latest-linux-aarch64.zip
+          mv librwkv_mobile-${{ needs.setup.outputs.VERSION }}-windows-x64.zip librwkv_mobile-dev-latest-windows-x64.zip
       - uses: "marvinpinto/action-automatic-releases@latest"
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         with:
@@ -386,6 +402,7 @@ jobs:
             librwkv_mobile-dev-latest-aarch64-android-ndk-r25c-debug.zip
             librwkv_mobile-dev-latest-linux-x86_64.zip
             librwkv_mobile-dev-latest-linux-aarch64.zip
+            librwkv_mobile-dev-latest-windows-x64.zip
       - uses: "marvinpinto/action-automatic-releases@latest"
         if: ${{ github.event_name == 'push' && github.ref == 'refs/tags/v' }}
         with:
@@ -400,3 +417,4 @@ jobs:
             librwkv_mobile-dev-latest-aarch64-android-ndk-r25c-debug.zip
             librwkv_mobile-dev-latest-linux-x86_64.zip
             librwkv_mobile-dev-latest-linux-aarch64.zip
+            librwkv_mobile-dev-latest-windows-x64.zip
