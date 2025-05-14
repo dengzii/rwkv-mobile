@@ -1,5 +1,9 @@
 #include <iostream>
+#if _WIN32
+#include <windows.h>
+#else
 #include <unistd.h>
+#endif
 
 #include "commondef.h"
 #include "runtime.h"
@@ -9,6 +13,14 @@
 
 void callback(const char *msg, const int, const char *next) {
     std::cout << msg;
+}
+
+void custom_sleep(int seconds) {
+#if _WIN32
+    Sleep(seconds * 1000);
+#else
+    sleep(seconds);
+#endif
 }
 
 int main(int argc, char **argv) {
@@ -44,7 +56,7 @@ int main(int argc, char **argv) {
     rwkvmobile_runtime_gen_completion(runtime, prompt.c_str(), 64000, 0, callback);
 
     while (rwkvmobile_runtime_is_generating(runtime)) {
-        sleep(1);
+        custom_sleep(1);
     }
 
     return 0;

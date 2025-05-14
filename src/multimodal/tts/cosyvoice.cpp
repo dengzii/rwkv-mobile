@@ -484,11 +484,10 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
     hift_outputs["img"]->unmap(MNN::Tensor::MAP_TENSOR_READ, hift_outputs["img"]->getDimensionType(), imag_output_host);
     debug_print_mean_std(real_vector, "real_vector");
     debug_print_mean_std(imag_vector, "imag_vector");
-    knf::StftResult stft_result = {
-        .real = std::move(real_vector),
-        .imag = std::move(imag_vector),
-        .num_frames = static_cast<int32_t>(hift_outputs["real"]->shape()[1])
-    };
+    knf::StftResult stft_result;
+    stft_result.real = std::move(real_vector);
+    stft_result.imag = std::move(imag_vector);
+    stft_result.num_frames = static_cast<int32_t>(hift_outputs["real"]->shape()[1]);
 
     int istft_n_fft = 16;
     int istft_hop_length = 4;

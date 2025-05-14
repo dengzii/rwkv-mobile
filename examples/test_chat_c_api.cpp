@@ -1,6 +1,10 @@
 #include <iostream>
 #include <chrono>
+#if _WIN32
+#include <windows.h>
+#else
 #include <unistd.h>
+#endif
 #include "commondef.h"
 #include "c_api.h"
 

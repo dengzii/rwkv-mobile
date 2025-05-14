@@ -286,6 +286,7 @@ int rwkvmobile_runtime_get_prompt(rwkvmobile_runtime_t runtime, char * prompt, c
 }
 
 void rwkvmobile_runtime_add_adsp_library_path(const char * path) {
+#ifdef __ANDROID__
     auto ld_lib_path_char = getenv("LD_LIBRARY_PATH");
     std::string ld_lib_path;
     if (ld_lib_path_char) {
@@ -296,6 +297,7 @@ void rwkvmobile_runtime_add_adsp_library_path(const char * path) {
     LOGI("Setting LD_LIBRARY_PATH to %s\n", ld_lib_path.c_str());
     setenv("LD_LIBRARY_PATH", ld_lib_path.c_str(), 1);
     setenv("ADSP_LIBRARY_PATH", path, 1);
+#endif
 }
 
 double rwkvmobile_runtime_get_avg_decode_speed(rwkvmobile_runtime_t runtime) {
