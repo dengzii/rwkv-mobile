@@ -1,11 +1,23 @@
 #include <iostream>
+#if _WIN32
+#include <windows.h>
+#else
 #include <unistd.h>
+#endif
 
 #include "commondef.h"
 #include "runtime.h"
 #include "c_api.h"
 
 #define ENSURE_SUCCESS_OR_LOG_EXIT(x, msg) if (x != rwkvmobile::RWKV_SUCCESS) { std::cout << msg << std::endl; return 1; }
+
+void custom_sleep(int seconds) {
+#if _WIN32
+    Sleep(seconds * 1000);
+#else
+    sleep(seconds);
+#endif
+}
 
 int main(int argc, char **argv) {
     // set stdout to be unbuffered
@@ -29,7 +41,7 @@ int main(int argc, char **argv) {
     rwkvmobile_runtime_eval_chat_async(runtime, "What is unusual about this image?", 1000, nullptr, 0);
 
     while (rwkvmobile_runtime_is_generating(runtime)) {
-        sleep(1);
+        custom_sleep(1);
     }
 
     struct response_buffer buffer = rwkvmobile_runtime_get_response_buffer_content(runtime);

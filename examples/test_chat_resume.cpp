@@ -1,6 +1,10 @@
 #include <iostream>
 #include <chrono>
+#if _WIN32
+#include <windows.h>
+#else
 #include <unistd.h>
+#endif
 #include "commondef.h"
 #include "c_api.h"
 
@@ -16,6 +20,14 @@ char msg0[] = "Hello!";
 char msg1[] = "Hello! I'm your AI assistant. I'm here to help you with various tasks, such as answering questions, brainstorming ideas, drafting emails, writing code, providing advice, and much more.";
 char msg2[] = "What's the weather like today?";
 char msg3[] = "Write me a poem";
+
+void custom_sleep(int seconds) {
+#if _WIN32
+    Sleep(seconds * 1000);
+#else
+    sleep(seconds);
+#endif
+}
 
 int main(int argc, char **argv) {
     // set stdout to be unbuffered
@@ -42,7 +54,7 @@ int main(int argc, char **argv) {
     int count = 0;
     while (rwkvmobile_runtime_is_generating(runtime)) {
         std::cout << "Waiting for generation to finish..." << std::endl;
-        sleep(1);
+        custom_sleep(1);
         count++;
         if (count > 2) {
             rwkvmobile_runtime_stop_generation(runtime);
@@ -52,13 +64,13 @@ int main(int argc, char **argv) {
     std::cout << "Response: " << response << std::endl;
 
     for (int i = 0; i < 10; i++) {
-        sleep(1);
+        custom_sleep(1);
     }
     input_list[3] = (char*)response.c_str();
     rwkvmobile_runtime_eval_chat_with_history_async(runtime, (const char **)input_list, 4, 50, callback, 0);
     while (rwkvmobile_runtime_is_generating(runtime)) {
         std::cout << "Waiting for generation to finish..." << std::endl;
-        sleep(1);
+        custom_sleep(1);
     }
     std::cout << "Response: " << response << std::endl;
 
