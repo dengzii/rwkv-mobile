@@ -288,6 +288,7 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
         LOGE("[TTS] Hift generator is not loaded");
         return false;
     }
+    LOGI("[TTS] cfm_steps: %d", cfm_steps);
 
     LOGD("[TTS] tokens.size(): %d", tokens.size());
     std::string debug_msg = "tokens: [";

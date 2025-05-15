@@ -145,7 +145,7 @@ std::vector<std::string> split_paragraph(
     // Set up punctuation marks
     std::unordered_set<std::string> pounc;
     if (is_chinese) {
-        pounc = {"。", "？", "！", "；", "：", "、", ".", "?", "!", ";"};
+        pounc = {"。", "？", "！", "；", "：", ".", "?", "!", ";"};
     } else {
         pounc = {".", "?", "!", ";"};
     }
