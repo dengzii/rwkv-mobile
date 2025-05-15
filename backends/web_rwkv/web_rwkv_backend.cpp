@@ -54,9 +54,10 @@ int web_rwkv_backend::eval(int id, float *& logits) {
     if (!ret.len || !ret.logits) {
         return RWKV_ERROR_EVAL;
     }
-    if (ret.len != vocab_size) {
-        return RWKV_ERROR_EVAL;
-    }
+    logits_len_from_backend = ret.len;
+    // if (ret.len != vocab_size) {
+    //     return RWKV_ERROR_EVAL;
+    // }
     logits = ret.logits;
     return RWKV_SUCCESS;
 }
@@ -67,9 +68,10 @@ int web_rwkv_backend::eval(std::vector<int> ids, float *& logits) {
     if (!ret.len || !ret.logits) {
         return RWKV_ERROR_EVAL;
     }
-    if (ret.len != vocab_size) {
-        return RWKV_ERROR_EVAL;
-    }
+    logits_len_from_backend = ret.len;
+    // if (ret.len != vocab_size) {
+    //     return RWKV_ERROR_EVAL;
+    // }
     logits = ret.logits;
     return RWKV_SUCCESS;
 }
@@ -77,7 +79,7 @@ int web_rwkv_backend::eval(std::vector<int> ids, float *& logits) {
 void web_rwkv_backend::free_logits_if_allocated(float *& logits) {
     if (logits) {
         ModelOutput output;
-        output.len = (uintptr_t)vocab_size;
+        output.len = (uintptr_t)logits_len_from_backend;
         output.logits = logits;
         ::free_raw(output);
         logits = nullptr;

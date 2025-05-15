@@ -19,6 +19,8 @@ public:
     int free_state(std::any state) override;
     int release_model() override;
     int release() override;
+private:
+    int logits_len_from_backend = 0;
 };
 
 }
