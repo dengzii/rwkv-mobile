@@ -1092,13 +1092,14 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
 
     _response_buffer = prompt;
     _response_buffer_ids = ids;
+    static int idx = 0;
     bool apply_penalties = _presence_penalty > 0.0f && _frequency_penalty > 0.0f && _penalty_decay > 0.0f;
     for (int i = 0; i < max_length; i++) {
         if (apply_penalties) {
             apply_logits_penalties(logits, _vocab_size, _presence_penalty, _frequency_penalty, _penalty_decay);
         }
 
-        int idx = _sampler->sample(logits, _vocab_size, _temperature, _top_k, _top_p);
+        idx = _sampler->sample(logits, _vocab_size, _temperature, _top_k, _top_p);
         _backend->free_logits_if_allocated(logits);
         bool stopping = (idx == stop_code);
 
