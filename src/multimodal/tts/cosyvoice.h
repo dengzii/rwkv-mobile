@@ -82,7 +82,7 @@ private:
 
     std::vector<float> random_noise;
     std::vector<float> t_span;
-    int cfm_steps = 5;
+    int cfm_steps = 4;
 
     sampler _sampler;
     std::unique_ptr<tokenizer_base, std::function<void(tokenizer_base*)>> _tokenizer;

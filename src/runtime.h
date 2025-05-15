@@ -132,6 +132,14 @@ public:
     }
 #endif
 
+    // for state management
+    struct state_node {
+        std::any state;
+        std::vector<int> ids;
+        std::vector<float> last_logits;
+        struct state_node * next = nullptr;
+    } * _state_head = nullptr;
+
     int clear_state() {
         if (_backend == nullptr) {
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
@@ -149,6 +157,9 @@ public:
         _state_head->next = nullptr;
         return _backend->clear_state();
     }
+
+    state_node* match_and_load_state(const std::vector<int> &ids, std::vector<int> &new_ids_to_prefill);
+    int register_state_checkpoint(state_node* &node, const std::vector<int> &ids, const float *logits);
 
     int release() {
         if (_backend == nullptr) {
@@ -238,14 +249,6 @@ public:
 
     double get_avg_decode_speed();
     double get_avg_prefill_speed();
-
-    // for state management
-    struct state_node {
-        std::any state;
-        std::vector<int> ids;
-        std::vector<float> last_logits;
-        struct state_node * next = nullptr;
-    } * _state_head = nullptr;
 
     // platform info
     const char * get_platform_name() {

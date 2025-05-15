@@ -410,6 +410,56 @@ std::string runtime::apply_chat_template(std::vector<std::string> inputs, bool e
     return text;
 }
 
+runtime::state_node* runtime::match_and_load_state(const std::vector<int> &ids, std::vector<int> &new_ids_to_prefill) {
+    auto node = _state_head;
+    size_t compare_pos = 0;
+
+    // find the last node that matches the input text
+    while (node->next) {
+
+        if (compare_pos + node->next->ids.size() > ids.size() || !std::equal(ids.begin() + compare_pos, ids.begin() + compare_pos + node->next->ids.size(), node->next->ids.begin())) {
+            // the text will diverge at next node
+            break;
+        }
+        std::string debug_msg = "matched tokens:";
+        for (auto id : node->next->ids) {
+            debug_msg += std::to_string(id) + " ";
+        }
+        LOGI("%s\n", debug_msg.c_str());
+        compare_pos += node->next->ids.size();
+        node = node->next;
+    }
+
+    _backend->set_state(node->state);
+    while (node->next) {
+        auto tmp = node->next->next;
+        _backend->free_state(node->next->state);
+        delete node->next;
+        node->next = tmp;
+    }
+
+    new_ids_to_prefill = std::vector<int>(ids.begin() + compare_pos, ids.end());
+    std::string debug_msg = "new tokens to prefill: ";
+    for (auto id : new_ids_to_prefill) {
+        debug_msg += std::to_string(id) + " ";
+    }
+    LOGI("%s\n", debug_msg.c_str());
+    return node;
+}
+
+int runtime::register_state_checkpoint(state_node* &node, const std::vector<int> &ids, const float *logits) {
+    node->next = new state_node;
+    if (node->next == nullptr) {
+        return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
+    }
+    node = node->next;
+    node->ids = std::vector<int>(ids);
+    _backend->get_state(node->state);
+    node->last_logits.resize(_vocab_size);
+    memcpy(node->last_logits.data(), logits, _vocab_size * sizeof(float));
+    return RWKV_SUCCESS;
+}
+
 int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*callback)(const char *, const int, const char *), bool enable_reasoning) {
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
@@ -435,35 +485,10 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     }
     LOGD("%s\n", debug_msg.c_str());
 
-    struct state_node *node = _state_head;
-    size_t compare_pos = 0;
-
-    // find the last node that matches the input text
-    while (node->next) {
-        // std::string debug_msg = "node->next->ids: ";
-        // for (auto id : node->next->ids) {
-        //     debug_msg += std::to_string(id) + " ";
-        // }
-        // LOGD("%s\n", debug_msg.c_str());
-        if (compare_pos + node->next->ids.size() > text_ids.size() || !std::equal(text_ids.begin() + compare_pos, text_ids.begin() + compare_pos + node->next->ids.size(), node->next->ids.begin())) {
-            // the text will diverge at next node
-            break;
-        }
-        compare_pos += node->next->ids.size();
-        node = node->next;
-    }
-
-    _backend->set_state(node->state);
-    while (node->next) {
-        auto tmp = node->next->next;
-        _backend->free_state(node->next->state);
-        delete node->next;
-        node->next = tmp;
-    }
-
     float *logits = nullptr;
+    std::vector<int> tokens_to_prefill;
+    auto node = match_and_load_state(text_ids, tokens_to_prefill);
 
-    std::vector<int> tokens_to_prefill = std::vector<int>(text_ids.begin() + compare_pos, text_ids.end());
     if (tokens_to_prefill.size() > 0) {
         std::string debug_msg = "new tokens to prefill: ";
         for (auto id : tokens_to_prefill) {
@@ -476,15 +501,8 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         for (int i = 0; i < tokens_to_prefill.size(); i += checkpoint_interval) {
             std::vector<int> tokens_to_prefill_chunk = std::vector<int>(tokens_to_prefill.begin() + i, tokens_to_prefill.begin() + std::min(i + checkpoint_interval, (int)tokens_to_prefill.size()));
             eval_logits(tokens_to_prefill_chunk, logits);
-            node->next = new state_node;
-            if (node->next == nullptr) {
-                return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
-            }
-            node = node->next;
-            node->ids = std::move(tokens_to_prefill_chunk);
-            _backend->get_state(node->state);
-            node->last_logits.resize(_vocab_size);
-            memcpy(node->last_logits.data(), logits, _vocab_size * sizeof(float));
+            int ret = register_state_checkpoint(node, tokens_to_prefill_chunk, logits);
+            if (ret) return ret;
             _backend->free_logits_if_allocated(logits);
         }
     }
@@ -560,15 +578,8 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     }
 
     if (response_ids_raw.size() > 0) {
-        node->next = new state_node;
-        if (node->next == nullptr) {
-            return RWKV_ERROR_RUNTIME | RWKV_ERROR_ALLOC;
-        }
-        node = node->next;
-        node->ids = std::move(response_ids_raw);
-        _backend->get_state(node->state);
-        node->last_logits.resize(_vocab_size);
-        memcpy(node->last_logits.data(), logits, _vocab_size * sizeof(float));
+        int ret = register_state_checkpoint(node, response_ids_raw, logits);
+        if (ret) return ret;
     }
 
     if (logits != node->last_logits.data()) {
@@ -807,7 +818,7 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
     auto start = std::chrono::high_resolution_clock::now();
 
     // prepare input tokens for llm
-    std::vector<int> llm_tokens;
+    std::vector<int> llm_tokens_without_tts, tts_tokens;
     std::string input_text = "";
     if (!prompt_speech_text.empty()) {
         input_text = prompt_speech_text;
@@ -816,10 +827,16 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
         input_text = instruction_text + "<|endofprompt|>" + input_text;
     }
 
-    input_text += tts_text;
-    llm_tokens = _tokenizer->encode(input_text);
-    LOGD("[TTS] input text: %s", input_text.c_str());
+    // input_text += tts_text;
+    llm_tokens_without_tts = _tokenizer->encode(input_text);
+    tts_tokens = _tokenizer->encode(tts_text);
+    LOGD("[TTS] pre-tts input text: %s", input_text.c_str());
+    LOGD("[TTS] tts text: %s", tts_text.c_str());
 
+    std::vector<int> llm_tokens = std::vector<int>(llm_tokens_without_tts);
+    for (auto token : tts_tokens) {
+        llm_tokens.push_back(token);
+    }
     int content_length = llm_tokens.size();
     auto it = std::find(llm_tokens.begin(), llm_tokens.end(), 65531);
     if (it != llm_tokens.end()) {
@@ -835,8 +852,8 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
     const int sos_eos_token = 72110;
     const int task_token = 72111;
     const int speech_vocab_offset = 65548;
-    llm_tokens.insert(llm_tokens.begin(), sos_eos_token);
-    llm_tokens.push_back(task_token);
+    llm_tokens_without_tts.insert(llm_tokens_without_tts.begin(), sos_eos_token);
+    tts_tokens.push_back(task_token);
 
     std::vector<int> speech_tokens;
     std::vector<std::vector<float>> speech_features(80);
@@ -955,25 +972,34 @@ int runtime::run_tts_internal(std::string tts_text, std::string instruction_text
 
     if (!prompt_speech_text.empty()) {
         for (auto token : speech_tokens) {
-            llm_tokens.push_back(token + speech_vocab_offset);
+            tts_tokens.push_back(token + speech_vocab_offset);
         }
     }
 
     _tts_generation_progress = 0.2;
-    std::string debug_msg = "tokens: [";
-    for (int i = 0; i < llm_tokens.size(); i++) {
-        debug_msg += std::to_string(llm_tokens[i]) + ", ";
-    }
-    LOGD("[TTS] %s]", debug_msg.c_str());
+    // std::string debug_msg = "tokens: [";
+    // for (int i = 0; i < llm_tokens.size(); i++) {
+    //     debug_msg += std::to_string(llm_tokens[i]) + ", ";
+    // }
+    // LOGD("[TTS] %s]", debug_msg.c_str());
 
     std::vector<int> decoded_tokens;
     // bool is_llm_decoding = true;
     // std::thread llm_thread([&]() {
     {
         auto start = std::chrono::high_resolution_clock::now();
-        _backend->clear_state();
+        // _backend->clear_state();
         float *logits = nullptr;
-        eval_logits(llm_tokens, logits);
+        // eval_logits(llm_tokens, logits);
+        std::vector<int> new_ids_to_prefill;
+        auto node = match_and_load_state(llm_tokens_without_tts, new_ids_to_prefill);
+        if (!new_ids_to_prefill.empty()) {
+            eval_logits(new_ids_to_prefill, logits);
+            register_state_checkpoint(node, new_ids_to_prefill, logits);
+        }
+        eval_logits(tts_tokens, logits);
+        register_state_checkpoint(node, tts_tokens, logits);
+
         const int speech_vocab_size = 6562;
         for (int i = 0; i < max_len; i++) {
             int token_id = _cosyvoice->speech_token_sampler(logits, speech_vocab_size, decoded_tokens, (i < min_len));
