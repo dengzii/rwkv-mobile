@@ -329,6 +329,7 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
     delete embd_input_tensor;
 
     flow_encoder_interpretor->runSession(flow_encoder_mnn_session);
+    progress_callback(0.3f);
 
     auto encoder_outputs = flow_encoder_interpretor->getSessionOutputAll(flow_encoder_mnn_session);
 
@@ -402,6 +403,7 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
     encoder_outputs["embedding_out"]->unmap(MNN::Tensor::MAP_TENSOR_READ, encoder_outputs["embedding_out"]->getDimensionType(), embd_output_host);
     encoder_outputs["mu"]->unmap(MNN::Tensor::MAP_TENSOR_READ, encoder_outputs["mu"]->getDimensionType(), mu_output_host);
 
+    progress_callback(0.4f);
     for (int i = 1; i <= n_timesteps; i++) {
         auto x_input_tensor = new MNN::Tensor(decoder_inputs["x"], MNN::Tensor::CAFFE);
         memcpy((float*)x_input_tensor->host<float>(), x_vector.data(),  320 * feat_len * sizeof(float));
@@ -422,7 +424,7 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
         decoder_inputs["t"]->copyFromHostTensor(t_input_tensor);
         delete t_input_tensor;
 
-
+        progress_callback(0.4f + 0.4f * i / n_timesteps);
         flow_decoder_interpretor->runSession(flow_decoder_mnn_session);
 
         auto decoder_outputs = flow_decoder_interpretor->getSessionOutputAll(flow_decoder_mnn_session);
@@ -460,9 +462,10 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
     }
     hift_inputs["speech_feat"]->unmap(MNN::Tensor::MAP_TENSOR_WRITE, hift_inputs["speech_feat"]->getDimensionType(), speech_feat_input_host);
 
+    progress_callback(0.8f);
     // Run inference
     hift_generator_interpretor->runSession(hift_generator_mnn_session);
-
+    progress_callback(0.9f);
     // Get output tensors
     auto hift_outputs = hift_generator_interpretor->getSessionOutputAll(hift_generator_mnn_session);
     void *real_output_host = hift_outputs["real"]->map(MNN::Tensor::MAP_TENSOR_READ, hift_outputs["real"]->getDimensionType());
@@ -519,6 +522,7 @@ bool cosyvoice::speech_token_to_wav(const std::vector<int> tokens, const std::ve
     LOGI("[TTS] istft duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
     output_samples = std::move(speech_output_istft);
+    progress_callback(1.0f);
 
     return true;
 }
