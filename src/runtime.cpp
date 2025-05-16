@@ -535,6 +535,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     }
 
     int decoded_idx = 0;
+    bool thinking_end_tag_found = false;
     for (int i = 0; i < max_length; i++) {
         apply_logits_penalties(logits, _vocab_size, _presence_penalty, _frequency_penalty, _penalty_decay);
 
@@ -547,10 +548,20 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         std::string tmp = _response_buffer + decoded;
         bool stopping = false;
         for (auto &stop_code : _stop_codes) {
+            if (enable_reasoning && !thinking_end_tag_found && stop_code == "\n\n") {
+                continue;
+            }
             if (tmp.size() >= stop_code.size() &&
                 tmp.compare(tmp.size() - stop_code.size(), stop_code.size(), stop_code) == 0) {
                 stopping = true;
+                LOGI("got stop code: %s\n", stop_code.c_str());
                 break;
+            }
+        }
+
+        if (enable_reasoning && !thinking_end_tag_found) {
+            if (tmp.find("</think>") != std::string::npos) {
+                thinking_end_tag_found = true;
             }
         }
 
