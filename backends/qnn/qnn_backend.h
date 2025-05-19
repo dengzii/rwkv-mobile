@@ -39,6 +39,7 @@ private:
     bool isTensorInitialized = false;
 
     int prefillSequenceLength = 0;
+    int embdPrefillSequenceLength = 0;
 
     qnn::tools::rwkv_app::QnnFunctionPointers qnnFunctionPointers;
 
@@ -49,22 +50,36 @@ private:
 
     uint32_t qnnDecodeGraphsCount = 0;
     GraphInfo_t **qnnDecodeGraphsInfo = nullptr;
+
     uint32_t qnnPrefillGraphsCount = 0;
     GraphInfo_t **qnnPrefillGraphsInfo = nullptr;
-    uint32_t graphConfigsInfoCount = 0;
-    GraphInfo_t **qnnEmbdGraphsInfo = nullptr;
+
     uint32_t qnnEmbdGraphsCount = 0;
+    GraphInfo_t **qnnEmbdGraphsInfo = nullptr;
+
+    uint32_t qnnEmbdPrefillGraphsCount = 0;
+    GraphInfo_t **qnnEmbdPrefillGraphsInfo = nullptr;
+
+    uint32_t graphConfigsInfoCount = 0;
     GraphConfigInfo_t **graphConfigsInfo = nullptr;
 
     Qnn_Tensor_t *inputTensors[8] = {nullptr};
     Qnn_Tensor_t *outputTensors[8] = {nullptr};
+
     Qnn_Tensor_t *inputTensorsPrefill[8] = {nullptr};
     Qnn_Tensor_t *outputTensorsPrefill[8] = {nullptr};
+
     Qnn_Tensor_t *inputTensorsEmbd[8] = {nullptr};
     Qnn_Tensor_t *outputTensorsEmbd[8] = {nullptr};
+
+    Qnn_Tensor_t *inputTensorsEmbdPrefill[8] = {nullptr};
+    Qnn_Tensor_t *outputTensorsEmbdPrefill[8] = {nullptr};
+
     Qnn_Tensor_t *logitsOutputTensor = nullptr;
+    Qnn_Tensor_t *tokenInputTensor = nullptr;
     Qnn_Tensor_t *tokenInputTensorPrefill = nullptr;
     Qnn_Tensor_t *tokenInputTensorEmbd = nullptr;
+    Qnn_Tensor_t *tokenInputTensorEmbdPrefill = nullptr;
 
     IOTensor* qnnIOTensorUtils = nullptr;
 
@@ -74,6 +89,8 @@ private:
     std::vector<std::unordered_map<std::string, size_t>> prefillGraphsTensorNameToSize;
     std::vector<std::unordered_map<std::string, void*>> embdGraphsTensorNameToTensorPointer;
     std::vector<std::unordered_map<std::string, size_t>> embdGraphsTensorNameToSize;
+    std::vector<std::unordered_map<std::string, void*>> embdPrefillGraphsTensorNameToTensorPointer;
+    std::vector<std::unordered_map<std::string, size_t>> embdPrefillGraphsTensorNameToSize;
 
     int qnn_create_power_config_id();
     int qnn_destory_power_config_id();

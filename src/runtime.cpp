@@ -323,7 +323,22 @@ int runtime::eval_logits_with_embeddings(const float *embeddings, int n_tokens, 
     if (_backend == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
-    return _backend->eval_with_embeddings(embeddings, n_tokens, logits);
+    auto start = std::chrono::high_resolution_clock::now();
+    auto ret = _backend->eval_with_embeddings(embeddings, n_tokens, logits);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / (double)n_tokens;
+    if (n_tokens > 1) {
+        _prefill_durations_us.push_back(duration);
+        if (_prefill_durations_us.size() > _prefill_duration_window) {
+            _prefill_durations_us.erase(_prefill_durations_us.begin());
+        }
+    } else {
+        _decode_durations_us.push_back(duration);
+        if (_decode_durations_us.size() > _decode_duration_window) {
+            _decode_durations_us.erase(_decode_durations_us.begin());
+        }
+    }
+    return ret;
 }
 
 int runtime::chat(std::string input, const int max_length, void (*callback)(const char *, const int, const char *), bool enable_reasoning) {
