@@ -62,7 +62,7 @@ set(BUILD_SHARED_LIBS_DEFAULT OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 if (ENABLE_WEBRWKV_BACKEND)
-    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/web_rwkv/web_rwkv_backend.cpp)
+    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/backends/web_rwkv/web_rwkv_backend.cpp)
 
     if (IOS)
         set(Rust_CARGO_TARGET "aarch64-apple-ios")
@@ -88,7 +88,7 @@ if (ENABLE_WEBRWKV_BACKEND)
 endif()
 
 if (ENABLE_NCNN_BACKEND)
-    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/ncnn/ncnn_rwkv_backend.cpp)
+    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/backends/ncnn/ncnn_rwkv_backend.cpp)
 
     FetchContent_Declare(
         ncnn
@@ -106,7 +106,7 @@ endif()
 
 if (ENABLE_MNN_BACKEND)
     # TODO: rwkv mnn
-    # set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/mnn/mnn_rwkv_backend.cpp)
+    # set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/backends/mnn/mnn_rwkv_backend.cpp)
 
     FetchContent_Declare(
         mnn
@@ -139,7 +139,7 @@ if (ENABLE_MNN_BACKEND)
 endif()
 
 if (ENABLE_LLAMACPP_BACKEND)
-    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/llama_cpp/llama_cpp_backend.cpp)
+    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/backends/llama_cpp/llama_cpp_backend.cpp)
     if (ENABLE_VISION)
         set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS}
             src/multimodal/vision/clip.cpp
@@ -168,10 +168,10 @@ if (ENABLE_LLAMACPP_BACKEND)
 endif()
 
 if (ENABLE_QNN_BACKEND)
-    file(GLOB QNN_SRCS backends/qnn/rwkv-qualcomm/Utils/*.cpp backends/qnn/rwkv-qualcomm/WrapperUtils/*.cpp backends/qnn/rwkv-qualcomm/PAL/src/common/*.cpp
-                        backends/qnn/rwkv-qualcomm/PAL/src/linux/*.cpp)
+    file(GLOB QNN_SRCS src/backends/qnn/rwkv-qualcomm/Utils/*.cpp src/backends/qnn/rwkv-qualcomm/WrapperUtils/*.cpp src/backends/qnn/rwkv-qualcomm/PAL/src/common/*.cpp
+                        src/backends/qnn/rwkv-qualcomm/PAL/src/linux/*.cpp)
     set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} ${QNN_SRCS})
-    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} backends/qnn/qnn_backend.cpp)
+    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/backends/qnn/qnn_backend.cpp)
 endif()
 
 if (ENABLE_WHISPER OR ENABLE_TTS)
@@ -265,7 +265,7 @@ if (ENABLE_WEBRWKV_BACKEND)
         set(WEBRWKV_EXTRA_LIBS ws2_32 opengl32 d3d12 d3dcompiler userenv kernel32 user32 ntdll bcrypt propsys RuntimeObject)
     endif()
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_WEBRWKV)
-    target_include_directories(rwkv_mobile_internal PUBLIC backends/web_rwkv ${web_rwkv_ffi_SOURCE_DIR}/include)
+    target_include_directories(rwkv_mobile_internal PUBLIC src/backends/web_rwkv ${web_rwkv_ffi_SOURCE_DIR}/include)
     if (IOS)
         target_compile_options(rwkv_mobile_internal PUBLIC "-I${web_rwkv_ffi_SOURCE_DIR}/include")
     endif()
@@ -274,7 +274,7 @@ endif()
 
 if (ENABLE_NCNN_BACKEND)
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_NCNN)
-    target_include_directories(rwkv_mobile_internal PUBLIC backends/ncnn)
+    target_include_directories(rwkv_mobile_internal PUBLIC src/backends/ncnn)
     target_link_libraries(rwkv_mobile_internal PUBLIC "$<LINK_LIBRARY:WHOLE_ARCHIVE,ncnn>")
 endif()
 
@@ -312,18 +312,18 @@ if (ENABLE_LLAMACPP_BACKEND)
     endif()
 
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_LLAMACPP)
-    target_include_directories(rwkv_mobile_internal PUBLIC backends/llama_cpp ${llama_cpp_SOURCE_DIR}/include ${llama_cpp_SOURCE_DIR}/src ${llama_cpp_SOURCE_DIR}/ggml/include)
+    target_include_directories(rwkv_mobile_internal PUBLIC src/backends/llama_cpp ${llama_cpp_SOURCE_DIR}/include ${llama_cpp_SOURCE_DIR}/src ${llama_cpp_SOURCE_DIR}/ggml/include)
     target_link_libraries(rwkv_mobile_internal PUBLIC $<TARGET_OBJECTS:llama> $<TARGET_OBJECTS:ggml> $<TARGET_OBJECTS:ggml-base> $<TARGET_OBJECTS:ggml-cpu> ${LLAMACPP_EXTRA_LIBS})
 endif()
 
 if (ENABLE_QNN_BACKEND)
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_QNN)
-    target_include_directories(rwkv_mobile_internal PUBLIC backends/qnn
-                               backends/qnn/rwkv-qualcomm
-                               backends/qnn/rwkv-qualcomm/Utils
-                               backends/qnn/rwkv-qualcomm/PAL/include
-                               backends/qnn/rwkv-qualcomm/WrapperUtils
-                               backends/qnn/rwkv-qualcomm/QNN/)
+    target_include_directories(rwkv_mobile_internal PUBLIC src/backends/qnn
+                               src/backends/qnn/rwkv-qualcomm
+                               src/backends/qnn/rwkv-qualcomm/Utils
+                               src/backends/qnn/rwkv-qualcomm/PAL/include
+                               src/backends/qnn/rwkv-qualcomm/WrapperUtils
+                               src/backends/qnn/rwkv-qualcomm/QNN/)
 endif()
 
 if (ENABLE_MNN_BACKEND)
