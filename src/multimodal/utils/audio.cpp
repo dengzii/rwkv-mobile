@@ -1,6 +1,5 @@
 #include "audio.h"
 #include "logger.h"
-#include "soxr.h"
 #include "librosa.h"
 #include <fstream>
 #include <cstdint>
@@ -161,17 +160,29 @@ void wav_file::resample(int new_sample_rate) {
     }
     LOGI("[WAV] resampling from %d to %d", sample_rate, new_sample_rate);
     LOGD("[WAV] origin num_samples: %d", num_samples);
-    LOGD("[WAV] new num_samples: %d", (int)(num_samples * (float)new_sample_rate / (float)sample_rate));
 
-    std::vector<float> resampled_samples((int)(num_samples * (float)new_sample_rate / (float)sample_rate));
-    auto soxr_ret = soxr_oneshot(sample_rate, new_sample_rate, num_channels, samples.data(), samples.size(), NULL, resampled_samples.data(), resampled_samples.size(), NULL, NULL, NULL, NULL);
-    if (soxr_ret != 0) {
-        LOGE("[WAV] soxr_oneshot failed");
-        return;
+    int new_num_samples = (int)(num_samples * (float)new_sample_rate / (float)sample_rate);
+    LOGD("[WAV] new num_samples: %d", new_num_samples);
+
+    std::vector<float> resampled_samples(new_num_samples);
+
+    // Linear interpolation resampling
+    for (int i = 0; i < new_num_samples; i++) {
+        float pos = (float)i * sample_rate / new_sample_rate;
+        int pos0 = (int)pos;
+        int pos1 = pos0 + 1;
+        float frac = pos - pos0;
+
+        if (pos1 >= num_samples) {
+            resampled_samples[i] = samples[pos0];
+        } else {
+            resampled_samples[i] = samples[pos0] * (1.0f - frac) + samples[pos1] * frac;
+        }
     }
+
     samples = resampled_samples;
     sample_rate = new_sample_rate;
-    num_samples = resampled_samples.size();
+    num_samples = new_num_samples;
 }
 
 std::vector<std::vector<float>> melSpectrogram(std::vector<float>& audio, int sample_rate, int n_fft, int n_hop, int n_mel, int fmin, int fmax, float power, bool center, bool return_magnitude) {

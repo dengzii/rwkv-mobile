@@ -208,21 +208,6 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     FetchContent_MakeAvailable(Eigen)
 
     FetchContent_Declare(
-        libsoxr
-        GIT_REPOSITORY https://github.com/chirlu/soxr.git
-        GIT_TAG 0.1.3
-    )
-
-    list(APPEND CMAKE_MODULE_PATH "${CMAKE_BINARY_DIR}/_deps/libsoxr-src/cmake/Modules")
-    set(BUILD_SHARED_LIBS OFF)
-    option(WITH_OPENMP "" OFF)
-    if (APPLE AND NOT IOS)
-        option(WITH_CR32S "" OFF)
-        option(WITH_CR64S "" OFF)
-    endif()
-    FetchContent_MakeAvailable(libsoxr)
-
-    FetchContent_Declare(
         kaldi_native_fbank
         GIT_REPOSITORY https://github.com/csukuangfj/kaldi-native-fbank/
         GIT_TAG master
@@ -242,7 +227,6 @@ endif()
 if (ENABLE_WHISPER OR ENABLE_TTS)
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_TTS)
     target_link_libraries(rwkv_mobile_internal PUBLIC Eigen3::Eigen)
-    target_link_libraries(rwkv_mobile_internal PRIVATE $<TARGET_OBJECTS:soxr>)
     if (ENABLE_TTS)
         target_link_libraries(rwkv_mobile_internal PUBLIC
             $<TARGET_OBJECTS:kaldi-native-fbank-core>
@@ -255,7 +239,7 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
             ${openfst_SOURCE_DIR}/src/include
             ${kaldifst_SOURCE_DIR})
     endif()
-    target_include_directories(rwkv_mobile_internal PUBLIC ${Eigen_SOURCE_DIR} ${libsoxr_SOURCE_DIR}/src 
+    target_include_directories(rwkv_mobile_internal PUBLIC ${Eigen_SOURCE_DIR}
         src/multimodal/tts src/multimodal/utils)
 endif()
 
@@ -370,7 +354,6 @@ if (BUILD_STATIC_LIB)
 
     if (ENABLE_WHISPER OR ENABLE_TTS)
         set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST}
-            $<TARGET_FILE:soxr>
             $<TARGET_FILE:kaldi-native-fbank-core>
             $<TARGET_FILE:kaldifst_core>
             $<TARGET_FILE:fst>
