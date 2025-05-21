@@ -105,8 +105,7 @@ if (ENABLE_NCNN_BACKEND)
 endif()
 
 if (ENABLE_MNN_BACKEND)
-    # TODO: rwkv mnn
-    # set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/backends/mnn/mnn_rwkv_backend.cpp)
+    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/backends/mnn/mnn_rwkv_backend.cpp)
 
     FetchContent_Declare(
         mnn
@@ -131,6 +130,8 @@ if (ENABLE_MNN_BACKEND)
         option(MNN_COREML "" ON)
     endif()
 
+    option(MNN_LOW_MEMORY "" ON)
+    option(MNN_SUPPORT_TRANSFORMER_FUSE "" ON)
     option(MNN_BUILD_TOOLS "" OFF)
     option(MNN_BUILD_SHARED_LIBS "" OFF)
     option(MNN_SEP_BUILD "" OFF)
@@ -312,6 +313,7 @@ if (ENABLE_QNN_BACKEND)
 endif()
 
 if (ENABLE_MNN_BACKEND)
+    target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_MNN)
     target_link_libraries(rwkv_mobile_internal PUBLIC
         $<LINK_LIBRARY:WHOLE_ARCHIVE,MNN>
     )
