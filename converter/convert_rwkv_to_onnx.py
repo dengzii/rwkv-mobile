@@ -9,7 +9,7 @@ from torch.onnx import register_custom_op_symbolic
 argparser = argparse.ArgumentParser()
 argparser.add_argument('input', help='input rwkv model file')
 argparser.add_argument('output_name', help='output onnx model name')
-argparser.add_argument('--datatype', choices=['fp32', 'fp16'], default='fp16', help='model data type')
+argparser.add_argument('--datatype', choices=['fp32', 'fp16'], default='fp32', help='model data type')
 args = argparser.parse_args()
 
 model_args = types.SimpleNamespace()
