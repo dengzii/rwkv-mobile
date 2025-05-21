@@ -4,6 +4,7 @@ from pathlib import Path
 import argparse, types, os
 import torch
 import onnx
+from torch.onnx import register_custom_op_symbolic
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument('input', help='input rwkv model file')
@@ -20,6 +21,11 @@ model_args.RESCALE_LAYER = 0
 
 model_args.MODEL_NAME = str(args.input).replace('.pth', '')
 model = RWKV_RNN(model_args)
+
+def norm(g, self):
+    return g.op("LpNormalization", self, p_i=2, axis_i=-1)
+
+register_custom_op_symbolic('customop::l2norm', norm, 4)
 
 inputs = get_dummy_input_for_rwkv_causal_llm(1, 1, model.device, model.args)
 input_names = ['in'] + [f'state{j}_in' for j in range(3*model.layer_begin, 3*model.layer_end)]
