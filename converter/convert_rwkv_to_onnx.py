@@ -14,7 +14,7 @@ args = argparser.parse_args()
 
 model_args = types.SimpleNamespace()
 model_args.USE_CUDA = False
-model_args.fp16 = True
+model_args.fp16 = True if args.datatype == 'fp16' else False
 model_args.wkv_customop = False
 model_args.USE_EMBEDDING = True
 model_args.RESCALE_LAYER = 0
