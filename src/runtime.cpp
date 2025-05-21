@@ -399,9 +399,23 @@ int runtime::chat(std::string input, const int max_length, void (*callback)(cons
 }
 
 std::string runtime::apply_chat_template(std::vector<std::string> inputs, bool enable_reasoning) {
+    static auto replace_text = [](const std::string& text, const std::string& old_str, const std::string& new_str) -> std::string {
+        std::string result = text;
+        size_t pos = 0;
+        while ((pos = result.find(old_str, pos)) != std::string::npos) {
+            result.replace(pos, old_str.length(), new_str);
+            pos += new_str.length();
+        }
+        return result;
+    };
+
     std::string text = _prompt;
     for (int i = 0; i < inputs.size(); i++) {
         if (i % 2 == 0) {
+            auto user_text = inputs[i];
+            user_text = replace_text(user_text, "\r\n", "\n");
+            user_text = replace_text(user_text, "\n\n", "\n");
+
             if (!_user_role.empty()) {
                 text += _bos_token + _user_role + ": " + inputs[i] + _eos_token;
             } else {
