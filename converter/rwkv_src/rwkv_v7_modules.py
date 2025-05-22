@@ -86,9 +86,10 @@ class Rwkv7SelfAttention(nn.Module):
 
         self.output = nn.Linear(hidden_size, hidden_size, bias=False)
         self.output.weight = nn.Parameter(state_dict[prefix + 'output.weight'])
-        # self.ln_x = nn.InstanceNorm2d(self.num_heads, eps=64e-5)
-        self.norm_kk = nn.LayerNorm(self.head_size, eps=1e-12)
-        self.ln_x = nn.LayerNorm(self.head_size, eps=64e-5)
+
+        self.ln_x = nn.InstanceNorm2d(self.num_heads, eps=64e-5)
+        # self.ln_x = nn.LayerNorm(self.head_size, eps=64e-5)
+
         self.ln_x_w = nn.Parameter(state_dict[prefix + 'ln_x.weight'])
         self.ln_x_b = nn.Parameter(state_dict[prefix + 'ln_x.bias'])
         self.mul_ln_x = op.Multiply()
