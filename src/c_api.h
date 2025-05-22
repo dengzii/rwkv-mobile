@@ -2,7 +2,6 @@
 #define C_API_H
 
 typedef void * rwkvmobile_runtime_t;
-typedef void * rwkvmobile_vision_encoder_t;
 
 struct sampler_params {
     float temperature;
