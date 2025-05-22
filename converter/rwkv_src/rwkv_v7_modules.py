@@ -11,8 +11,13 @@ torch::Tensor l2norm(torch::Tensor x) {
     return x / (x.norm(2, -1, true) + 1e-12);
 }
 
+torch::Tensor reducel2(torch::Tensor x) {
+    return x.norm(2, -1, true);
+}
+
 TORCH_LIBRARY(customop, m) {
     m.def("l2norm", &l2norm);
+    m.def("reducel2", &reducel2);
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
@@ -22,8 +27,11 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 _ = torch.utils.cpp_extension.load_inline(
     name='extension', cpp_sources=[custom_norm_wrapper_src])
 
+def l2norm(x):
+    return x / (torch.ops.customop.reducel2(x) + 1e-12)
+
 class Rwkv7SelfAttention(nn.Module):
-    def __init__(self, state_dict, hidden_size, head_size, layer_id=0, rescale_layer=0, custom_wkv=False):
+    def __init__(self, state_dict, hidden_size, head_size, model_args=None, layer_id=0, rescale_layer=0, custom_wkv=False):
         super().__init__()
         prefix = f'blocks.{layer_id}.att.'
         self.layer_id = layer_id
@@ -31,6 +39,7 @@ class Rwkv7SelfAttention(nn.Module):
         self.head_size = head_size
         self.hidden_size = hidden_size
         self.custom_wkv = custom_wkv
+        self.model_args = model_args
 
         if layer_id == 0:
             state_dict[prefix + 'v0'] = state_dict[prefix + 'a0']
@@ -138,9 +147,12 @@ class Rwkv7SelfAttention(nn.Module):
         time_decay = self.matmul_time_decay_w2(self.tanh_w(self.matmul_time_decay_w1(xw)))
 
         kk = key * self.k_k
-        # kk = self.norm_kk(kk.view(seq_length, self.num_heads, self.head_size)).view(-1)
-        # kk = torch.nn.functional.normalize(kk.view(seq_length, self.num_heads, self.head_size), dim=-1, p=2.0).view(-1)
-        kk = torch.ops.customop.l2norm(kk.view(seq_length, self.num_heads, self.head_size)).view(-1)
+        if self.model_args is not None and self.model_args.USE_ONNX_L2NORM:
+            kk = torch.ops.customop.l2norm(kk.view(seq_length, self.num_heads, self.head_size)).view(-1)
+        elif self.model_args is not None and self.model_args.USE_ONNX_REDUCE_L2:
+            kk = l2norm(kk.view(seq_length, self.num_heads, self.head_size)).view(-1)
+        else:
+            kk = torch.nn.functional.normalize(kk.view(seq_length, self.num_heads, self.head_size), dim=-1, p=2.0).view(-1)
         key = key * (1 + (a-1) * self.k_a)
 
         if self.layer_id == 0:

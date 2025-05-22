@@ -25,7 +25,7 @@ def get_dummy_state(batch_size, model_cfg, device):
     return state
 
 def get_dummy_input_for_rwkv_causal_llm(batch_size, input_length, device, model_cfg=None, dict_output=False):
-    input_ids = torch.LongTensor([[0]*input_length for _ in range(batch_size)]).to(device)
+    input_ids = torch.tensor([[0]*input_length for _ in range(batch_size)], dtype=torch.int32).to(device)
     if dict_output:
         inputs = {'in0': input_ids, 'state': get_dummy_state(batch_size, model_cfg, device)}
     else:

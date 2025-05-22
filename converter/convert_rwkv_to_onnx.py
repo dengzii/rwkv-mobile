@@ -18,6 +18,8 @@ model_args.fp16 = True if args.datatype == 'fp16' else False
 model_args.wkv_customop = False
 model_args.USE_EMBEDDING = True
 model_args.RESCALE_LAYER = 0
+model_args.USE_ONNX_REDUCE_L2 = True
+model_args.USE_ONNX_L2NORM = False
 
 model_args.MODEL_NAME = str(args.input).replace('.pth', '')
 model = RWKV_RNN(model_args)
@@ -25,7 +27,11 @@ model = RWKV_RNN(model_args)
 def norm(g, self):
     return g.op("LpNormalization", self, p_i=2, axis_i=-1)
 
+def reducel2(g, self):
+    return g.op("ReduceL2", self, axes_i=[-1])
+
 register_custom_op_symbolic('customop::l2norm', norm, 4)
+register_custom_op_symbolic('customop::reducel2', reducel2, 4)
 
 inputs = get_dummy_input_for_rwkv_causal_llm(1, 1, model.device, model.args)
 input_names = ['in'] + [f'state{j}_in' for j in range(3*model.layer_begin, 3*model.layer_end)]
