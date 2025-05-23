@@ -24,6 +24,10 @@
 #include "qnn_backend.h"
 #endif
 
+#ifdef ENABLE_MNN
+#include "mnn_rwkv_backend.h"
+#endif
+
 #ifdef ENABLE_VISION
 #include "llava.h"
 #include "clip.h"
@@ -53,6 +57,8 @@ std::string backend_enum_to_str(int backend) {
             return "llama.cpp";
         case RWKV_BACKEND_QNN:
             return "qnn";
+        case RWKV_BACKEND_MNN:
+            return "mnn";
         default:
             return "unknown";
     }
@@ -67,6 +73,8 @@ int backend_str_to_enum(std::string backend) {
         return RWKV_BACKEND_LLAMACPP;
     } else if (backend == "qnn") {
         return RWKV_BACKEND_QNN;
+    } else if (backend == "mnn") {
+        return RWKV_BACKEND_MNN;
     }
     return -1;
 }
@@ -152,6 +160,15 @@ int runtime::init(int backend_id, void * extra) {
         _backend = std::unique_ptr<execution_provider, std::function<void(execution_provider*)>>(new qnn_backend,
             [](execution_provider *p) {
                 delete (qnn_backend*)p;
+            });
+#else
+        return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+#endif
+    } else if (backend_id == RWKV_BACKEND_MNN) {
+#ifdef ENABLE_MNN
+        _backend = std::unique_ptr<execution_provider, std::function<void(execution_provider*)>>(new mnn_rwkv_backend,
+            [](execution_provider *p) {
+                delete (mnn_rwkv_backend*)p;
             });
 #else
         return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;

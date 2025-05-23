@@ -317,7 +317,7 @@ if (ENABLE_MNN_BACKEND)
     target_link_libraries(rwkv_mobile_internal PUBLIC
         $<LINK_LIBRARY:WHOLE_ARCHIVE,MNN>
     )
-    target_include_directories(rwkv_mobile_internal PUBLIC ${mnn_SOURCE_DIR}/include)
+    target_include_directories(rwkv_mobile_internal PUBLIC src/backends/mnn ${mnn_SOURCE_DIR}/include)
 endif()
 
 if (BUILD_EXAMPLES)

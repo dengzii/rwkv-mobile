@@ -32,6 +32,8 @@ public:
 private:
     MNN::Interpreter *interpreter;
     MNN::Session *session;
+    std::vector<MNN::Tensor *> state_tensors;
+    std::vector<float> logits_buffer;
 };
 
 }
