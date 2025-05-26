@@ -169,8 +169,20 @@ if (ENABLE_LLAMACPP_BACKEND)
 endif()
 
 if (ENABLE_QNN_BACKEND)
-    file(GLOB QNN_SRCS src/backends/qnn/rwkv-qualcomm/Utils/*.cpp src/backends/qnn/rwkv-qualcomm/WrapperUtils/*.cpp src/backends/qnn/rwkv-qualcomm/PAL/src/common/*.cpp
+    if (WIN32)
+        file(GLOB QNN_SRCS src/backends/qnn/rwkv-qualcomm/WrapperUtils/*.cpp src/backends/qnn/rwkv-qualcomm/PAL/src/common/*.cpp
+                        src/backends/qnn/rwkv-qualcomm/PAL/src/windows/*.cpp)
+        set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/backends/qnn/rwkv-qualcomm/Utils/DataUtil.cpp
+                src/backends/qnn/rwkv-qualcomm/Utils/DynamicLoadUtil.cpp
+                src/backends/qnn/rwkv-qualcomm/Utils/IOTensor.cpp
+                src/backends/qnn/rwkv-qualcomm/Utils/Utils.cpp
+                src/backends/qnn/rwkv-qualcomm/Utils/ClientBuffer.cpp
+                src/backends/qnn/rwkv-qualcomm/Utils/dlwrap.cpp
+                src/backends/qnn/rwkv-qualcomm/Utils/RpcMem.cpp)
+    else()
+        file(GLOB QNN_SRCS src/backends/qnn/rwkv-qualcomm/Utils/*.cpp src/backends/qnn/rwkv-qualcomm/WrapperUtils/*.cpp src/backends/qnn/rwkv-qualcomm/PAL/src/common/*.cpp
                         src/backends/qnn/rwkv-qualcomm/PAL/src/linux/*.cpp)
+    endif()
     set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} ${QNN_SRCS})
     set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/backends/qnn/qnn_backend.cpp)
 endif()
@@ -310,6 +322,9 @@ if (ENABLE_QNN_BACKEND)
                                src/backends/qnn/rwkv-qualcomm/PAL/include
                                src/backends/qnn/rwkv-qualcomm/WrapperUtils
                                src/backends/qnn/rwkv-qualcomm/QNN/)
+    if (WIN32)
+        target_link_libraries(rwkv_mobile_internal PRIVATE Shlwapi Shell32)
+    endif()
 endif()
 
 if (ENABLE_MNN_BACKEND)

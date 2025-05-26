@@ -40,7 +40,7 @@ soc_detect::~soc_detect() {
 }
 
 int soc_detect::detect_platform() {
-#if defined(__ANDROID__)
+#ifndef _WIN32
     std::ifstream file("/sys/devices/soc0/family");
     std::string tmp;
     if (file.is_open()) {

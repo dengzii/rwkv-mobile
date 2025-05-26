@@ -286,7 +286,7 @@ int rwkvmobile_runtime_get_prompt(rwkvmobile_runtime_t runtime, char * prompt, c
 }
 
 void rwkvmobile_runtime_add_adsp_library_path(const char * path) {
-#ifdef __ANDROID__
+#ifndef _WIN32
     auto ld_lib_path_char = getenv("LD_LIBRARY_PATH");
     std::string ld_lib_path;
     if (ld_lib_path_char) {
