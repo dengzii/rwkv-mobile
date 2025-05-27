@@ -36,6 +36,8 @@ public:
     int hidden_size;
     int version;
     int vocab_size;
+
+    std::string extra_str;
 };
 
 enum {

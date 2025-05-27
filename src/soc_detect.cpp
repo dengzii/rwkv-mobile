@@ -71,6 +71,14 @@ int soc_detect::detect_platform() {
         }
     }
 #endif
+
+#if defined(_WIN32) && ENABLE_QNN_BACKEND
+    // TODO: Detect this
+    m_platform_type = PLATFORM_SNAPDRAGON;
+    m_htp_arch = "v73";
+    m_soc_partname = "SC8380";
+    m_soc_name = "X Elite";
+#endif
     return RWKV_SUCCESS;
 }
 

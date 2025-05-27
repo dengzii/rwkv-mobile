@@ -277,6 +277,10 @@ public:
         return backend_str_to_enum(backend_str);
     }
 
+    void backend_set_extra_str(std::string str) {
+        _backend->extra_str = str;
+    }
+
     // tokenizer
     std::vector<int> tokenizer_encode(std::string text) {
         if (_tokenizer == nullptr) {

@@ -300,6 +300,26 @@ void rwkvmobile_runtime_add_adsp_library_path(const char * path) {
 #endif
 }
 
+void rwkvmobile_runtime_set_qnn_library_path(rwkvmobile_runtime_t runtime, const char * path) {
+#ifndef _WIN32
+    auto ld_lib_path_char = getenv("LD_LIBRARY_PATH");
+    std::string ld_lib_path;
+    if (ld_lib_path_char) {
+        ld_lib_path = std::string(path) + ":" + std::string(ld_lib_path_char);
+    } else {
+        ld_lib_path = std::string(path);
+    }
+    LOGI("Setting LD_LIBRARY_PATH to %s\n", ld_lib_path.c_str());
+    setenv("LD_LIBRARY_PATH", ld_lib_path.c_str(), 1);
+    setenv("ADSP_LIBRARY_PATH", path, 1);
+#endif
+    if (runtime == nullptr || path == nullptr) {
+        return;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    rt->backend_set_extra_str(path);
+}
+
 double rwkvmobile_runtime_get_avg_decode_speed(rwkvmobile_runtime_t runtime) {
     if (runtime == nullptr) {
         return RWKV_ERROR_INVALID_PARAMETERS;

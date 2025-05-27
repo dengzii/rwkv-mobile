@@ -209,9 +209,6 @@ int qnn_backend::load_model(std::string model_path) {
             }
         }
 
-#ifdef WIN32
-        // TODO
-#else
         soc_detect soc_detect;
         soc_detect.detect_platform();
         std::string htp_arch = soc_detect.get_htp_arch();
@@ -228,24 +225,34 @@ int qnn_backend::load_model(std::string model_path) {
             custom_op_name = "libQnnRwkvWkvOpPackageV68.so";
         }
 
-        const char* ldLibraryPath = getenv("LD_LIBRARY_PATH");
-        if (ldLibraryPath) {
-            std::string pathStr(ldLibraryPath);
-            std::stringstream ss(pathStr);
-            std::string dir;
-            while (std::getline(ss, dir, ':')) {
-                std::string fullPath = dir + "/" + custom_op_name;
-                std::ifstream file(fullPath);
-                if (file.good()) {
-                    LOGI("Found %s in LD_LIBRARY_PATH: %s", custom_op_name.c_str(), fullPath.c_str());
-                    if (RWKV_SUCCESS != qnn_register_op_package(fullPath, "RwkvWkvOpPackageInterfaceProvider")) {
-                        LOGE("Op package registration failed");
-                    }
-                    break;
+        std::vector<std::string> paths;
+        if (!extra_str.empty()) {
+            paths.push_back(extra_str);
+        } else {
+#ifndef _WIN32
+            const char* ldLibraryPath = getenv("LD_LIBRARY_PATH");
+            if (ldLibraryPath) {
+                std::string pathStr(ldLibraryPath);
+                std::stringstream ss(pathStr);
+                std::string dir;
+                while (std::getline(ss, dir, ':')) {
+                    paths.push_back(dir);
                 }
             }
-        }
 #endif
+        }
+
+        for (auto dir : paths) {
+            std::string fullPath = dir + "/" + custom_op_name;
+            std::ifstream file(fullPath);
+            if (file.good()) {
+                LOGI("Found %s in path: %s", custom_op_name.c_str(), fullPath.c_str());
+                if (RWKV_SUCCESS != qnn_register_op_package(fullPath, "RwkvWkvOpPackageInterfaceProvider")) {
+                    LOGE("Op package registration failed");
+                }
+                break;
+            }
+        }
     }
 
     if (is_context_cache) {
