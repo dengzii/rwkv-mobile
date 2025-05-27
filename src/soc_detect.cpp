@@ -5,10 +5,6 @@
 
 #include <iostream>
 
-#ifdef _WIN32
-#include <intrin.h>
-#endif
-
 namespace rwkvmobile {
 
 const char * platform_name[] = {
@@ -75,39 +71,7 @@ int soc_detect::detect_platform() {
         }
     }
 #else
-    std::array<int, 4> integerBuffer = {};
-    constexpr size_t sizeofIntegerBuffer = sizeof(int) * integerBuffer.size();
-
-    std::array<char, 64> charBuffer = {};
-
-    // The information you wanna query __cpuid for.
-    // https://learn.microsoft.com/en-us/cpp/intrinsics/cpuid-cpuidex?view=vs-2019
-    constexpr std::array<int, 3> functionIds = {
-        // Manufacturer
-        //  EX: "Intel(R) Core(TM"
-        0x8000'0002,
-        // Model
-        //  EX: ") i7-8700K CPU @"
-        0x8000'0003,
-        // Clockspeed
-        //  EX: " 3.70GHz"
-        0x8000'0004
-    };
-
-    std::string cpu;
-
-    for (int id : functionIds)
-    {
-        // Get the data for the current ID.
-        __cpuid(integerBuffer.data(), id);
-        
-        // Copy the raw data from the integer buffer into the character buffer
-        std::memcpy(charBuffer.data(), integerBuffer.data(), sizeofIntegerBuffer);
-
-        // Copy that data into a std::string
-        cpu += std::string(charBuffer.data());
-    }
-    LOGI("CPU INFO: %s", cpu.c_str());
+    // TODO
 #endif
 
 #if defined(_WIN32) && ENABLE_QNN_BACKEND
