@@ -284,6 +284,18 @@ late final _rwkvmobile_runtime_add_adsp_library_pathPtr = _lookup<
     ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Char> )>>('rwkvmobile_runtime_add_adsp_library_path');
 late final _rwkvmobile_runtime_add_adsp_library_path = _rwkvmobile_runtime_add_adsp_library_pathPtr.asFunction<void Function(ffi.Pointer<ffi.Char> )>();
 
+void rwkvmobile_runtime_set_qnn_library_path(rwkvmobile_runtime_t runtime,
+ffi.Pointer<ffi.Char> path,
+) {
+  return _rwkvmobile_runtime_set_qnn_library_path(runtime,
+path,
+);
+}
+
+late final _rwkvmobile_runtime_set_qnn_library_pathPtr = _lookup<
+    ffi.NativeFunction<ffi.Void Function(rwkvmobile_runtime_t , ffi.Pointer<ffi.Char> )>>('rwkvmobile_runtime_set_qnn_library_path');
+late final _rwkvmobile_runtime_set_qnn_library_path = _rwkvmobile_runtime_set_qnn_library_pathPtr.asFunction<void Function(rwkvmobile_runtime_t , ffi.Pointer<ffi.Char> )>();
+
 double rwkvmobile_runtime_get_avg_decode_speed(rwkvmobile_runtime_t runtime,
 ) {
   return _rwkvmobile_runtime_get_avg_decode_speed(runtime,
