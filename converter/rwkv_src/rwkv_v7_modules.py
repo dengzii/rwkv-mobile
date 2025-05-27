@@ -8,7 +8,7 @@ custom_norm_wrapper_src = """
 #include <torch/script.h>
 
 torch::Tensor l2norm(torch::Tensor x) {
-    return x / (x.norm(2, -1, true) + 1e-12);
+    return x / (x.norm(2, -1, true) + 1e-6);
 }
 
 torch::Tensor reducel2(torch::Tensor x) {
@@ -28,7 +28,7 @@ _ = torch.utils.cpp_extension.load_inline(
     name='extension', cpp_sources=[custom_norm_wrapper_src])
 
 def l2norm(x):
-    return x / (torch.ops.customop.reducel2(x) + 1e-12)
+    return x / (torch.ops.customop.reducel2(x) + 1e-6)
 
 class Rwkv7SelfAttention(nn.Module):
     def __init__(self, state_dict, hidden_size, head_size, model_args=None, layer_id=0, rescale_layer=0, custom_wkv=False):
@@ -152,7 +152,7 @@ class Rwkv7SelfAttention(nn.Module):
         elif self.model_args is not None and self.model_args.USE_ONNX_REDUCE_L2:
             kk = l2norm(kk.view(seq_length, self.num_heads, self.head_size)).view(-1)
         else:
-            kk = torch.nn.functional.normalize(kk.view(seq_length, self.num_heads, self.head_size), dim=-1, p=2.0).view(-1)
+            kk = torch.nn.functional.normalize(kk.view(seq_length, self.num_heads, self.head_size), dim=-1, p=2.0, eps=1e-6).view(-1)
         key = key * (1 + (a-1) * self.k_a)
 
         if self.layer_id == 0:

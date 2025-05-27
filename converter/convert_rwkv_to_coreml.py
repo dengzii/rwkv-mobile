@@ -5,6 +5,7 @@ from coremltools.optimize.torch.palettization import PostTrainingPalettizerConfi
 from pathlib import Path
 import argparse, types, os
 import torch
+import numpy as np
 
 parser = argparse.ArgumentParser(description='Export coreml model')
 parser.add_argument('model', type=Path, help='Path to RWKV pth file')
@@ -16,27 +17,30 @@ model_args.fp16 = False
 model_args.wkv_customop = False
 model_args.USE_EMBEDDING = True
 model_args.RESCALE_LAYER = 0
+model_args.USE_ONNX_L2NORM = False
+model_args.USE_ONNX_REDUCE_L2 = False
 
 model_args.MODEL_NAME = str(parser_args.model).replace('.pth', '')
 model = RWKV_RNN(model_args)
+args = model.args
 
 inputs = get_dummy_input_for_rwkv_causal_llm(1, 1, model.device, model.args)
 
-config = PostTrainingPalettizerConfig.from_dict({"global_config": 
-                                                {
-                                                "n_bits": 4,
-                                                "granularity": "per_grouped_channel",
-                                                "group_size": 16
-                                                }
-                                                })
-palettizer = PostTrainingPalettizer(model, config)
-palettized_model = palettizer.compress()
+# config = PostTrainingPalettizerConfig.from_dict({"global_config": 
+#                                                 {
+#                                                 "n_bits": 4,
+#                                                 "granularity": "per_grouped_channel",
+#                                                 "group_size": 16
+#                                                 }
+#                                                 })
+# palettizer = PostTrainingPalettizer(model, config)
+# palettized_model = palettizer.compress()
 
-model = torch.jit.trace(palettized_model, example_inputs=inputs)
-# model = torch.jit.trace(model, example_inputs=inputs)
+# model = torch.jit.trace(palettized_model, example_inputs=inputs)
+model = torch.jit.trace(model, example_inputs=inputs)
 
-ct_inputs = [ct.TensorType('in0', inputs[0].shape)] + [ct.TensorType(f'state_{i-1}_in', inputs[i].shape) for i in range(1, len(inputs))]
-ct_outputs = [ct.TensorType(name='logits')] + [ct.TensorType(f'state_{i-1}_out') for i in range(1, len(inputs))]
+ct_inputs = [ct.TensorType('in0', inputs[0].shape, dtype=np.int32)] + [ct.TensorType(f'state_{i-1}_in', inputs[i].shape, dtype=np.float32) for i in range(1, len(inputs))]
+ct_outputs = [ct.TensorType(name='logits', dtype=np.float32)] + [ct.TensorType(f'state_{i-1}_out', dtype=np.float32) for i in range(1, len(inputs))]
 mlmodel = ct.convert(
     model,
     inputs=ct_inputs,
