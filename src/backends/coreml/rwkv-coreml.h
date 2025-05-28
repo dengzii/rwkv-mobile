@@ -1,0 +1,30 @@
+#include <stdint.h>
+
+#if __cplusplus
+extern "C" {
+#endif
+
+struct rwkv_coreml_context;
+
+struct rwkv_coreml_context * rwkv_coreml_init(const char * path_model);
+void rwkv_coreml_free(struct rwkv_coreml_context * ctx);
+
+void rwkv_coreml_decode(
+        struct rwkv_coreml_context * ctx,
+        int token);
+
+float * rwkv_coreml_get_logits(struct rwkv_coreml_context * ctx);
+
+int rwkv_coreml_get_vocab_size(struct rwkv_coreml_context * ctx);
+
+int rwkv_coreml_get_n_layers(struct rwkv_coreml_context * ctx);
+
+int rwkv_coreml_get_num_heads(struct rwkv_coreml_context * ctx);
+
+int rwkv_coreml_get_head_dim(struct rwkv_coreml_context * ctx);
+
+int rwkv_coreml_get_hidden_dim(struct rwkv_coreml_context * ctx);
+
+#if __cplusplus
+}
+#endif

@@ -28,6 +28,10 @@
 #include "mnn_rwkv_backend.h"
 #endif
 
+#ifdef ENABLE_COREML
+#include "coreml_rwkv_backend.h"
+#endif
+
 #ifdef ENABLE_VISION
 #include "llava.h"
 #include "clip.h"
@@ -59,6 +63,8 @@ std::string backend_enum_to_str(int backend) {
             return "qnn";
         case RWKV_BACKEND_MNN:
             return "mnn";
+        case RWKV_BACKEND_COREML:
+            return "coreml";
         default:
             return "unknown";
     }
@@ -75,6 +81,8 @@ int backend_str_to_enum(std::string backend) {
         return RWKV_BACKEND_QNN;
     } else if (backend == "mnn") {
         return RWKV_BACKEND_MNN;
+    } else if (backend == "coreml") {
+        return RWKV_BACKEND_COREML;
     }
     return -1;
 }
@@ -172,6 +180,13 @@ int runtime::init(int backend_id, void * extra) {
             });
 #else
         return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
+#endif
+    } else if (backend_id == RWKV_BACKEND_COREML) {
+#ifdef ENABLE_COREML
+        _backend = std::unique_ptr<execution_provider, std::function<void(execution_provider*)>>(new coreml_rwkv_backend,
+            [](execution_provider *p) {
+                delete (coreml_rwkv_backend*)p;
+            });
 #endif
     } else {
         return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
@@ -295,6 +310,10 @@ int runtime::get_available_backend_ids(std::vector<int> &backend_ids) {
     }
 #endif
 
+#ifdef ENABLE_COREML
+    backend_ids.push_back(RWKV_BACKEND_COREML);
+#endif
+
     return RWKV_SUCCESS;
 }
 
@@ -329,7 +348,7 @@ int runtime::eval_logits(std::vector<int> ids, float *& logits) {
     auto start = std::chrono::high_resolution_clock::now();
     int ret = _backend->eval(ids, logits);
     auto end = std::chrono::high_resolution_clock::now();
-    _prefill_durations_us.push_back(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / (double)ids.size());
+    _prefill_durations_us.push_back(std::make_pair(ids.size(), std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()));
     if (_prefill_durations_us.size() > _prefill_duration_window) {
         _prefill_durations_us.erase(_prefill_durations_us.begin());
     }
@@ -345,7 +364,7 @@ int runtime::eval_logits_with_embeddings(const float *embeddings, int n_tokens, 
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / (double)n_tokens;
     if (n_tokens > 1) {
-        _prefill_durations_us.push_back(duration);
+        _prefill_durations_us.push_back(std::make_pair(n_tokens, duration));
         if (_prefill_durations_us.size() > _prefill_duration_window) {
             _prefill_durations_us.erase(_prefill_durations_us.begin());
         }
@@ -1199,12 +1218,13 @@ double runtime::get_avg_prefill_speed() {
     if (_prefill_durations_us.size() == 0) {
         return 0.0;
     } else {
-        double avg_time = 0.0;
+        double total_time = 0.0;
+        int total_tokens = 0;
         for (auto duration : _prefill_durations_us) {
-            avg_time += duration;
+            total_time += duration.second;
+            total_tokens += duration.first;
         }
-        avg_time /= _prefill_durations_us.size();
-        return 1e6f / avg_time;
+        return 1e6f * total_tokens / total_time;
     }
 }
 

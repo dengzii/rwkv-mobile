@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(rwkv-mobile CXX)
+project(rwkv-mobile C CXX)
+
+if(APPLE)
+  include(CheckOBJCSourceCompiles)
+  enable_language(OBJC)
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -11,6 +16,7 @@ option(ENABLE_WEBRWKV_BACKEND "Enable WebRWKV backend" ON)
 option(ENABLE_LLAMACPP_BACKEND "Enable llama.cpp backend" ON)
 option(ENABLE_QNN_BACKEND "Enable QNN backend" OFF)
 option(ENABLE_MNN_BACKEND "Enable MNN backend" ON)
+option(ENABLE_COREML_BACKEND "Enable CoreML backend" OFF)
 
 option(ENABLE_VISION "Enable vision" OFF)
 option(ENABLE_WHISPER "Enable whisper" OFF)
@@ -230,6 +236,10 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     FetchContent_MakeAvailable(kaldi_native_fbank)
 endif()
 
+if (ENABLE_COREML_BACKEND)
+    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/backends/coreml/coreml_rwkv_backend.cpp)
+endif()
+
 add_library(rwkv_mobile_internal STATIC ${RWKV_MOBILE_SRCS})
 target_include_directories(rwkv_mobile_internal PUBLIC src)
 
@@ -276,9 +286,39 @@ if (ENABLE_NCNN_BACKEND)
     target_link_libraries(rwkv_mobile_internal PUBLIC "$<LINK_LIBRARY:WHOLE_ARCHIVE,ncnn>")
 endif()
 
+if (ENABLE_COREML_BACKEND)
+    find_library(FOUNDATION_FRAMEWORK Foundation)
+    find_library(COREML_FRAMEWORK CoreML)
+
+    if (COREML_FRAMEWORK)
+        message(STATUS "CoreML framework found")
+    endif()
+
+    add_library(rwkv_coreml
+        src/backends/coreml/rwkv-coreml.h
+        src/backends/coreml/rwkv-coreml.mm
+        src/backends/coreml/rwkv-coreml-impl.h
+        src/backends/coreml/rwkv-coreml-impl.m
+    )
+
+    target_link_libraries(rwkv_coreml PUBLIC ${FOUNDATION_FRAMEWORK} ${COREML_FRAMEWORK})
+    set_target_properties(rwkv_coreml PROPERTIES
+        COMPILE_FLAGS "-fobjc-arc"
+        XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC YES
+    )
+    set_target_properties(rwkv_coreml PROPERTIES FOLDER "libs")
+
+    target_link_libraries(rwkv_mobile_internal PUBLIC rwkv_coreml)
+
+    target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_COREML)
+    target_include_directories(rwkv_mobile_internal PUBLIC src/backends/coreml)
+
+    # add_executable(test_coreml src/backends/coreml/test_coreml.cpp)
+    # target_link_libraries(test_coreml PUBLIC rwkv_coreml)
+endif()
+
 if (ENABLE_LLAMACPP_BACKEND)
     if (APPLE AND GGML_ACCELERATE)
-        find_library(ACCELERATE_FRAMEWORK Accelerate)
         if (ACCELERATE_FRAMEWORK)
             set(LLAMACPP_EXTRA_LIBS ${LLAMACPP_EXTRA_LIBS} ${ACCELERATE_FRAMEWORK})
         endif()

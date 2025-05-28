@@ -18,6 +18,8 @@ int main(int argc, char **argv) {
     ENSURE_SUCCESS_OR_LOG_EXIT(runtime.init(argv[3]), "Failed to initialize runtime");
     ENSURE_SUCCESS_OR_LOG_EXIT(runtime.load_tokenizer(argv[1]), "Failed to load tokenizer");
     ENSURE_SUCCESS_OR_LOG_EXIT(runtime.load_model(argv[2]), "Failed to load model");
+    runtime.set_sampler_params(1.0, 1, 1.0);
+    runtime.set_penalty_params(0.0, 0.0, 0.0);
 
     std::cout << "Generating demo text..." << std::endl;
 
@@ -26,6 +28,9 @@ int main(int argc, char **argv) {
     std::cout << runtime.get_response_buffer_content();
 
     std::cout << std::endl;
+
+    std::cout << "Prefill speed: " << runtime.get_avg_prefill_speed() << " tokens/s" << std::endl;
+    std::cout << "Decode speed: " << runtime.get_avg_decode_speed() << " tokens/s" << std::endl;
 
     runtime.release();
 

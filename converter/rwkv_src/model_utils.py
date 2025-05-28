@@ -5,31 +5,42 @@ import numpy as np
 def extract_info_from_model_cfg(model_cfg):
     return model_cfg.n_layer, model_cfg.n_head, model_cfg.n_embd
 
-def get_dummy_state(batch_size, model_cfg, device):
-    def _cache(shape, fp16):
-        if fp16:
-            return torch.zeros(shape, dtype=torch.float16).to(device=device)
-        else:
-            return torch.zeros(shape).to(device=device)
+def get_dummy_state(batch_size, model_cfg, device, merged_states=False):
+    if merged_states:
+        num_layers, num_heads, embed_dim = extract_info_from_model_cfg(model_cfg)
+        head_size = embed_dim // num_heads
+        token_shift_state = torch.zeros(batch_size, 2 * num_layers, embed_dim).to(device=device)
+        wkv_state = torch.zeros(batch_size * num_layers, num_heads, head_size, head_size).to(device=device)
+        # state = torch.zeros(batch_size, num_layers * (2 + head_size), embed_dim).to(device=device)
+        if model_cfg.fp16:
+            token_shift_state = token_shift_state.half()
+            wkv_state = wkv_state.half()
+        return [token_shift_state, wkv_state]
+    else:
+        def _cache(shape, fp16):
+            if fp16:
+                return torch.zeros(shape, dtype=torch.float16).to(device=device)
+            else:
+                return torch.zeros(shape).to(device=device)
 
-    num_layers, num_heads, embed_dim = extract_info_from_model_cfg(model_cfg)
-    head_size = embed_dim // num_heads
+        num_layers, num_heads, embed_dim = extract_info_from_model_cfg(model_cfg)
+        head_size = embed_dim // num_heads
 
-    state_0 = (1, batch_size, embed_dim)
-    state_1 = (batch_size, num_heads, head_size, head_size)
-    state_2 = (1, batch_size, embed_dim)
- 
-    state = []
-    for _ in range(0, num_layers):
-        state += [_cache(state_0, model_cfg.fp16), _cache(state_1, model_cfg.fp16), _cache(state_2, model_cfg.fp16)]
-    return state
+        state_0 = (1, batch_size, embed_dim)
+        state_1 = (batch_size, num_heads, head_size, head_size)
+        state_2 = (1, batch_size, embed_dim)
+    
+        state = []
+        for _ in range(0, num_layers):
+            state += [_cache(state_0, model_cfg.fp16), _cache(state_1, model_cfg.fp16), _cache(state_2, model_cfg.fp16)]
+        return state
 
-def get_dummy_input_for_rwkv_causal_llm(batch_size, input_length, device, model_cfg=None, dict_output=False):
+def get_dummy_input_for_rwkv_causal_llm(batch_size, input_length, device, model_cfg=None, dict_output=False, merged_states=False):
     input_ids = torch.tensor([[0]*input_length for _ in range(batch_size)], dtype=torch.int32).to(device)
     if dict_output:
-        inputs = {'in0': input_ids, 'state': get_dummy_state(batch_size, model_cfg, device)}
+        inputs = {'in0': input_ids, 'state': get_dummy_state(batch_size, model_cfg, device, merged_states)}
     else:
-        inputs = [input_ids] + get_dummy_state(batch_size, model_cfg, device)
+        inputs = [input_ids] + get_dummy_state(batch_size, model_cfg, device, merged_states)
     return inputs
 
 def init_inputs_for_rwkv_onnx(n_heads, head_size, n_layers, batch_size, input_length, dtype=np.float16):

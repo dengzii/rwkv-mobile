@@ -64,14 +64,26 @@ class RWKV_Block(nn.Module):
                 x, self._buffers[f'state_ffn_tokenshift'] = self.ffn(x, self._buffers[f'state_ffn_tokenshift'])
                 return x
         else:
-            if self.version == 7:
-                x, state[3*self.layer_offset], state[3*self.layer_offset+1], v_first = self.att(x, state[3*self.layer_offset], state[3*self.layer_offset+1], v_first)
-                x, state[3*self.layer_offset+2] = self.ffn(x, state[3*self.layer_offset+2])
-                return x, state, v_first
+            if len(state) == 2:
+                token_shift_state, wkv_state = state
+                if self.version == 7:
+                    x, token_shift_state[:, 2*self.layer_offset, :], wkv_state[self.layer_offset, :, :], v_first = self.att(x, token_shift_state[:, 2*self.layer_offset, :], wkv_state[self.layer_offset, :, :], v_first)
+                    x, token_shift_state[:, 2*self.layer_offset+1, :] = self.ffn(x, token_shift_state[:, 2*self.layer_offset+1, :])
+                    return x, [token_shift_state, wkv_state], v_first
+                else:
+                    x, token_shift_state[:, 2*self.layer_offset, :], wkv_state[self.layer_offset, :, :] = self.att(x, token_shift_state[:, 2*self.layer_offset, :], wkv_state[self.layer_offset, :, :])
+                    x, token_shift_state[:, 2*self.layer_offset+1, :] = self.ffn(x, token_shift_state[:, 2*self.layer_offset+1, :])
+                    return x, [token_shift_state, wkv_state]
             else:
-                x, state[3*self.layer_offset], state[3*self.layer_offset+1] = self.att(x, state[3*self.layer_offset], state[3*self.layer_offset+1])
-                x, state[3*self.layer_offset+2] = self.ffn(x, state[3*self.layer_offset+2])
-                return x, state
+                if self.version == 7:
+                    x, state[3*self.layer_offset], state[3*self.layer_offset+1], v_first = self.att(x, state[3*self.layer_offset], state[3*self.layer_offset+1], v_first)
+                    x, state[3*self.layer_offset+2] = self.ffn(x, state[3*self.layer_offset+2])
+                    return x, state, v_first
+                else:
+                    x, state[3*self.layer_offset], state[3*self.layer_offset+1] = self.att(x, state[3*self.layer_offset], state[3*self.layer_offset+1])
+                    x, state[3*self.layer_offset+2] = self.ffn(x, state[3*self.layer_offset+2])
+                    return x, state
+                
 
 class RWKV_RNN(torch.nn.Module):
     def __init__(self, args, chunks=1, chunk_idx=0):
@@ -144,6 +156,8 @@ class RWKV_RNN(torch.nn.Module):
 
     def forward(self, in0, *args):
         state = [*args]
+        if len(state) == 1:
+            state = state[0]
         with torch.no_grad():
             if self.args.USE_EMBEDDING and self.chunk_idx == 0:
                 x = self.embedding(in0)
