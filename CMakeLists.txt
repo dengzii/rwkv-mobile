@@ -409,6 +409,10 @@ if (BUILD_STATIC_LIB)
     #     set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST} $<TARGET_FILE:ncnn>)
     # endif()
 
+    if (ENABLE_COREML_BACKEND)
+        set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST} $<TARGET_FILE:rwkv_coreml>)
+    endif()
+
     if (ENABLE_WHISPER OR ENABLE_TTS)
         set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST}
             $<TARGET_FILE:kaldi-native-fbank-core>
