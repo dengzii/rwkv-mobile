@@ -10,7 +10,7 @@ parser.add_argument('model', type=Path, help='Path to RWKV mlpackage file')
 parser.add_argument('--stateful', action='store_true', help='Use stateful model')
 parser_args = parser.parse_args()
 
-model = ct.models.MLModel(str(parser_args.model), compute_units=ct.ComputeUnit.CPU_AND_NE)
+model = ct.models.MLModel(str(parser_args.model), compute_units=ct.ComputeUnit.ALL)
 
 tokenizer = AutoTokenizer.from_pretrained("RWKV/rwkv-5-world-1b5", trust_remote_code=True)
 
