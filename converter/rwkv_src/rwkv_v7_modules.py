@@ -27,6 +27,42 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 _ = torch.utils.cpp_extension.load_inline(
     name='extension', cpp_sources=[custom_norm_wrapper_src])
 
+custom_wkv_src = """
+#include <torch/extension.h>
+#include <torch/script.h>
+
+std::tuple<torch::Tensor, torch::Tensor> wkv7(
+    torch::Tensor r, torch::Tensor w, torch::Tensor k, 
+    torch::Tensor v, torch::Tensor a, torch::Tensor b,
+    torch::Tensor state) {
+
+    auto num_head = state.size(0);
+    auto head_size = state.size(1);
+    int seq_length = k.size(0);
+
+    auto kv = torch::matmul(v, k);
+    auto ab = torch::matmul(a, b);
+    auto wkv_tensor = torch::zeros({seq_length, num_head, 1, head_size}, kv.options());
+    for (int i = 0; i < seq_length; i++) {
+        state = w[i] * state + kv[i] + torch::matmul(state, ab[i]);
+        wkv_tensor[i] = torch::matmul(state, r[i]).reshape({num_head, 1, head_size});
+    }
+
+    return std::make_tuple(wkv_tensor, state);
+}
+
+TORCH_LIBRARY(rwkv, m) {
+  m.def("wkv7", &wkv7);
+}
+
+PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+}
+
+"""
+
+_ = torch.utils.cpp_extension.load_inline(
+    name='extension', cpp_sources=[custom_wkv_src])
+
 def l2norm(x):
     return x / (torch.ops.customop.reducel2(x) + 1e-6)
 
@@ -118,7 +154,7 @@ class Rwkv7SelfAttention(nn.Module):
         self.sigmoid_g              = nn.Sigmoid()
         self.sigmoid_v              = nn.Sigmoid()
         self.sigmoid_w              = nn.Sigmoid()
-    
+
     def forward(self, x, state1, state2, v_first):
         last_x = x
         x = self.ln_1(x)
@@ -164,11 +200,20 @@ class Rwkv7SelfAttention(nn.Module):
         time_decay = self.exp_w(-0.606531 * self.sigmoid_w(time_decay)).view(seq_length, self.num_heads, 1, self.head_size)
 
         # kernel
-        vk = value.view(seq_length, self.num_heads, self.head_size, 1) @ key.view(seq_length, self.num_heads, 1, self.head_size)
+        # vk = value.view(seq_length, self.num_heads, self.head_size, 1) @ key.view(seq_length, self.num_heads, 1, self.head_size)
         
-        ab = (-kk).view(self.num_heads, self.head_size, 1) @ (kk * a).view(self.num_heads, 1, self.head_size)
-        state2_out = state2 * time_decay + (state2 @ ab) + vk
-        x = (state2_out @ receptance.view(seq_length, self.num_heads, self.head_size, 1)).view(seq_length, self.num_heads, 1, self.head_size)
+        # ab = (-kk).view(self.num_heads, self.head_size, 1) @ (kk * a).view(self.num_heads, 1, self.head_size)
+        # state2_out = state2 * time_decay + (state2 @ ab) + vk
+        # x = (state2_out @ receptance.view(seq_length, self.num_heads, self.head_size, 1)).view(seq_length, self.num_heads, 1, self.head_size)
+        b = kk * a
+        a = -kk
+        x, state2_out = torch.ops.rwkv.wkv7(receptance.view(seq_length, self.num_heads, self.head_size, 1),
+                                            time_decay.view(seq_length, self.num_heads, 1, self.head_size),
+                                            key.view(seq_length, self.num_heads, 1, self.head_size),
+                                            value.view(seq_length, self.num_heads, self.head_size, 1),
+                                            a.view(seq_length, self.num_heads, self.head_size, 1),
+                                            b.view(seq_length, self.num_heads, 1, self.head_size),
+                                            state2.squeeze())
 
         # group_norm
         x = self.ln_x(x).view(batch_size, seq_length, self.hidden_size)
