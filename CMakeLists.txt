@@ -229,7 +229,7 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     FetchContent_Declare(
         kaldi_native_fbank
         GIT_REPOSITORY https://github.com/csukuangfj/kaldi-native-fbank/
-        GIT_TAG master
+        GIT_TAG v1.21.1
     )
     option(KALDI_NATIVE_FBANK_BUILD_PYTHON "" OFF)
     option(KALDI_NATIVE_FBANK_BUILD_TESTS "" OFF)
