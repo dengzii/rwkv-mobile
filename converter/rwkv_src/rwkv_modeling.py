@@ -47,42 +47,27 @@ class RWKV_Block(nn.Module):
         else:
             self.att = Rwkv5SelfAttention(state_dict, n_embd, head_size, version=version, layer_id=layer_id, rescale_layer=rescale_layer)
             self.ffn = Rwkv5FeedForward(state_dict, n_embd, n_ffn, layer_id=layer_id, rescale_layer=rescale_layer)
-        if model_args is not None and model_args.use_stateful_model:
-            dtype = torch.float32
-            self.register_buffer(f'state_att_tokenshift', torch.zeros(1, 1, n_embd, dtype=dtype))
-            self.register_buffer(f'state_wkv', torch.zeros(1, n_embd // head_size, head_size, head_size, dtype=dtype))
-            self.register_buffer(f'state_ffn_tokenshift', torch.zeros(1, 1, n_embd, dtype=dtype))
 
     def forward(self, x, state=None, v_first=None):
-        if self.model_args is not None and self.model_args.use_stateful_model:
+        if len(state) == 2:
+            token_shift_state, wkv_state = state
             if self.version == 7:
-                x, self._buffers[f'state_att_tokenshift'], self._buffers[f'state_wkv'], v_first = self.att(x, self._buffers[f'state_att_tokenshift'], self._buffers[f'state_wkv'], v_first)
-                x, self._buffers[f'state_ffn_tokenshift'] = self.ffn(x, self._buffers[f'state_ffn_tokenshift'])
-                return x, v_first
+                x, token_shift_state[:, 2*self.layer_offset, :], wkv_state[self.layer_offset, :, :], v_first = self.att(x, token_shift_state[:, 2*self.layer_offset, :], wkv_state[self.layer_offset, :, :], v_first)
+                x, token_shift_state[:, 2*self.layer_offset+1, :] = self.ffn(x, token_shift_state[:, 2*self.layer_offset+1, :])
+                return x, [token_shift_state, wkv_state], v_first
             else:
-                x, self._buffers[f'state_att_tokenshift'], self._buffers[f'state_wkv'] = self.att(x, self._buffers[f'state_att_tokenshift'], self._buffers[f'state_wkv'])
-                x, self._buffers[f'state_ffn_tokenshift'] = self.ffn(x, self._buffers[f'state_ffn_tokenshift'])
-                return x
+                x, token_shift_state[:, 2*self.layer_offset, :], wkv_state[self.layer_offset, :, :] = self.att(x, token_shift_state[:, 2*self.layer_offset, :], wkv_state[self.layer_offset, :, :])
+                x, token_shift_state[:, 2*self.layer_offset+1, :] = self.ffn(x, token_shift_state[:, 2*self.layer_offset+1, :])
+                return x, [token_shift_state, wkv_state]
         else:
-            if len(state) == 2:
-                token_shift_state, wkv_state = state
-                if self.version == 7:
-                    x, token_shift_state[:, 2*self.layer_offset, :], wkv_state[self.layer_offset, :, :], v_first = self.att(x, token_shift_state[:, 2*self.layer_offset, :], wkv_state[self.layer_offset, :, :], v_first)
-                    x, token_shift_state[:, 2*self.layer_offset+1, :] = self.ffn(x, token_shift_state[:, 2*self.layer_offset+1, :])
-                    return x, [token_shift_state, wkv_state], v_first
-                else:
-                    x, token_shift_state[:, 2*self.layer_offset, :], wkv_state[self.layer_offset, :, :] = self.att(x, token_shift_state[:, 2*self.layer_offset, :], wkv_state[self.layer_offset, :, :])
-                    x, token_shift_state[:, 2*self.layer_offset+1, :] = self.ffn(x, token_shift_state[:, 2*self.layer_offset+1, :])
-                    return x, [token_shift_state, wkv_state]
+            if self.version == 7:
+                x, state[3*self.layer_offset], state[3*self.layer_offset+1], v_first = self.att(x, state[3*self.layer_offset], state[3*self.layer_offset+1], v_first)
+                x, state[3*self.layer_offset+2] = self.ffn(x, state[3*self.layer_offset+2])
+                return x, state, v_first
             else:
-                if self.version == 7:
-                    x, state[3*self.layer_offset], state[3*self.layer_offset+1], v_first = self.att(x, state[3*self.layer_offset], state[3*self.layer_offset+1], v_first)
-                    x, state[3*self.layer_offset+2] = self.ffn(x, state[3*self.layer_offset+2])
-                    return x, state, v_first
-                else:
-                    x, state[3*self.layer_offset], state[3*self.layer_offset+1] = self.att(x, state[3*self.layer_offset], state[3*self.layer_offset+1])
-                    x, state[3*self.layer_offset+2] = self.ffn(x, state[3*self.layer_offset+2])
-                    return x, state
+                x, state[3*self.layer_offset], state[3*self.layer_offset+1] = self.att(x, state[3*self.layer_offset], state[3*self.layer_offset+1])
+                x, state[3*self.layer_offset+2] = self.ffn(x, state[3*self.layer_offset+2])
+                return x, state
                 
 
 class RWKV_RNN(torch.nn.Module):
@@ -100,7 +85,6 @@ class RWKV_RNN(torch.nn.Module):
         self.args.n_ffn = w['blocks.0.ffn.key.weight'].shape[0]
         self.args.version, self.args.n_layer, self.args.n_head = check_rwkv_info(w)
         self.args.head_size = self.args.n_embd // self.args.n_head
-        self.args.use_stateful_model = getattr(self.args, 'USE_STATEFUL_MODEL', False)
 
         if self.args.version == 7:
             self.args.RESCALE_LAYER = 0
@@ -172,16 +156,10 @@ class RWKV_RNN(torch.nn.Module):
                 v_first = torch.empty_like(x)
 
             for i in range(self.layer_begin, self.layer_end):
-                if self.args.use_stateful_model:
-                    if self.args.version == 7:
-                        x, v_first = self.blocks[i-self.layer_begin](x, v_first=v_first)
-                    else:
-                        x = self.blocks[i-self.layer_begin](x)
+                if self.args.version == 7:
+                    x, state, v_first = self.blocks[i-self.layer_begin](x, state, v_first=v_first)
                 else:
-                    if self.args.version == 7:
-                        x, state, v_first = self.blocks[i-self.layer_begin](x, state, v_first=v_first)
-                    else:
-                        x, state = self.blocks[i-self.layer_begin](x, state)
+                    x, state = self.blocks[i-self.layer_begin](x, state)
                 if self.args.RESCALE_LAYER > 0:
                     if (i+1) % self.args.RESCALE_LAYER == 0:
                         x = x / 2
@@ -192,10 +170,26 @@ class RWKV_RNN(torch.nn.Module):
             else:
                 x = x.view(batch_size, seq_length, self.args.n_embd)
 
-            if self.args.use_stateful_model:
-                return x
-            else:
-                return x, state
+            return x, state
+
+class RWKV_RNN_Stateful(RWKV_RNN):
+    def __init__(self, args, chunks=1, chunk_idx=0):
+        super().__init__(args, chunks, chunk_idx)
+        self.register_buffer('state_tokenshift', torch.zeros(2, self.args.n_layer, self.args.n_embd))
+        self.register_buffer('state_wkv', torch.zeros(self.args.n_layer, self.args.n_head, self.args.head_size, self.args.head_size))
+
+    def forward(self, in0):
+        states = []
+        for i in range(self.args.n_layer):
+            states.append(self.state_tokenshift[0:1, i:i+1, :])
+            states.append(self.state_wkv[i:i+1, :, :, :])
+            states.append(self.state_tokenshift[1:2, i:i+1, :])
+        x, states = super().forward(in0, states)
+        for i in range(self.args.n_layer):
+            self.state_tokenshift[0:1, i:i+1, :] = states[3*i]
+            self.state_wkv[i:i+1, :, :, :] = states[3*i+1]
+            self.state_tokenshift[1:2, i:i+1, :] = states[3*i+2]
+        return x
 
 def make_chunks(chunks, args):
     return [RWKV_RNN(args, chunks=chunks, chunk_idx=i) for i in range(chunks)]
