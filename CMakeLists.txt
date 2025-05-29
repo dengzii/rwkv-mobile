@@ -299,8 +299,11 @@ if (ENABLE_COREML_BACKEND)
         src/backends/coreml/rwkv-coreml.mm
         src/backends/coreml/rwkv-coreml-impl.h
         src/backends/coreml/rwkv-coreml-impl.m
+        src/backends/coreml/rwkv-coreml-stateful-impl.h
+        src/backends/coreml/rwkv-coreml-stateful-impl.m
     )
 
+    target_include_directories(rwkv_coreml PUBLIC src)
     target_link_libraries(rwkv_coreml PUBLIC ${FOUNDATION_FRAMEWORK} ${COREML_FRAMEWORK})
     set_target_properties(rwkv_coreml PROPERTIES
         COMPILE_FLAGS "-fobjc-arc"

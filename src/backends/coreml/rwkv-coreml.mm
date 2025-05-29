@@ -4,12 +4,14 @@
 
 #import "rwkv-coreml.h"
 #import "rwkv-coreml-impl.h"
+#import "rwkv-coreml-stateful-impl.h"
 
 #import <CoreML/CoreML.h>
 
 #include <stdlib.h>
 #include <cstdio>
 #include <vector>
+#include "half.hpp"
 
 #if __cplusplus
 extern "C" {
@@ -22,8 +24,14 @@ struct rwkv_coreml_context {
     int head_dim;
     int embd_dim;
     int vocab_size;
+
+    bool is_stateful;
+
     MLMultiArray * state_wkv = NULL;
     MLMultiArray * state_tokenshift = NULL;
+
+    rwkv_coreml_stateful_implState * state = NULL;
+
     std::vector<float> logits;
 };
 
@@ -48,20 +56,53 @@ struct rwkv_coreml_context * rwkv_coreml_init(const char * path_model) {
 
     NSError *error = nil;
 
-    // MLModel *model = [MLModel modelWithContentsOfURL:url_model configuration:config error:&error];
-    rwkv_coreml_impl * model = [[rwkv_coreml_impl alloc] initWithContentsOfURL:url_model configuration:config error:nil];
+    MLModel *mlmodel = [MLModel modelWithContentsOfURL:url_model configuration:config error:&error];
 
-    if (error || !model) {
+    if (error || !mlmodel) {
+        NSLog(@"Error loading model: %@", error);
         return NULL;
     }
 
-    MLModel *mlmodel = [model model];
+    rwkv_coreml_context * ctx = new rwkv_coreml_context;
+
     NSDictionary *model_inputs = mlmodel.modelDescription.inputDescriptionsByName;
     NSDictionary *model_outputs = mlmodel.modelDescription.outputDescriptionsByName;
     int num_inputs = mlmodel.modelDescription.inputDescriptionsByName.count;
 
-    NSArray<NSNumber *> *state_wkv_in_shape = get_shape_by_name(model_inputs, @"state_wkv_in");
-    if (state_wkv_in_shape == nil) {
+    ctx->is_stateful = num_inputs == 1;
+
+    if (!ctx->is_stateful) {
+        NSArray<NSNumber *> *state_wkv_in_shape = get_shape_by_name(model_inputs, @"state_wkv_in");
+        if (state_wkv_in_shape == nil) {
+            return NULL;
+        }
+
+        ctx->n_layers = [state_wkv_in_shape[0] intValue];
+        ctx->num_heads = [state_wkv_in_shape[1] intValue];
+        ctx->head_dim = [state_wkv_in_shape[2] intValue];
+        ctx->embd_dim = ctx->head_dim * ctx->num_heads;
+
+        rwkv_coreml_impl * model = [[rwkv_coreml_impl alloc] initWithMLModel:mlmodel];
+        ctx->data = CFBridgingRetain(model);
+    } else {
+        rwkv_coreml_stateful_impl * model = [[rwkv_coreml_stateful_impl alloc] initWithMLModel:mlmodel];
+        ctx->data = CFBridgingRetain(model);
+
+        ctx->state = [model newState];
+        __block MLMultiArray *state_wkv;
+        [ctx->state getMultiArrayForState:rwkv_coreml_stateful_implStateNameState_wkv handler:^(MLMultiArray *buffer) {
+            state_wkv = buffer;
+        }];
+        NSArray<NSNumber *> *state_wkv_shape = state_wkv.shape;
+        if (state_wkv_shape == nil) {
+            return NULL;
+        }
+        ctx->n_layers = [state_wkv_shape[0] intValue];
+        ctx->num_heads = [state_wkv_shape[1] intValue];
+        ctx->head_dim = [state_wkv_shape[2] intValue];
+        ctx->embd_dim = ctx->head_dim * ctx->num_heads;
+    }
+    if (ctx->data == NULL) {
         return NULL;
     }
 
@@ -69,24 +110,9 @@ struct rwkv_coreml_context * rwkv_coreml_init(const char * path_model) {
     if (logits_out_shape == nil) {
         return NULL;
     }
-
-    rwkv_coreml_context * ctx = new rwkv_coreml_context;
-
-    ctx->n_layers = [state_wkv_in_shape[0] intValue];
-    ctx->num_heads = [state_wkv_in_shape[1] intValue];
-    ctx->head_dim = [state_wkv_in_shape[2] intValue];
     ctx->vocab_size = [logits_out_shape[2] intValue];
-    ctx->embd_dim = ctx->head_dim * ctx->num_heads;
 
     printf("num_heads: %d, head_dim: %d, vocab_size: %d, n_layers: %d\n", ctx->num_heads, ctx->head_dim, ctx->vocab_size, ctx->n_layers);
-
-    const void *data = CFBridgingRetain(model);
-
-    if (data == NULL) {
-        return NULL;
-    }
-
-    ctx->data = data;
 
     ctx->logits = std::vector<float>(ctx->vocab_size, 0.0f);
 
@@ -113,29 +139,44 @@ void rwkv_coreml_decode(struct rwkv_coreml_context * ctx, int token) {
                                            error: nil
     ];
 
-    if (!ctx->state_tokenshift) {
-        ctx->state_tokenshift = [
-            [MLMultiArray alloc] initWithShape: @[@1, @(2 * ctx->n_layers), @(ctx->embd_dim)]
-                                        dataType: MLMultiArrayDataTypeFloat32
-                                           error: nil
-        ];
-        memset(ctx->state_tokenshift.dataPointer, 0, ctx->state_tokenshift.count * sizeof(float));
-    }
+    if (!ctx->is_stateful) {
+        if (!ctx->state_tokenshift) {
+            ctx->state_tokenshift = [
+                [MLMultiArray alloc] initWithShape: @[@1, @(2 * ctx->n_layers), @(ctx->embd_dim)]
+                                            dataType: MLMultiArrayDataTypeFloat16
+                                            error: nil
+            ];
+            memset(ctx->state_tokenshift.dataPointer, 0, ctx->state_tokenshift.count * sizeof(uint16_t));
+        }
 
-    if (!ctx->state_wkv) {
-        ctx->state_wkv = [
-            [MLMultiArray alloc] initWithShape: @[@(ctx->n_layers), @(ctx->num_heads), @(ctx->head_dim), @(ctx->head_dim)]
-                                        dataType: MLMultiArrayDataTypeFloat32
-                                           error: nil
-        ];
-        memset(ctx->state_wkv.dataPointer, 0, ctx->state_wkv.count * sizeof(float));
-    }
+        if (!ctx->state_wkv) {
+            ctx->state_wkv = [
+                [MLMultiArray alloc] initWithShape: @[@(ctx->n_layers), @(ctx->num_heads), @(ctx->head_dim), @(ctx->head_dim)]
+                                            dataType: MLMultiArrayDataTypeFloat16
+                                            error: nil
+            ];
+            memset(ctx->state_wkv.dataPointer, 0, ctx->state_wkv.count * sizeof(uint16_t));
+        }
 
-    @autoreleasepool {
-        rwkv_coreml_implOutput * outCoreML = [(__bridge id) ctx->data predictionFromIn0: inMultiArray state_tokenshift_in: ctx->state_tokenshift state_wkv_in: ctx->state_wkv error: nil];
-        ctx->state_tokenshift = outCoreML.state_tokenshift_out;
-        ctx->state_wkv = outCoreML.state_wkv_out;
-        memcpy(ctx->logits.data(), outCoreML.logits.dataPointer, ctx->vocab_size * sizeof(float));
+        @autoreleasepool {
+            rwkv_coreml_implOutput * outCoreML = [(__bridge id) ctx->data predictionFromIn0: inMultiArray state_tokenshift_in: ctx->state_tokenshift state_wkv_in: ctx->state_wkv error: nil];
+            ctx->state_tokenshift = outCoreML.state_tokenshift_out;
+            ctx->state_wkv = outCoreML.state_wkv_out;
+            for (int i = 0; i < ctx->vocab_size; i++) {
+                ctx->logits[i] = ((__fp16 *)outCoreML.logits.dataPointer)[i];
+            }
+        }
+    } else {
+        if (!ctx->state) {
+            ctx->state = [(__bridge rwkv_coreml_stateful_impl *) ctx->data newState];
+        }
+
+        @autoreleasepool {
+            rwkv_coreml_stateful_implOutput * outCoreML = [(__bridge id) ctx->data predictionFromIn0: inMultiArray usingState: ctx->state error: nil];
+            for (int i = 0; i < ctx->vocab_size; i++) {
+                ctx->logits[i] = ((__fp16 *)outCoreML.logits.dataPointer)[i];
+            }
+        }
     }
 }
 
