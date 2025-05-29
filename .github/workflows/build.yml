@@ -64,7 +64,7 @@ jobs:
 
   build-ios-library:
     needs: [setup]
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       PACKAGENAME: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-ios-static
       DEVELOPER_DIR: /Applications/Xcode_15.2.app/Contents/Developer
@@ -117,7 +117,7 @@ jobs:
 
   build-macos-library-aarch64:
     needs: [setup]
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       PACKAGENAME: librwkv_mobile-${{ needs.setup.outputs.VERSION }}-macos-aarch64
     steps:
