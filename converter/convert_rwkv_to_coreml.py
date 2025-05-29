@@ -1,7 +1,7 @@
 from rwkv_src.rwkv_modeling import RWKV_RNN, RWKV_RNN_Stateful
 from rwkv_src.model_utils import get_dummy_input_for_rwkv_causal_llm
 import coremltools as ct
-from coremltools.optimize.torch.palettization import PostTrainingPalettizerConfig, PostTrainingPalettizer
+from coremltools.optimize.torch.quantization import PostTrainingQuantizer, PostTrainingQuantizerConfig
 from pathlib import Path
 import argparse, types, os
 import torch
@@ -11,6 +11,8 @@ import numpy as np
 parser = argparse.ArgumentParser(description='Export coreml model')
 parser.add_argument('model', type=Path, help='Path to RWKV pth file')
 parser.add_argument('--stateful', action='store_true', help='Use stateful model')
+parser.add_argument('--int8', action='store_true', help='Use int8 quantization')
+parser.add_argument('--int4', action='store_true', help='Use int4 quantization')
 parser_args = parser.parse_args()
 
 model_args = types.SimpleNamespace()
@@ -61,16 +63,33 @@ prompt = "The Eiffel Tower is in the city of"
 
 # quit()
 
-# config = PostTrainingPalettizerConfig.from_dict({"global_config": 
-#                                                 {
-#                                                 "n_bits": 4,
-#                                                 "granularity": "per_grouped_channel",
-#                                                 "group_size": 16
-#                                                 }
-#                                                 })
-# palettizer = PostTr
-# ainingPalettizer(model, config)
-# palettized_model = palettizer.compress()
+if parser_args.int4:
+    config = PostTrainingQuantizerConfig.from_dict(
+        {
+            "global_config": {
+                "weight_dtype": "int4",
+                "granularity": "per_block",
+                "block_size": 128,
+            },
+            "module_type_configs": {
+            }
+        }
+    )
+    quantizer = PostTrainingQuantizer(model, config)
+    model = quantizer.compress()
+elif parser_args.int8:
+    config = PostTrainingQuantizerConfig.from_dict(
+        {
+            "global_config": {
+                "weight_dtype": "int8",
+                "granularity": "per_channel",
+            },
+            "module_type_configs": {
+            }
+        }
+    )
+    quantizer = PostTrainingQuantizer(model, config)
+    model = quantizer.compress()
 
 # model = torch.jit.trace(palettized_model, example_inputs=inputs)
 model = torch.jit.trace(model, example_inputs=inputs)
