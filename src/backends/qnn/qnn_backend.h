@@ -17,7 +17,8 @@ public:
     void free_logits_if_allocated(float *& logits) override {
         // persistant buffer, no need to free after use
         return;
-    };
+    }
+
     bool is_available() override;
     int clear_state() override;
     int get_state(std::any &state) override;
@@ -25,8 +26,12 @@ public:
     int free_state(std::any state) override;
     int release_model() override;
     int release() override;
+    double get_prefill_speed() override {
+        return prefill_speed;
+    }
 
 private:
+    double prefill_speed = -1;
     std::string qnnBackendPath;
     void *qnnBackendLibraryHandle = nullptr;
     void *qnnModelHandle = nullptr;

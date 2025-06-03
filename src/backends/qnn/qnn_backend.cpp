@@ -1057,7 +1057,8 @@ int qnn_backend::eval(std::vector<int> ids, float *& logits) {
         int idx = 0;
 
         bool is_prefilling_usable = true;
-        for (; (idx + prefillSequenceLength) < ids.size(); idx += prefillSequenceLength) {
+        auto start = std::chrono::high_resolution_clock::now();
+        for (; (idx + prefillSequenceLength) <= ids.size(); idx += prefillSequenceLength) {
             for (int i = 0; i < prefillSequenceLength; i++) {
                 token_input[i] = ids[idx + i];
             }
@@ -1085,6 +1086,9 @@ int qnn_backend::eval(std::vector<int> ids, float *& logits) {
             }
         }
 
+        auto end = std::chrono::high_resolution_clock::now();
+        prefill_speed = (ids.size() / 16 * 16) * 1000000.0 / std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
         // LOGD("Prefilling tails using decode mode from %d to %d", idx, ids.size());
         for (; idx < ids.size(); idx++) {
             token_input = (int*)qnnIOTensorUtils->getBuffer(&inputTensors[0][0]);
@@ -1104,7 +1108,7 @@ int qnn_backend::eval(std::vector<int> ids, float *& logits) {
                     return RWKV_ERROR_IO;
                 }
             }
-        }   
+        }
     }
 
     // copy logits

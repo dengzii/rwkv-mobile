@@ -26,6 +26,10 @@ public:
     virtual int release() { return 0; };
     virtual bool is_available() { return false; };
     virtual bool is_selfmanaged_states() { return false; };
+
+    virtual double get_prefill_speed() { return -1; }
+    virtual double get_decode_speed() { return -1; }
+
     int get_head_count() { return num_heads; }
     int get_hidden_size() { return hidden_size; }
     int get_num_vocab() { return vocab_size; }

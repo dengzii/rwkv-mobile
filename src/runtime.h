@@ -317,6 +317,9 @@ private:
     std::unique_ptr<tokenizer_base, std::function<void(tokenizer_base*)>> _tokenizer;
     std::unique_ptr<sampler> _sampler;
 
+    double _prefill_speed = -1;
+    double _decode_speed = -1;
+
     std::string _cache_dir = "";
 
     soc_detect _soc_detect;
@@ -351,12 +354,6 @@ private:
     std::vector<int32_t> _response_buffer_ids;
 
     void apply_logits_penalties(float * logits, int vocab_size, float presence_penalty, float frequency_penalty, float penalty_decay);
-
-    const int _decode_duration_window = 30;
-    const int _prefill_duration_window = 10;
-
-    std::vector<double> _decode_durations_us;
-    std::vector<std::pair<int, double>> _prefill_durations_us;
 
 #ifdef ENABLE_VISION
     std::unique_ptr<clip_ctx, std::function<void(clip_ctx*)>> _vision_encoder;

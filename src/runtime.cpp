@@ -334,10 +334,7 @@ int runtime::eval_logits(int id, float *& logits) {
     auto start = std::chrono::high_resolution_clock::now();
     int ret = _backend->eval(id, logits);
     auto end = std::chrono::high_resolution_clock::now();
-    _decode_durations_us.push_back(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-    if (_decode_durations_us.size() > _decode_duration_window) {
-        _decode_durations_us.erase(_decode_durations_us.begin());
-    }
+    _decode_speed = 1e6f / std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     return ret;
 }
 
@@ -348,10 +345,7 @@ int runtime::eval_logits(std::vector<int> ids, float *& logits) {
     auto start = std::chrono::high_resolution_clock::now();
     int ret = _backend->eval(ids, logits);
     auto end = std::chrono::high_resolution_clock::now();
-    _prefill_durations_us.push_back(std::make_pair(ids.size(), std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()));
-    if (_prefill_durations_us.size() > _prefill_duration_window) {
-        _prefill_durations_us.erase(_prefill_durations_us.begin());
-    }
+    _prefill_speed = ids.size() * 1e6f / std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     return ret;
 }
 
@@ -362,17 +356,10 @@ int runtime::eval_logits_with_embeddings(const float *embeddings, int n_tokens, 
     auto start = std::chrono::high_resolution_clock::now();
     auto ret = _backend->eval_with_embeddings(embeddings, n_tokens, logits);
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / (double)n_tokens;
     if (n_tokens > 1) {
-        _prefill_durations_us.push_back(std::make_pair(n_tokens, duration));
-        if (_prefill_durations_us.size() > _prefill_duration_window) {
-            _prefill_durations_us.erase(_prefill_durations_us.begin());
-        }
+        _prefill_speed = n_tokens * 1e6f / std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     } else {
-        _decode_durations_us.push_back(duration);
-        if (_decode_durations_us.size() > _decode_duration_window) {
-            _decode_durations_us.erase(_decode_durations_us.begin());
-        }
+        _decode_speed = 1e6f / std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     }
     return ret;
 }
@@ -1202,29 +1189,28 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
 }
 
 double runtime::get_avg_decode_speed() {
-    if (_decode_durations_us.size() == 0) {
+    double speed_from_backend = _backend->get_decode_speed();
+    if (speed_from_backend > 0) {
+        return speed_from_backend;
+    }
+
+    if (_decode_speed < 0) {
         return 0.0;
     } else {
-        double avg_time = 0.0;
-        for (auto duration : _decode_durations_us) {
-            avg_time += duration;
-        }
-        avg_time /= _decode_durations_us.size();
-        return 1e6f / avg_time;
+        return _decode_speed;
     }
 }
 
 double runtime::get_avg_prefill_speed() {
-    if (_prefill_durations_us.size() == 0) {
+    double speed_from_backend = _backend->get_prefill_speed();
+    if (speed_from_backend > 0) {
+        return speed_from_backend;
+    }
+
+    if (_prefill_speed < 0) {
         return 0.0;
     } else {
-        double total_time = 0.0;
-        int total_tokens = 0;
-        for (auto duration : _prefill_durations_us) {
-            total_time += duration.second;
-            total_tokens += duration.first;
-        }
-        return 1e6f * total_tokens / total_time;
+        return _prefill_speed;
     }
 }
 
