@@ -294,7 +294,7 @@ if (ENABLE_COREML_BACKEND)
         message(STATUS "CoreML framework found")
     endif()
 
-    add_library(rwkv_coreml
+    add_library(rwkv_coreml STATIC
         src/backends/coreml/rwkv-coreml.h
         src/backends/coreml/rwkv-coreml.mm
         src/backends/coreml/rwkv-coreml-impl.h
