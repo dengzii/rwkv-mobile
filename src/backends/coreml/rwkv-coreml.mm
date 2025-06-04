@@ -26,9 +26,12 @@ struct rwkv_coreml_context {
     int vocab_size;
 
     bool is_stateful;
+    bool is_merged_states;
 
     MLMultiArray * state_wkv = NULL;
     MLMultiArray * state_tokenshift = NULL;
+
+    NSMutableDictionary * state_tensors = NULL;
 
     rwkv_coreml_stateful_implState * state = NULL;
 
@@ -51,8 +54,8 @@ struct rwkv_coreml_context * rwkv_coreml_init(const char * path_model) {
     // select which device to run the Core ML model on
     MLModelConfiguration *config = [[MLModelConfiguration alloc] init];
     // config.computeUnits = MLComputeUnitsCPUAndGPU;
-    // config.computeUnits = MLComputeUnitsCPUAndNeuralEngine;
-    config.computeUnits = MLComputeUnitsAll;
+    config.computeUnits = MLComputeUnitsCPUAndNeuralEngine;
+    // config.computeUnits = MLComputeUnitsAll;
 
     NSError *error = nil;
 
@@ -68,23 +71,12 @@ struct rwkv_coreml_context * rwkv_coreml_init(const char * path_model) {
     NSDictionary *model_inputs = mlmodel.modelDescription.inputDescriptionsByName;
     NSDictionary *model_outputs = mlmodel.modelDescription.outputDescriptionsByName;
     int num_inputs = mlmodel.modelDescription.inputDescriptionsByName.count;
+    printf("num_inputs: %d\n", num_inputs);
 
     ctx->is_stateful = num_inputs == 1;
+    ctx->is_merged_states = num_inputs == 3;
 
-    if (!ctx->is_stateful) {
-        NSArray<NSNumber *> *state_wkv_in_shape = get_shape_by_name(model_inputs, @"state_wkv_in");
-        if (state_wkv_in_shape == nil) {
-            return NULL;
-        }
-
-        ctx->n_layers = [state_wkv_in_shape[0] intValue];
-        ctx->num_heads = [state_wkv_in_shape[1] intValue];
-        ctx->head_dim = [state_wkv_in_shape[2] intValue];
-        ctx->embd_dim = ctx->head_dim * ctx->num_heads;
-
-        rwkv_coreml_impl * model = [[rwkv_coreml_impl alloc] initWithMLModel:mlmodel];
-        ctx->data = CFBridgingRetain(model);
-    } else {
+    if (ctx->is_stateful) {
         rwkv_coreml_stateful_impl * model = [[rwkv_coreml_stateful_impl alloc] initWithMLModel:mlmodel];
         ctx->data = CFBridgingRetain(model);
 
@@ -101,6 +93,41 @@ struct rwkv_coreml_context * rwkv_coreml_init(const char * path_model) {
         ctx->num_heads = [state_wkv_shape[1] intValue];
         ctx->head_dim = [state_wkv_shape[2] intValue];
         ctx->embd_dim = ctx->head_dim * ctx->num_heads;
+    } else if (ctx->is_merged_states) {
+        NSArray<NSNumber *> *state_wkv_in_shape = get_shape_by_name(model_inputs, @"state_wkv_in");
+        if (state_wkv_in_shape == nil) {
+            return NULL;
+        }
+
+        ctx->n_layers = [state_wkv_in_shape[0] intValue];
+        ctx->num_heads = [state_wkv_in_shape[1] intValue];
+        ctx->head_dim = [state_wkv_in_shape[2] intValue];
+        ctx->embd_dim = ctx->head_dim * ctx->num_heads;
+
+        rwkv_coreml_impl * model = [[rwkv_coreml_impl alloc] initWithMLModel:mlmodel];
+        ctx->data = CFBridgingRetain(model);
+    } else {
+        NSArray<NSNumber *> *state_wkv_in_shape = get_shape_by_name(model_inputs, @"state_1_in");
+        if (state_wkv_in_shape == nil) {
+            return NULL;
+        }
+        ctx->n_layers = (num_inputs - 1) / 3;
+        ctx->num_heads = [state_wkv_in_shape[1] intValue];
+        ctx->head_dim = [state_wkv_in_shape[2] intValue];
+        ctx->embd_dim = ctx->head_dim * ctx->num_heads;
+
+        ctx->state_tensors = [NSMutableDictionary dictionary];
+        for (int i = 0; i < num_inputs-1; i++) {
+            NSArray<NSNumber *> *state_in_shape = get_shape_by_name(model_inputs, [NSString stringWithFormat: @"state_%d_in", i]);
+            if (state_in_shape == nil) {
+                return NULL;
+            }
+            MLMultiArray * state_in = [[MLMultiArray alloc] initWithShape: state_in_shape dataType: MLMultiArrayDataTypeFloat16 error: nil];
+            memset(state_in.dataPointer, 0, state_in.count * sizeof(uint16_t));
+            [ctx->state_tensors setObject: state_in forKey: [NSString stringWithFormat: @"state_%d_in", i]];
+        }
+
+        ctx->data = CFBridgingRetain(mlmodel);
     }
     if (ctx->data == NULL) {
         return NULL;
@@ -139,7 +166,18 @@ void rwkv_coreml_decode(struct rwkv_coreml_context * ctx, int token) {
                                            error: nil
     ];
 
-    if (!ctx->is_stateful) {
+    if (ctx->is_stateful) {
+        if (!ctx->state) {
+            ctx->state = [(__bridge rwkv_coreml_stateful_impl *) ctx->data newState];
+        }
+
+        @autoreleasepool {
+            rwkv_coreml_stateful_implOutput * outCoreML = [(__bridge id) ctx->data predictionFromIn0: inMultiArray usingState: ctx->state error: nil];
+            for (int i = 0; i < ctx->vocab_size; i++) {
+                ctx->logits[i] = ((__fp16 *)outCoreML.logits.dataPointer)[i];
+            }
+        }
+    } else if (ctx->is_merged_states) {
         if (!ctx->state_tokenshift) {
             ctx->state_tokenshift = [
                 [MLMultiArray alloc] initWithShape: @[@1, @(2 * ctx->n_layers), @(ctx->embd_dim)]
@@ -167,14 +205,19 @@ void rwkv_coreml_decode(struct rwkv_coreml_context * ctx, int token) {
             }
         }
     } else {
-        if (!ctx->state) {
-            ctx->state = [(__bridge rwkv_coreml_stateful_impl *) ctx->data newState];
-        }
-
         @autoreleasepool {
-            rwkv_coreml_stateful_implOutput * outCoreML = [(__bridge id) ctx->data predictionFromIn0: inMultiArray usingState: ctx->state error: nil];
+            NSMutableDictionary * input = [NSMutableDictionary dictionary];
+            for (int i = 0; i < 3*ctx->n_layers; i++) {
+                [input setObject: ctx->state_tensors[[NSString stringWithFormat: @"state_%d_in", i]] forKey: [NSString stringWithFormat: @"state_%d_in", i]];
+            }
+            [input setObject: inMultiArray forKey: @"in0"];
+            id<MLFeatureProvider> input_provider = [[MLDictionaryFeatureProvider alloc] initWithDictionary: input error: nil];
+            id<MLFeatureProvider> output = [(__bridge id) ctx->data predictionFromFeatures: input_provider error: nil];
+            for (int i = 0; i < 3*ctx->n_layers; i++) {
+                [ctx->state_tensors setObject: [output featureValueForName: [NSString stringWithFormat: @"state_%d_out", i]] forKey: [NSString stringWithFormat: @"state_%d_in", i]];
+            }
             for (int i = 0; i < ctx->vocab_size; i++) {
-                ctx->logits[i] = ((__fp16 *)outCoreML.logits.dataPointer)[i];
+                ctx->logits[i] = ((__fp16 *)[output featureValueForName: @"logits"].multiArrayValue.dataPointer)[i];
             }
         }
     }

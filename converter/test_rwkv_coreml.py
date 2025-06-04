@@ -10,7 +10,7 @@ parser.add_argument('model', type=Path, help='Path to RWKV mlpackage file')
 parser.add_argument('--stateful', action='store_true', help='Use stateful model')
 parser_args = parser.parse_args()
 
-model = ct.models.MLModel(str(parser_args.model), compute_units=ct.ComputeUnit.CPU_ONLY)
+model = ct.models.MLModel(str(parser_args.model), compute_units=ct.ComputeUnit.CPU_AND_NE)
 
 tokenizer = AutoTokenizer.from_pretrained("RWKV/rwkv-5-world-1b5", trust_remote_code=True)
 
@@ -46,6 +46,25 @@ else:
 prompt = "The Eiffel Tower is in the city of"
 print(prompt, end='', flush=True)
 
+def sample_logits(out, temperature=1.0, top_p=0.8, top_k=128):
+    out = out.flatten()
+    out -= np.max(out, axis=-1, keepdims=True)
+    probs = np.exp(out) / np.sum(np.exp(out), axis=-1, keepdims=True)
+    if top_k == 0:
+        return np.argmax(probs)
+    sorted_probs = np.sort(probs)[::-1]
+    cumulative_probs = np.cumsum(sorted_probs)
+    cutoff = float(sorted_probs[np.argmax(cumulative_probs > top_p)])
+    probs[probs < cutoff] = 0
+    cutoff = sorted_probs[top_k]
+    probs[probs < cutoff] = 0
+    if temperature != 1.0:
+        # probs = torch.tensor(probs).pow(1.0 / temperature).numpy()
+        probs = np.power(probs, 1.0 / temperature)
+    probs = probs / np.sum(probs)
+    out = np.random.choice(a=len(probs), p=probs)
+    return out
+
 for id in tokenizer.encode(prompt):
     inputs['in0'][0][0] = id
     if not parser_args.stateful:
@@ -62,7 +81,8 @@ for id in tokenizer.encode(prompt):
 # calculate the durations
 durations = []
 for i in range(128):
-    token_id = np.argmax(outputs['logits'][0])
+    # token_id = np.argmax(outputs['logits'][0])
+    token_id = sample_logits(outputs['logits'][0])
     inputs['in0'][0][0] = token_id
     print(tokenizer.decode([token_id]), end='', flush=True)
     if not parser_args.stateful:
