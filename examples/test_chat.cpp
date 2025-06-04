@@ -48,9 +48,6 @@ int main(int argc, char **argv) {
 
     std::cout << std::endl;
 
-    std::cout << "Testing logger" << std::endl;
-    std::cout << rwkvmobile::logger_get_log() << std::endl;
-
     runtime.release();
 
     return 0;

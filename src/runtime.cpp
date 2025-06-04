@@ -495,7 +495,7 @@ runtime::state_node* runtime::match_and_load_state(const std::vector<int> &ids, 
     for (auto id : new_ids_to_prefill) {
         debug_msg += std::to_string(id) + " ";
     }
-    LOGI("%s\n", debug_msg.c_str());
+    LOGD("%s\n", debug_msg.c_str());
     return node;
 }
 
@@ -606,7 +606,6 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             if (tmp.size() >= stop_code.size() &&
                 tmp.compare(tmp.size() - stop_code.size(), stop_code.size(), stop_code) == 0) {
                 stopping = true;
-                LOGI("got stop code: %s\n", stop_code.c_str());
                 break;
             }
         }

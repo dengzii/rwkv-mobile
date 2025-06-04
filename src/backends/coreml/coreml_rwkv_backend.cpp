@@ -49,22 +49,28 @@ int coreml_rwkv_backend::eval(std::vector<int> ids, float *& logits) {
 }
 
 int coreml_rwkv_backend::get_state(std::any &state) {
-
+    std::vector<std::vector<uint8_t>> state_vec = rwkv_coreml_get_state(ctx);
+    state = state_vec;
     return RWKV_SUCCESS;
 }
 
 int coreml_rwkv_backend::set_state(std::any state) {
-
+    std::vector<std::vector<uint8_t>> state_vec = std::any_cast<std::vector<std::vector<uint8_t>>>(state);
+    rwkv_coreml_set_state(ctx, state_vec);
     return RWKV_SUCCESS;
 }
 
 int coreml_rwkv_backend::free_state(std::any state) {
-
+    std::vector<std::vector<uint8_t>> state_vec = std::any_cast<std::vector<std::vector<uint8_t>>>(state);
+    for (int i = 0; i < state_vec.size(); i++) {
+        state_vec[i].clear();
+    }
+    state_vec.clear();
     return RWKV_SUCCESS;
 }
 
 int coreml_rwkv_backend::clear_state() {
-
+    rwkv_coreml_clear_state(ctx);
     return RWKV_SUCCESS;
 }
 

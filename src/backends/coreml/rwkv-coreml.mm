@@ -13,10 +13,6 @@
 #include <vector>
 #include "half.hpp"
 
-#if __cplusplus
-extern "C" {
-#endif
-
 struct rwkv_coreml_context {
     const void * data;
     int n_layers;
@@ -71,7 +67,6 @@ struct rwkv_coreml_context * rwkv_coreml_init(const char * path_model) {
     NSDictionary *model_inputs = mlmodel.modelDescription.inputDescriptionsByName;
     NSDictionary *model_outputs = mlmodel.modelDescription.outputDescriptionsByName;
     int num_inputs = mlmodel.modelDescription.inputDescriptionsByName.count;
-    printf("num_inputs: %d\n", num_inputs);
 
     ctx->is_stateful = num_inputs == 1;
     ctx->is_merged_states = num_inputs == 3;
@@ -139,7 +134,7 @@ struct rwkv_coreml_context * rwkv_coreml_init(const char * path_model) {
     }
     ctx->vocab_size = [logits_out_shape[2] intValue];
 
-    printf("num_heads: %d, head_dim: %d, vocab_size: %d, n_layers: %d\n", ctx->num_heads, ctx->head_dim, ctx->vocab_size, ctx->n_layers);
+    NSLog(@"num_heads: %d, head_dim: %d, vocab_size: %d, n_layers: %d\n", ctx->num_heads, ctx->head_dim, ctx->vocab_size, ctx->n_layers);
 
     ctx->logits = std::vector<float>(ctx->vocab_size, 0.0f);
 
@@ -214,7 +209,7 @@ void rwkv_coreml_decode(struct rwkv_coreml_context * ctx, int token) {
             id<MLFeatureProvider> input_provider = [[MLDictionaryFeatureProvider alloc] initWithDictionary: input error: nil];
             id<MLFeatureProvider> output = [(__bridge id) ctx->data predictionFromFeatures: input_provider error: nil];
             for (int i = 0; i < 3*ctx->n_layers; i++) {
-                [ctx->state_tensors setObject: [output featureValueForName: [NSString stringWithFormat: @"state_%d_out", i]] forKey: [NSString stringWithFormat: @"state_%d_in", i]];
+                [ctx->state_tensors setObject: [output featureValueForName: [NSString stringWithFormat: @"state_%d_out", i]].multiArrayValue forKey: [NSString stringWithFormat: @"state_%d_in", i]];
             }
             for (int i = 0; i < ctx->vocab_size; i++) {
                 ctx->logits[i] = ((__fp16 *)[output featureValueForName: @"logits"].multiArrayValue.dataPointer)[i];
@@ -247,6 +242,80 @@ int rwkv_coreml_get_hidden_dim(struct rwkv_coreml_context * ctx) {
     return ctx->embd_dim;
 }
 
-#if __cplusplus
+std::vector<std::vector<uint8_t>> rwkv_coreml_get_state(struct rwkv_coreml_context * ctx) {
+    std::vector<std::vector<uint8_t>> state;
+    if (ctx->is_stateful) {
+        // TODO
+    } else if (ctx->is_merged_states) {
+        // TODO
+    } else {
+        if (ctx->state_tensors == nil) {
+            NSLog(@"state tensors is nil");
+            return state;
+        }
+
+        for (int i = 0; i < 3*ctx->n_layers; i++) {
+            MLMultiArray *tensor = ctx->state_tensors[[NSString stringWithFormat: @"state_%d_in", i]];
+            if (tensor == nil) {
+                NSLog(@"state tensor %d is nil", i);
+                return state;
+            }
+            uint8_t * data = (uint8_t *)tensor.dataPointer;
+            state.push_back(std::vector<uint8_t>(data, data + tensor.count * sizeof(uint16_t)));
+        }
+    }
+    return state;
 }
-#endif
+
+void rwkv_coreml_set_state(struct rwkv_coreml_context * ctx, std::vector<std::vector<uint8_t>> state) {
+    if (ctx->is_stateful) {
+        // TODO
+    } else if (ctx->is_merged_states) {
+        // TODO
+    } else {
+        if (state.size() != 3*ctx->n_layers) {
+            NSLog(@"state count mismatch: %d, %d", state.size(), 3*ctx->n_layers);
+            return;
+        }
+
+        if (ctx->state_tensors == nil) {
+            NSLog(@"state tensors is nil");
+            return;
+        }
+
+        for (int i = 0; i < 3*ctx->n_layers; i++) {
+            MLMultiArray *tensor = ctx->state_tensors[[NSString stringWithFormat: @"state_%d_in", i]];
+            if (tensor == nil) {
+                NSLog(@"state tensor %d is nil", i);
+                return;
+            }
+            if (state[i].size() != tensor.count * sizeof(uint16_t)) {
+                NSLog(@"state size mismatch: %d, %d", state[i].size(), tensor.count * sizeof(uint16_t));
+                return;
+            }
+            memcpy((void*)tensor.dataPointer, state[i].data(), tensor.count * sizeof(uint16_t));
+        }
+    }
+}
+
+void rwkv_coreml_clear_state(struct rwkv_coreml_context * ctx) {
+    if (ctx->is_stateful) {
+        // TODO
+    } else if (ctx->is_merged_states) {
+        // TODO
+    } else {
+        if (ctx->state_tensors == nil) {
+            NSLog(@"state tensors is nil");
+            return;
+        }
+
+        for (int i = 0; i < 3*ctx->n_layers; i++) {
+            MLMultiArray *tensor = ctx->state_tensors[[NSString stringWithFormat: @"state_%d_in", i]];
+            if (tensor == nil) {
+                NSLog(@"state tensor %d is nil", i);
+                return;
+            }
+            memset((void*)tensor.dataPointer, 0, tensor.count * sizeof(uint16_t));
+        }
+    }
+}
