@@ -10,7 +10,7 @@ parser.add_argument('model', type=Path, help='Path to RWKV mlpackage file')
 parser.add_argument('--stateful', action='store_true', help='Use stateful model')
 parser_args = parser.parse_args()
 
-model = ct.models.MLModel(str(parser_args.model), compute_units=ct.ComputeUnit.ALL)
+model = ct.models.MLModel(str(parser_args.model), compute_units=ct.ComputeUnit.CPU_ONLY)
 
 tokenizer = AutoTokenizer.from_pretrained("RWKV/rwkv-5-world-1b5", trust_remote_code=True)
 
@@ -20,15 +20,26 @@ inputs = {'in0': np.array([[0.0]])}
 state = None
 
 if not parser_args.stateful:
-    num_layers = spec.description.input[2].type.multiArrayType.shape[0]
+    # num_layers = spec.description.input[2].type.multiArrayType.shape[0]
+    # num_heads = spec.description.input[2].type.multiArrayType.shape[1]
+    # head_size = spec.description.input[2].type.multiArrayType.shape[2]
+    # hidden_size = spec.description.input[1].type.multiArrayType.shape[2]
+
+    num_layers = len(spec.description.input) // 3
     num_heads = spec.description.input[2].type.multiArrayType.shape[1]
     head_size = spec.description.input[2].type.multiArrayType.shape[2]
     hidden_size = spec.description.input[1].type.multiArrayType.shape[2]
+
     assert head_size == hidden_size // num_heads
 
     print(f'num_layers: {num_layers}, hidden_size: {hidden_size}, num_heads: {num_heads}')
 
-    inputs = {'in0': np.array([[0.0]]), 'state_tokenshift_in': np.zeros(spec.description.input[1].type.multiArrayType.shape), 'state_wkv_in': np.zeros(spec.description.input[2].type.multiArrayType.shape)}
+    # inputs = {'in0': np.array([[0.0]]), 'state_tokenshift_in': np.zeros(spec.description.input[1].type.multiArrayType.shape), 'state_wkv_in': np.zeros(spec.description.input[2].type.multiArrayType.shape)}
+    inputs = {'in0': np.array([[0.0]])}
+    for i in range(num_layers):
+        inputs[f'state_{3*i}_in'] = np.zeros(spec.description.input[3*i+1].type.multiArrayType.shape)
+        inputs[f'state_{3*i+1}_in'] = np.zeros(spec.description.input[3*i+2].type.multiArrayType.shape)
+        inputs[f'state_{3*i+2}_in'] = np.zeros(spec.description.input[3*i+3].type.multiArrayType.shape)
 else:
     state = model.make_state()
 
@@ -39,8 +50,12 @@ for id in tokenizer.encode(prompt):
     inputs['in0'][0][0] = id
     if not parser_args.stateful:
         outputs = model.predict(inputs)
-        inputs['state_tokenshift_in'] = outputs['state_tokenshift_out']
-        inputs['state_wkv_in'] = outputs['state_wkv_out']
+        # inputs['state_tokenshift_in'] = outputs['state_tokenshift_out']
+        # inputs['state_wkv_in'] = outputs['state_wkv_out']
+        for i in range(num_layers):
+            inputs[f'state_{3*i}_in'] = outputs[f'state_{3*i}_out']
+            inputs[f'state_{3*i+1}_in'] = outputs[f'state_{3*i+1}_out']
+            inputs[f'state_{3*i+2}_in'] = outputs[f'state_{3*i+2}_out']
     else:
         outputs = model.predict(inputs, state=state)
 
@@ -51,8 +66,12 @@ for i in range(128):
     inputs['in0'][0][0] = token_id
     print(tokenizer.decode([token_id]), end='', flush=True)
     if not parser_args.stateful:
-        inputs['state_tokenshift_in'] = outputs['state_tokenshift_out']
-        inputs['state_wkv_in'] = outputs['state_wkv_out']
+        # inputs['state_tokenshift_in'] = outputs['state_tokenshift_out']
+        # inputs['state_wkv_in'] = outputs['state_wkv_out']
+        for i in range(num_layers):
+            inputs[f'state_{3*i}_in'] = outputs[f'state_{3*i}_out']
+            inputs[f'state_{3*i+1}_in'] = outputs[f'state_{3*i+1}_out']
+            inputs[f'state_{3*i+2}_in'] = outputs[f'state_{3*i+2}_out']
 
     start_time = time.time()
     if not parser_args.stateful:

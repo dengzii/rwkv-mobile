@@ -200,20 +200,19 @@ class Rwkv7SelfAttention(nn.Module):
         time_decay = self.exp_w(-0.606531 * self.sigmoid_w(time_decay)).view(seq_length, self.num_heads, 1, self.head_size)
 
         # kernel
-        # vk = value.view(seq_length, self.num_heads, self.head_size, 1) @ key.view(seq_length, self.num_heads, 1, self.head_size)
-        
-        # ab = (-kk).view(self.num_heads, self.head_size, 1) @ (kk * a).view(self.num_heads, 1, self.head_size)
-        # state2_out = state2 * time_decay + (state2 @ ab) + vk
-        # x = (state2_out @ receptance.view(seq_length, self.num_heads, self.head_size, 1)).view(seq_length, self.num_heads, 1, self.head_size)
-        b = kk * a
-        a = -kk
-        x, state2_out = torch.ops.rwkv.wkv7(receptance.view(seq_length, self.num_heads, self.head_size, 1),
-                                            time_decay.view(seq_length, self.num_heads, 1, self.head_size),
-                                            key.view(seq_length, self.num_heads, 1, self.head_size),
-                                            value.view(seq_length, self.num_heads, self.head_size, 1),
-                                            a.view(seq_length, self.num_heads, self.head_size, 1),
-                                            b.view(seq_length, self.num_heads, 1, self.head_size),
-                                            state2.squeeze())
+        vk = value.view(seq_length, self.num_heads, self.head_size, 1) @ key.view(seq_length, self.num_heads, 1, self.head_size)
+        ab = (-kk).view(self.num_heads, self.head_size, 1) @ (kk * a).view(self.num_heads, 1, self.head_size)
+        state2_out = state2 * time_decay + (state2 @ ab) + vk
+        x = (state2_out @ receptance.view(seq_length, self.num_heads, self.head_size, 1)).view(seq_length, self.num_heads, 1, self.head_size)
+        # b = kk * a
+        # a = -kk
+        # x, state2_out = torch.ops.rwkv.wkv7(receptance.view(seq_length, self.num_heads, self.head_size, 1),
+        #                                     time_decay.view(seq_length, self.num_heads, 1, self.head_size),
+        #                                     key.view(seq_length, self.num_heads, 1, self.head_size),
+        #                                     value.view(seq_length, self.num_heads, self.head_size, 1),
+        #                                     a.view(seq_length, self.num_heads, self.head_size, 1),
+        #                                     b.view(seq_length, self.num_heads, 1, self.head_size),
+        #                                     state2.squeeze())
 
         # group_norm
         x = self.ln_x(x).view(batch_size, seq_length, self.hidden_size)
