@@ -16,8 +16,10 @@ from coremltools.converters.mil import Builder as mb
 parser = argparse.ArgumentParser(description='Export coreml model')
 parser.add_argument('model', type=Path, help='Path to RWKV pth file')
 parser.add_argument('--stateful', action='store_true', help='Use stateful model')
+parser.add_argument('--customop', action='store_true', help='Use composite custom op for wkv7')
 parser.add_argument('--int8', action='store_true', help='Use int8 quantization')
 parser.add_argument('--int4', action='store_true', help='Use int4 quantization')
+parser.add_argument('--lut8', action='store_true', help='Use lut8 palettization')
 parser.add_argument('--lut4', action='store_true', help='Use lut4 palettization')
 parser_args = parser.parse_args()
 
@@ -29,6 +31,7 @@ model_args.USE_EMBEDDING = True
 model_args.RESCALE_LAYER = 0
 model_args.USE_ONNX_L2NORM = False
 model_args.USE_ONNX_REDUCE_L2 = False
+model_args.USE_CUSTOM_WKV = parser_args.customop
 
 model_args.MODEL_NAME = str(parser_args.model).replace('.pth', '')
 model = RWKV_RNN_Stateful(model_args) if parser_args.stateful else RWKV_RNN(model_args)
@@ -253,6 +256,13 @@ elif parser_args.int8:
     )
     quantizer = PostTrainingQuantizer(model, config)
     model = quantizer.compress()
+elif parser_args.lut8:
+    palettization_config_dict = {
+        "global_config": {"n_bits": 8, "granularity": "per_grouped_channel", "group_size": 128},
+    }
+    palettization_config = PostTrainingPalettizerConfig.from_dict(palettization_config_dict)
+    palettizer = PostTrainingPalettizer(model, palettization_config)
+    model = palettizer.compress()
 elif parser_args.lut4:
     palettization_config_dict = {
         "global_config": {"n_bits": 4, "granularity": "per_grouped_channel", "group_size": 64},
@@ -278,6 +288,23 @@ if not parser_args.stateful:
     else:
         ct_outputs += [ct.TensorType(f'state_tokenshift_out', dtype=dtype)]
         ct_outputs += [ct.TensorType(f'state_wkv_out', dtype=dtype)]
+
+output_name = str(os.path.basename(parser_args.model)).replace('.pth', '')
+if parser_args.stateful:
+    output_name += '_stateful'
+if merge_states:
+    output_name += '_mergestates'
+if parser_args.int4:
+    output_name += '_int4'
+elif parser_args.int8:
+    output_name += '_int8'
+elif parser_args.lut8:
+    output_name += '_lut8'
+elif parser_args.lut4:
+    output_name += '_lut4'
+
+if model_args.USE_CUSTOM_WKV:
+    output_name += '_customop'
 
 mlmodel = None
 if parser_args.stateful:
@@ -321,19 +348,20 @@ if parser_args.stateful:
         outputs=ct_outputs,
         states=states,
         minimum_deployment_target=ct.target.iOS18,
+        compute_units=ct.ComputeUnit.CPU_AND_NE
     )
     # test
     # state = mlmodel.make_state()
 
-    mlmodel.save(f'{str(os.path.basename(parser_args.model)).replace('.pth', '')}_stateful_no_merge.mlpackage')
+    mlmodel.save(f'{output_name}.mlpackage')
 else:
     mlmodel = ct.convert(
         model,
         inputs=ct_inputs,
         outputs=ct_outputs,
         minimum_deployment_target=ct.target.iOS18,
-        # compute_units=ct.ComputeUnit.CPU_AND_NE
+        compute_units=ct.ComputeUnit.CPU_AND_NE
     )
 
-    mlmodel.save(f'{str(os.path.basename(parser_args.model)).replace('.pth', '')}_no_merge_lut4.mlpackage')
+    mlmodel.save(f'{output_name}.mlpackage')
 
