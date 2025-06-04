@@ -6,6 +6,7 @@
 #include "llama.h"
 #include "llama-model.h"
 #include "commondef.h"
+#include "logger.h"
 
 #if ENABLE_VISION
 #include "llava.h"
@@ -35,6 +36,9 @@ int llama_cpp_backend::load_model(std::string model_path) {
     if (!ctx) {
         return RWKV_ERROR_MODEL | RWKV_ERROR_IO;
     }
+
+    // TODO: set according to the number of prime cores on the device
+    llama_set_n_threads(ctx, 2, 2);
 
     vocab_size = model->vocab.n_tokens();
     hidden_size = llama_model_n_embd(model);
