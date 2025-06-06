@@ -1,5 +1,6 @@
 #include <fstream>
 #include <filesystem>
+#include <thread>
 
 #include "backend.h"
 #include "llama_cpp_backend.h"
