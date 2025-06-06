@@ -37,8 +37,12 @@ int llama_cpp_backend::load_model(std::string model_path) {
         return RWKV_ERROR_MODEL | RWKV_ERROR_IO;
     }
 
+#ifdef __ANDROID__
     // TODO: set according to the number of prime cores on the device
     llama_set_n_threads(ctx, 2, 2);
+#else
+    llama_set_n_threads(ctx, std::thread::hardware_concurrency(), std::thread::hardware_concurrency());
+#endif
 
     vocab_size = model->vocab.n_tokens();
     hidden_size = llama_model_n_embd(model);
@@ -100,7 +104,7 @@ bool llama_cpp_backend::is_available() {
 }
 
 int llama_cpp_backend::clear_state() {
-    llama_kv_cache_clear(ctx);
+    llama_kv_self_clear(ctx);
     return RWKV_SUCCESS;
 }
 
