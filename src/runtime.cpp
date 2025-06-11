@@ -588,8 +588,14 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
 
     int decoded_idx = 0;
     bool thinking_end_tag_found = false;
+    bool is_pseudo_thinking = enable_reasoning && _response_buffer.find("</think>") != std::string::npos;
     for (int i = 0; i < max_length; i++) {
         apply_logits_penalties(logits, _vocab_size, _presence_penalty, _frequency_penalty, _penalty_decay);
+
+        if (is_pseudo_thinking && i == 0) {
+            // token 61 is '<'
+            logits[61] = -1e9f;
+        }
 
         decoded_idx = _sampler->sample(logits, _vocab_size, _temperature, _top_k, _top_p);
         if (decoded_idx == 0) {
