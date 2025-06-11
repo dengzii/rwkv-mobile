@@ -343,7 +343,7 @@ private:
 
     std::thread _prefilling_thread;
 
-    std::vector<std::string> _stop_codes = {"\n\n", "。\n", "\nUser", "User"};
+    std::vector<std::string> _stop_codes = {"\n\n", "\nUser", "User"};
     std::vector<int> _token_banned = {};
     std::string _bos_token = "";
     std::string _eos_token = "\n\n";
