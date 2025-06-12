@@ -1147,6 +1147,8 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
     if (_backend == nullptr || _tokenizer == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
+    _response_buffer = "";
+    _response_buffer_ids.clear();
     set_is_generating(true);
     _stop_signal = false;
 
