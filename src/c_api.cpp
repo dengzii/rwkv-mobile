@@ -141,6 +141,7 @@ int rwkvmobile_runtime_gen_completion_async(
     }
 
     auto rt = static_cast<class runtime *>(handle);
+    rt->clear_response_buffer();
     rt->set_is_generating(true);
     rt->set_stop_signal(false);
     std::thread generation_thread([=]() {
@@ -168,6 +169,7 @@ int rwkvmobile_runtime_gen_completion(
     }
 
     auto rt = static_cast<class runtime *>(handle);
+    rt->clear_response_buffer();
     return rt->gen_completion(
         std::string(prompt),
         max_tokens,
