@@ -68,6 +68,7 @@ public:
 
     std::string get_response_buffer_content() { return _response_buffer; }
     const std::vector<int32_t> get_response_buffer_ids() { return _response_buffer_ids; }
+    void clear_response_buffer() { _response_buffer = ""; _response_buffer_ids.clear(); }
 #ifdef ENABLE_VISION
     int set_image_prompt(std::string path);
 #endif

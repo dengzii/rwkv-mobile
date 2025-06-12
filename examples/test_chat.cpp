@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
     ENSURE_SUCCESS_OR_LOG_EXIT(runtime.load_model(argv[2]), "Failed to load model");
     runtime.set_sampler_params(1.0, 1, 1.0);
 
-    std::cout << "Testing original input list" << std::endl;
+    std::cout << "Testing original input list" << std::endl << std::endl;
     std::vector<std::string> input_list = {
         "Hello!",
         "Hello! I'm your AI assistant. I'm here to help you with various tasks, such as answering questions, brainstorming ideas, drafting emails, writing code, providing advice, and much more.",
@@ -30,6 +30,7 @@ int main(int argc, char **argv) {
     runtime.chat(input_list, 50, nullptr);
     std::cout << "Response: " << runtime.get_response_buffer_content() << std::endl;
 
+    std::cout << "Testing new input list" << std::endl << std::endl;
     input_list = {
         "Hello!",
         "Hello! I'm your AI assistant. I'm here to help you with various tasks, such as answering questions, brainstorming ideas, drafting emails, writing code, providing advice, and much more.",
@@ -38,6 +39,7 @@ int main(int argc, char **argv) {
     runtime.chat(input_list, 50, nullptr);
     std::cout << "Response: " << runtime.get_response_buffer_content() << std::endl;
 
+    std::cout << "Testing original input list" << std::endl << std::endl;
     input_list = {
         "Hello!",
         "Hello! I'm your AI assistant. I'm here to help you with various tasks, such as answering questions, brainstorming ideas, drafting emails, writing code, providing advice, and much more.",
