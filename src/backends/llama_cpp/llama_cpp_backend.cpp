@@ -23,8 +23,14 @@ int llama_cpp_backend::init(void * extra) {
 
 int llama_cpp_backend::load_model(std::string model_path) {
     llama_model_params model_params = llama_model_default_params();
-    model_params.n_gpu_layers = 0;
 
+#if defined(__APPLE__) || defined(__MACH__)
+    model_params.n_gpu_layers = 99;
+#else
+    model_params.n_gpu_layers = 0;
+#endif
+
+    LOGI("n_gpu_layers: %d", model_params.n_gpu_layers);
     model = llama_model_load_from_file(model_path.c_str(), model_params);
     if (!model) {
         return RWKV_ERROR_MODEL | RWKV_ERROR_IO;
