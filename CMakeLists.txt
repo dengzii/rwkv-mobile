@@ -171,6 +171,11 @@ if (ENABLE_LLAMACPP_BACKEND)
         option(BUILD_SHARED_LIBS "" OFF)
         option(GGML_BACKEND_DL "" OFF)
     endif()
+
+    if (APPLE)
+        option(GGML_METAL "" ON)
+    endif()
+
     FetchContent_MakeAvailable(llama_cpp)
 endif()
 
