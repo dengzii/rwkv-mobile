@@ -164,7 +164,7 @@ if (ENABLE_LLAMACPP_BACKEND)
         llama_cpp
         GIT_REPOSITORY https://github.com/MollySophia/llama.cpp
         # GIT_TAG rwkv7-lmhead-bias
-        GIT_TAG 8a3ad5df3d8221bc9cb9ec9c0ecd7c58eeb80622
+        GIT_TAG 03f006c4494d15aa5835f4ad68519932e6ede9e2
     )
 
     option(LLAMA_STANDALONE "" OFF)
