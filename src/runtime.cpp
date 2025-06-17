@@ -593,8 +593,10 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         apply_logits_penalties(logits, _vocab_size, _presence_penalty, _frequency_penalty, _penalty_decay);
 
         if (is_pseudo_thinking && i == 0) {
-            // token 61 is '<'
+            // token 61 is '<', 261 is '\n\n', 11 is '\n'
             logits[61] = -1e9f;
+            logits[261] = -1e9f;
+            logits[11] = -1e9f;
         }
 
         decoded_idx = _sampler->sample(logits, _vocab_size, _temperature, _top_k, _top_p);
