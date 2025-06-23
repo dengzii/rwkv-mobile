@@ -83,8 +83,8 @@ if (ENABLE_WEBRWKV_BACKEND)
 
     FetchContent_Declare(
         web_rwkv_ffi
-        GIT_REPOSITORY https://github.com/cryscan/web-rwkv-ffi
-        GIT_TAG main
+        GIT_REPOSITORY https://github.com/MollySophia/web-rwkv-ffi
+        GIT_TAG 8dc3c2d406cf24671bba2097d9ad3eda1b3b5867
     )
     FetchContent_MakeAvailable(web_rwkv_ffi)
 
