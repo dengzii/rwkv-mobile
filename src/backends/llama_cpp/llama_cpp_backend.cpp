@@ -71,7 +71,7 @@ int llama_cpp_backend::eval(int id, float *& logits) {
     return RWKV_SUCCESS;
 }
 
-int llama_cpp_backend::eval(std::vector<int> ids, float *& logits) {
+int llama_cpp_backend::eval(std::vector<int> ids, float *& logits, bool skip_logits_copy) {
     llama_batch batch = llama_batch_get_one(ids.data(), ids.size());
     llama_decode(ctx, batch);
     float * logits_out = llama_get_logits_ith(ctx, -1);
@@ -168,7 +168,7 @@ int llama_cpp_backend::eval(int id, float *& logits) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 
-int llama_cpp_backend::eval(std::vector<int> ids, float *& logits) {
+int llama_cpp_backend::eval(std::vector<int> ids, float *& logits, bool skip_logits_copy) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 

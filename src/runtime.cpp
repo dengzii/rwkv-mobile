@@ -342,8 +342,25 @@ int runtime::eval_logits(std::vector<int> ids, float *& logits) {
     if (_backend == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
+
     auto start = std::chrono::high_resolution_clock::now();
-    int ret = _backend->eval(ids, logits);
+    int i = 0;
+    int ret;
+    for (; i + _prefill_chunk_size <= ids.size(); i += _prefill_chunk_size) {
+        auto ids_chunk = std::vector<int>(ids.begin() + i, ids.begin() + i + _prefill_chunk_size);
+        ret = _backend->eval(ids_chunk, logits, true);
+        if (ret != RWKV_SUCCESS) return ret;
+        if (_current_prefill_total_tokens > 0) {
+            _current_prefill_finished_tokens += _prefill_chunk_size;
+            _prefill_progress = _current_prefill_finished_tokens / _current_prefill_total_tokens;
+        }
+    }
+    auto ids_left = std::vector<int>(ids.begin() + i, ids.end());
+    ret = _backend->eval(ids_left, logits);
+    if (_current_prefill_total_tokens > 0) {
+        _current_prefill_finished_tokens += ids_left.size();
+        _prefill_progress = _current_prefill_finished_tokens / _current_prefill_total_tokens;
+    }
     auto end = std::chrono::high_resolution_clock::now();
     _prefill_speed = ids.size() * 1e6f / std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     return ret;
@@ -379,10 +396,12 @@ int runtime::chat(std::string input, const int max_length, void (*callback)(cons
 
     _response_buffer = "";
     _response_buffer_ids.clear();
+    _prefill_progress_start(ids.size());
     int ret = eval_logits(ids, logits);
     if (ret) {
         return ret;
     }
+    _prefill_progress_finish();
 
     for (int i = 0; i < max_length; i++) {
         apply_logits_penalties(logits, _vocab_size, _presence_penalty, _frequency_penalty, _penalty_decay);
@@ -542,6 +561,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     auto node = match_and_load_state(text_ids, tokens_to_prefill);
 
     if (tokens_to_prefill.size() > 0) {
+        _prefill_progress_start(tokens_to_prefill.size());
         std::string debug_msg = "new tokens to prefill: ";
         for (auto id : tokens_to_prefill) {
             debug_msg += std::to_string(id) + " ";
@@ -558,6 +578,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             _backend->free_logits_if_allocated(logits);
         }
     }
+    _prefill_progress_finish();
 
     _response_buffer = input_text.substr(input_text.rfind(_response_role + ":") + (_response_role + ":").size());
     std::vector<int> response_ids_raw;
@@ -1156,12 +1177,15 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
     _stop_signal = false;
 
     std::vector<int> ids = _tokenizer->encode(prompt);
+    _prefill_progress_start(ids.size());
+
     float *logits = nullptr;
     int ret = eval_logits(ids, logits);
     if (ret || !logits) {
         set_is_generating(false);
         return ret;
     }
+    _prefill_progress_finish();
 
     _response_buffer = prompt;
     _response_buffer_ids = ids;

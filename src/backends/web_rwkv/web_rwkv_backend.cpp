@@ -62,7 +62,7 @@ int web_rwkv_backend::eval(int id, float *& logits) {
     return RWKV_SUCCESS;
 }
 
-int web_rwkv_backend::eval(std::vector<int> ids, float *& logits) {
+int web_rwkv_backend::eval(std::vector<int> ids, float *& logits, bool skip_logits_copy) {
     std::vector<uint16_t> ids_u16(ids.begin(), ids.end());
     auto ret = infer_raw_last(ids_u16.data(), ids_u16.size());
     if (!ret.len || !ret.logits) {

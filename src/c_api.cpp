@@ -659,6 +659,14 @@ float rwkvmobile_runtime_tts_get_generation_progress(rwkvmobile_runtime_t runtim
 #endif
 }
 
+float rwkvmobile_runtime_get_prefill_progress(rwkvmobile_runtime_t runtime) {
+    if (runtime == nullptr) {
+        return 0;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->get_prefill_progress();
+}
+
 const char * rwkvmobile_get_platform_name() {
     soc_detect soc_detect;
     soc_detect.detect_platform();

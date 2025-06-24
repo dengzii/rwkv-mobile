@@ -89,7 +89,7 @@ int ncnn_rwkv_backend::eval(int id, float *& logits) {
     return RWKV_SUCCESS;
 }
 
-int ncnn_rwkv_backend::eval(std::vector<int> ids, float *& logits) {
+int ncnn_rwkv_backend::eval(std::vector<int> ids, float *& logits, bool skip_logits_copy) {
     // TODO: sequential prefill
     for (int i = 0; i < ids.size(); i++) {
         int id = ids[i];
@@ -182,7 +182,7 @@ int ncnn_rwkv_backend::eval(int id, float *& logits) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 
-int ncnn_rwkv_backend::eval(std::vector<int> ids, float *& logits) {
+int ncnn_rwkv_backend::eval(std::vector<int> ids, float *& logits, bool skip_logits_copy) {
     return RWKV_ERROR_BACKEND | RWKV_ERROR_UNSUPPORTED;
 }
 

@@ -130,6 +130,8 @@ const int rwkvmobile_runtime_tts_get_num_total_output_wavs(rwkvmobile_runtime_t 
 
 float rwkvmobile_runtime_tts_get_generation_progress(rwkvmobile_runtime_t runtime);
 
+float rwkvmobile_runtime_get_prefill_progress(rwkvmobile_runtime_t runtime);
+
 // platform info
 const char * rwkvmobile_get_platform_name();
 

@@ -250,6 +250,7 @@ public:
 
     double get_avg_decode_speed();
     double get_avg_prefill_speed();
+    double get_prefill_progress() { return _prefill_progress; }
 
     // platform info
     const char * get_platform_name() {
@@ -320,6 +321,23 @@ private:
 
     double _prefill_speed = -1;
     double _decode_speed = -1;
+
+    const int _prefill_chunk_size = 64;
+
+    int _current_prefill_total_tokens = -1;
+    int _current_prefill_finished_tokens = 0;
+    double _prefill_progress = 0.0;
+
+    void _prefill_progress_start(int total_tokens) {
+        _current_prefill_total_tokens = total_tokens;
+        _current_prefill_finished_tokens = 0;
+        _prefill_progress = 0;
+    }
+
+    void _prefill_progress_finish() {
+        _current_prefill_total_tokens = -1;
+        _prefill_progress = 1.0;
+    }
 
     std::string _cache_dir = "";
 

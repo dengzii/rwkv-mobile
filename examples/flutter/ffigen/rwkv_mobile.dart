@@ -624,6 +624,16 @@ late final _rwkvmobile_runtime_tts_get_generation_progressPtr = _lookup<
     ffi.NativeFunction<ffi.Float Function(rwkvmobile_runtime_t )>>('rwkvmobile_runtime_tts_get_generation_progress');
 late final _rwkvmobile_runtime_tts_get_generation_progress = _rwkvmobile_runtime_tts_get_generation_progressPtr.asFunction<double Function(rwkvmobile_runtime_t )>();
 
+double rwkvmobile_runtime_get_prefill_progress(rwkvmobile_runtime_t runtime,
+) {
+  return _rwkvmobile_runtime_get_prefill_progress(runtime,
+);
+}
+
+late final _rwkvmobile_runtime_get_prefill_progressPtr = _lookup<
+    ffi.NativeFunction<ffi.Float Function(rwkvmobile_runtime_t )>>('rwkvmobile_runtime_get_prefill_progress');
+late final _rwkvmobile_runtime_get_prefill_progress = _rwkvmobile_runtime_get_prefill_progressPtr.asFunction<double Function(rwkvmobile_runtime_t )>();
+
 ffi.Pointer<ffi.Char> rwkvmobile_get_platform_name() {
   return _rwkvmobile_get_platform_name();
 }
