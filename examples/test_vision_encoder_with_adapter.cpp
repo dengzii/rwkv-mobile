@@ -19,6 +19,8 @@ void custom_sleep(int seconds) {
 #endif
 }
 
+const char *msg0 = "Please analyze the picture and execute the following instruction or answer the following question: \\nplease recognize the data in the data in this picture";
+
 int main(int argc, char **argv) {
     // set stdout to be unbuffered
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -32,13 +34,15 @@ int main(int argc, char **argv) {
     rwkvmobile_runtime_load_model(runtime, argv[1]);
     rwkvmobile_runtime_load_vision_encoder_and_adapter(runtime, argv[2], argv[3]);
     rwkvmobile_runtime_set_sampler_params(runtime, {1.0, 1, 1.0});
+    rwkvmobile_runtime_set_penalty_params(runtime, {0.0, 0.0, 0.0});
     rwkvmobile_runtime_set_eos_token(runtime, "\x17");
     rwkvmobile_runtime_set_bos_token(runtime, "\x16");
     rwkvmobile_runtime_set_token_banned(runtime, {0}, 1);
 
     rwkvmobile_runtime_set_image_prompt(runtime, argv[5]);
+    const char *input_list[] = {msg0};
 
-    rwkvmobile_runtime_eval_chat_async(runtime, "What is unusual about this image?", 500, nullptr, 0);
+    rwkvmobile_runtime_eval_chat_with_history_async(runtime, input_list, 1, 500, nullptr, 0);
 
     while (rwkvmobile_runtime_is_generating(runtime)) {
         custom_sleep(1);

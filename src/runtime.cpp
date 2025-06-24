@@ -470,15 +470,15 @@ std::string runtime::apply_chat_template(std::vector<std::string> inputs, bool e
             }
         } else {
             if (i == inputs.size() - 1) {
-                text += _bos_token + _response_role + ": " + inputs[i];
+                text += _response_role + ": " + inputs[i];
             } else {
-                text += _bos_token + _response_role + ": " + inputs[i] + _eos_token;
+                text += _response_role + ": " + inputs[i] + _eos_token;
             }
         }
     }
 
     if (inputs.size() % 2 != 0) {
-        text += _bos_token + _response_role + ":";
+        text +=  _response_role + ":";
         if (enable_reasoning) {
             text += " " + _thinking_token;
         }

@@ -195,12 +195,7 @@ public:
     inline void set_bos_token(std::string token) { _bos_token = token; }
     inline void set_eos_token(std::string token) {
         _eos_token = token;
-        for (auto &stop_code : _stop_codes) {
-            if (stop_code == _eos_token) {
-                return;
-            }
-        }
-        _stop_codes.push_back(_eos_token);
+        _stop_codes[0] = _eos_token;
     }
     std::string get_user_role() { return _user_role; }
     std::string get_response_role() { return _response_role; }
