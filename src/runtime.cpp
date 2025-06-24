@@ -352,7 +352,7 @@ int runtime::eval_logits(std::vector<int> ids, float *& logits) {
         if (ret != RWKV_SUCCESS) return ret;
         if (_current_prefill_total_tokens > 0) {
             _current_prefill_finished_tokens += _prefill_chunk_size;
-            _prefill_progress = _current_prefill_finished_tokens / _current_prefill_total_tokens;
+            _prefill_progress = (double)_current_prefill_finished_tokens / _current_prefill_total_tokens;
             LOGD("Update prefill_progress = %f", _prefill_progress);
         }
     }
@@ -360,7 +360,7 @@ int runtime::eval_logits(std::vector<int> ids, float *& logits) {
     ret = _backend->eval(ids_left, logits);
     if (_current_prefill_total_tokens > 0) {
         _current_prefill_finished_tokens += ids_left.size();
-        _prefill_progress = _current_prefill_finished_tokens / _current_prefill_total_tokens;
+        _prefill_progress = (double)_current_prefill_finished_tokens / _current_prefill_total_tokens;
         LOGD("Update prefill_progress = %f", _prefill_progress);
     }
     auto end = std::chrono::high_resolution_clock::now();
