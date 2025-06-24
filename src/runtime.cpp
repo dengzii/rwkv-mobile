@@ -356,12 +356,14 @@ int runtime::eval_logits(std::vector<int> ids, float *& logits) {
             LOGD("Update prefill_progress = %f", _prefill_progress);
         }
     }
-    auto ids_left = std::vector<int>(ids.begin() + i, ids.end());
-    ret = _backend->eval(ids_left, logits);
-    if (_current_prefill_total_tokens > 0) {
-        _current_prefill_finished_tokens += ids_left.size();
-        _prefill_progress = (double)_current_prefill_finished_tokens / _current_prefill_total_tokens;
-        LOGD("Update prefill_progress = %f", _prefill_progress);
+    if (i < ids.size()) {
+        auto ids_left = std::vector<int>(ids.begin() + i, ids.end());
+        ret = _backend->eval(ids_left, logits);
+        if (_current_prefill_total_tokens > 0) {
+            _current_prefill_finished_tokens += ids_left.size();
+            _prefill_progress = (double)_current_prefill_finished_tokens / _current_prefill_total_tokens;
+            LOGD("Update prefill_progress = %f", _prefill_progress);
+        }
     }
     auto end = std::chrono::high_resolution_clock::now();
     _prefill_speed = ids.size() * 1e6f / std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
