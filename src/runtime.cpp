@@ -348,7 +348,7 @@ int runtime::eval_logits(std::vector<int> ids, float *& logits) {
     int ret;
     for (; i + _prefill_chunk_size <= ids.size(); i += _prefill_chunk_size) {
         auto ids_chunk = std::vector<int>(ids.begin() + i, ids.begin() + i + _prefill_chunk_size);
-        ret = _backend->eval(ids_chunk, logits, true);
+        ret = _backend->eval(ids_chunk, logits);
         if (ret != RWKV_SUCCESS) return ret;
         if (_current_prefill_total_tokens > 0) {
             _current_prefill_finished_tokens += _prefill_chunk_size;
