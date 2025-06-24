@@ -45,7 +45,7 @@ public:
     int init(int backend_id, void * extra);
     int load_model(std::string model_path);
     int load_tokenizer(std::string vocab_file);
-    int load_vision_encoder(std::string model_path);
+    int load_vision_encoder(std::string model_path, std::string adapter_path = "");
     int load_whisper_encoder(std::string model_path);
     int eval_logits(int id, float *& logits);
     int eval_logits(std::vector<int> ids, float *& logits);

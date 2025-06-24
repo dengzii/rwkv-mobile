@@ -350,6 +350,18 @@ int rwkvmobile_runtime_load_vision_encoder(rwkvmobile_runtime_t runtime, const c
 #endif
 }
 
+int rwkvmobile_runtime_load_vision_encoder_and_adapter(rwkvmobile_runtime_t runtime, const char * encoder_path, const char * adapter_path) {
+#if ENABLE_VISION
+    if (runtime == nullptr || encoder_path == nullptr || adapter_path == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->load_vision_encoder(encoder_path, adapter_path);
+#else
+    return RWKV_ERROR_UNSUPPORTED;
+#endif
+}
+
 int rwkvmobile_runtime_release_vision_encoder(rwkvmobile_runtime_t runtime) {
 #if ENABLE_VISION
     if (runtime == nullptr) {

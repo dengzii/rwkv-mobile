@@ -47,8 +47,6 @@ int llama_cpp_backend::load_model(std::string model_path) {
 #ifdef __ANDROID__
     // TODO: set according to the number of prime cores on the device
     llama_set_n_threads(ctx, 2, 2);
-#else
-    llama_set_n_threads(ctx, std::thread::hardware_concurrency(), std::thread::hardware_concurrency());
 #endif
 
     vocab_size = model->vocab.n_tokens();

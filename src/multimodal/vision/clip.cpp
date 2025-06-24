@@ -740,8 +740,9 @@ static ggml_cgraph * clip_image_build_graph(clip_ctx * ctx, const clip_image_f32
 }
 
 // read and create ggml_context containing the tensors and their data
-struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
+struct clip_ctx * clip_model_load(const char * fname, const char * fname_adapter, const int verbosity = 1) {
     struct ggml_context * meta = NULL;
+    struct ggml_context * meta_adapter = NULL;
 
     struct gguf_init_params params = {
         /*.no_alloc = */ true,
@@ -751,6 +752,20 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
     struct gguf_context * ctx = gguf_init_from_file(fname, params);
     if (!ctx) {
         throw std::runtime_error(format("%s: failed to load CLIP model from %s. Does this file exist?\n", __func__, fname));
+    }
+
+
+    struct gguf_init_params params_adapter = {
+        /*.no_alloc = */ true,
+        /*.ctx      = */ &meta_adapter,
+    };
+
+    struct gguf_context * ctx_adapter = NULL;
+    if (fname_adapter) {
+        ctx_adapter = gguf_init_from_file(fname_adapter, params_adapter);
+        if (!ctx_adapter) {
+            throw std::runtime_error(format("%s: failed to load rwkv adapter file from %s. Does this file exist?\n", __func__, fname_adapter));
+        }
     }
 
     if (verbosity >= 1) {
@@ -774,11 +789,17 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
         LOG_INF("\n");
     }
     const int n_tensors = gguf_get_n_tensors(ctx);
+    const int n_tensors_adapter = ctx_adapter ? gguf_get_n_tensors(ctx_adapter) : 0;
 
     // kv
     const int n_kv = gguf_get_n_kv(ctx);
     LOG_INF("%s: loaded meta data with %d key-value pairs and %d tensors from %s\n",
         __func__, n_kv, n_tensors, fname);
+    if (ctx_adapter) {
+        LOG_INF("%s: loaded rwkv adapter with %d tensors from %s\n",
+            __func__, n_tensors_adapter, fname_adapter);
+    }
+
     {
         std::map<enum ggml_type, uint32_t> n_type;
 
@@ -825,6 +846,21 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
             const size_t offset = gguf_get_tensor_offset(ctx, i);
             enum ggml_type type = gguf_get_tensor_type(ctx, i);
             struct ggml_tensor * cur = ggml_get_tensor(meta, name);
+            size_t tensor_size = ggml_nbytes(cur);
+            model_size += tensor_size;
+            if (verbosity >= 3) {
+                LOG_INF("%s: tensor[%d]: n_dims = %d, name = %s, tensor_size=%zu, offset=%zu, shape:[%" PRIu64 ", %" PRIu64 ", %" PRIu64 ", %" PRIu64 "], type = %s\n",
+                       __func__, i, ggml_n_dims(cur), cur->name, tensor_size, offset, cur->ne[0], cur->ne[1], cur->ne[2], cur->ne[3], ggml_type_name(type));
+            }
+        }
+    }
+
+    if (ctx_adapter) {
+        for (int i = 0; i < n_tensors_adapter; ++i) {
+            const char * name = gguf_get_tensor_name(ctx_adapter, i);
+            const size_t offset = gguf_get_tensor_offset(ctx_adapter, i);
+            enum ggml_type type = gguf_get_tensor_type(ctx_adapter, i);
+            struct ggml_tensor * cur = ggml_get_tensor(meta_adapter, name);
             size_t tensor_size = ggml_nbytes(cur);
             model_size += tensor_size;
             if (verbosity >= 3) {
@@ -926,7 +962,7 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
     {
         std::vector<uint8_t> read_buf;
         struct ggml_init_params params = {
-            /*.mem_size =*/ (n_tensors + 1) * ggml_tensor_overhead(),
+            /*.mem_size =*/ (n_tensors + n_tensors_adapter + 1) * ggml_tensor_overhead(),
             /*.mem_buffer =*/ NULL,
             /*.no_alloc =*/ true,
         };
@@ -936,6 +972,7 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
             LOG_ERR("%s: ggml_init() failed\n", __func__);
             clip_free(new_clip);
             gguf_free(ctx);
+            gguf_free(ctx_adapter);
             return nullptr;
         }
 
@@ -944,6 +981,7 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
             LOG_ERR("cannot open model file for loading tensors\n");
             clip_free(new_clip);
             gguf_free(ctx);
+            gguf_free(ctx_adapter);
             return nullptr;
         }
 
@@ -953,6 +991,15 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
             struct ggml_tensor * t = ggml_get_tensor(meta, name);
             struct ggml_tensor * cur = ggml_dup_tensor(new_clip->ctx_data, t);
             ggml_set_name(cur, name);
+        }
+
+        if (ctx_adapter) {
+            for (int i = 0; i < n_tensors_adapter; ++i) {
+                const char * name = gguf_get_tensor_name(ctx_adapter, i);
+                struct ggml_tensor * t = ggml_get_tensor(meta_adapter, name);
+                struct ggml_tensor * cur = ggml_dup_tensor(new_clip->ctx_data, t);
+                ggml_set_name(cur, name);
+            }
         }
 
         // alloc memory and offload data
@@ -980,6 +1027,42 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
             }
         }
         fin.close();
+
+        if (ctx_adapter) {
+            fin = std::ifstream(fname_adapter, std::ios::binary);
+            if (!fin) {
+                LOG_ERR("cannot open rwkv adapter file for loading tensors\n");
+                clip_free(new_clip);
+                gguf_free(ctx);
+                gguf_free(ctx_adapter);
+                return nullptr;
+            }
+
+            for (int i = 0; i < n_tensors_adapter; ++i) {
+                const char * name = gguf_get_tensor_name(ctx_adapter, i);
+                struct ggml_tensor * cur = ggml_get_tensor(new_clip->ctx_data, name);
+                const size_t offset = gguf_get_data_offset(ctx_adapter) + gguf_get_tensor_offset(ctx_adapter, i);
+                fin.seekg(offset, std::ios::beg);
+                if (!fin) {
+                    LOG_ERR("%s: failed to seek for tensor %s\n", __func__, name);
+                    clip_free(new_clip);
+                    gguf_free(ctx);
+                    gguf_free(ctx_adapter);
+                    return nullptr;
+                }
+                int num_bytes = ggml_nbytes(cur);
+                if (ggml_backend_buffer_is_host(new_clip->params_buffer)) {
+                    // for the CPU and Metal backend, we can read directly into the tensor
+                    fin.read(reinterpret_cast<char *>(cur->data), num_bytes);
+                } else {
+                    // read into a temporary buffer first, then copy to device memory
+                    read_buf.resize(num_bytes);
+                    fin.read(reinterpret_cast<char *>(read_buf.data()), num_bytes);
+                    ggml_backend_tensor_set(cur, read_buf.data(), 0, num_bytes);
+                }
+            }
+            fin.close();
+        }
     }
 
     // vision model
@@ -1884,7 +1967,7 @@ bool clip_model_quantize(const char * fname_inp, const char * fname_out, const i
     assert(itype < GGML_TYPE_COUNT);
     ggml_type type = static_cast<ggml_type>(itype);
 
-    auto * ctx_clip = clip_model_load(fname_inp, 2);
+    auto * ctx_clip = clip_model_load(fname_inp, NULL, 2);
 
     const auto & ctx_src = ctx_clip->ctx_gguf;
     const auto & ctx_data = ctx_clip->ctx_data;

@@ -233,9 +233,10 @@ int runtime::load_tokenizer(std::string vocab_file) {
     return _tokenizer->load(vocab_file);
 }
 
-int runtime::load_vision_encoder(std::string model_path) {
+int runtime::load_vision_encoder(std::string model_path, std::string adapter_path) {
 #ifdef ENABLE_VISION
-    _vision_encoder = std::unique_ptr<clip_ctx, std::function<void(clip_ctx*)>>(clip_model_load(model_path.c_str(), 0),
+    auto adapter_path_cstr = adapter_path.empty() ? NULL : adapter_path.c_str();
+    _vision_encoder = std::unique_ptr<clip_ctx, std::function<void(clip_ctx*)>>(clip_model_load(model_path.c_str(), adapter_path_cstr, 0),
         [](clip_ctx *p) {
             clip_free(p);
         });
