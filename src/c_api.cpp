@@ -491,6 +491,7 @@ struct response_buffer rwkvmobile_runtime_get_response_buffer_content(rwkvmobile
     if (buffer.content == nullptr) {
         return buffer;
     }
+    memset(buffer.content, 0, buffer.length);
     strncpy(buffer.content, content.c_str(), buffer.length);
     return buffer;
 }

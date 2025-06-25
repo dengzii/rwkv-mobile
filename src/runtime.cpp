@@ -683,22 +683,6 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         _backend->free_logits_if_allocated(logits);
     }
 
-    // if (enable_reasoning && !_stop_signal) {
-    //     // start a new thread to prefill the content without thinking part
-    //     if (_response_buffer.find("<think>") != std::string::npos && _response_buffer.find("</think>") != std::string::npos) {
-    //         auto response_without_thinking = _response_buffer.substr(_response_buffer.find("</think>") + 8);
-    //         while (response_without_thinking[0] == ' ' || response_without_thinking[0] == '\n') {
-    //             response_without_thinking = response_without_thinking.substr(1);
-    //         }
-    //         LOGI("Response without thinking: \"%s\"\n", response_without_thinking.c_str());
-    //         auto inputs_new = inputs;
-    //         inputs_new.emplace_back(response_without_thinking);
-    //         _prefilling_thread = std::thread([this, inputs_new]() {
-    //             chat(inputs_new, 0, nullptr, false, true);
-    //         });
-    //     }
-    // }
-
     set_is_generating(false);
     _stop_signal = false;
     return RWKV_SUCCESS;

@@ -1062,6 +1062,7 @@ struct clip_ctx * clip_model_load(const char * fname, const char * fname_adapter
                 }
             }
             fin.close();
+            new_clip->has_rwkv_adapter = true;
         }
     }
 
@@ -1295,51 +1296,213 @@ bool clip_image_load_from_bytes(const unsigned char * bytes, size_t bytes_length
     return true;
 }
 
-// Linear interpolation between two points
-inline float clip_lerp(float s, float e, float t) {
-    return s + (e - s) * t;
-}
 // Bilinear resize function
 static void bilinear_resize(const clip_image_u8& src, clip_image_u8& dst, int target_width, int target_height) {
     dst.nx = target_width;
     dst.ny = target_height;
     dst.buf.resize(3 * target_width * target_height);
 
-    float x_ratio = static_cast<float>(src.nx) / target_width;
-    float y_ratio = static_cast<float>(src.ny) / target_height;
+    const int src_width = src.nx;
+    const int src_height = src.ny;
 
-    for (int y = 0; y < target_height; y++) {
-        for (int x = 0; x < target_width; x++) {
-            // Calculate source pixel position with pixel center alignment
-            float px = (x + 0.5f) * x_ratio - 0.5f;
-            float py = (y + 0.5f) * y_ratio - 0.5f;
-            
-            // Get the four surrounding pixel coordinates
-            int x_floor = static_cast<int>(std::floor(px));
-            int y_floor = static_cast<int>(std::floor(py));
-            int x_ceil = std::min(x_floor + 1, src.nx - 1);
-            int y_ceil = std::min(y_floor + 1, src.ny - 1);
-            x_floor = std::max(0, x_floor);
-            y_floor = std::max(0, y_floor);
+    constexpr double bilinear_filter_support = 1.0;
 
-            // Calculate interpolation weights
-            float x_lerp = px - x_floor;
-            float y_lerp = py - y_floor;
+    static constexpr uint32_t precision_bits = 32 - 8 - 2;
 
-            for (int c = 0; c < 3; c++) {
-                float top = clip_lerp(
-                    static_cast<float>(src.buf[3 * (y_floor * src.nx + x_floor) + c]),
-                    static_cast<float>(src.buf[3 * (y_floor * src.nx + x_ceil) + c]),
-                    x_lerp
-                );
-                float bottom = clip_lerp(
-                    static_cast<float>(src.buf[3 * (y_ceil * src.nx + x_floor) + c]),
-                    static_cast<float>(src.buf[3 * (y_ceil * src.nx + x_ceil) + c]),
-                    x_lerp
-                );
-                float value = clip_lerp(top, bottom, y_lerp);
-                // Round to nearest integer and clamp to valid range
-                dst.buf[3 * (y * target_width + x) + c] = static_cast<uint8_t>(std::min(255.0f, std::max(0.0f, std::round(value))));
+    const double scale_x = static_cast<double>(src_width) / target_width;
+    const double scale_y = static_cast<double>(src_height) / target_height;
+
+    std::vector<int32_t> bounds_horiz;
+    std::vector<double> kk_horiz;
+    int32_t ksize_horiz = 0;
+
+    double filterscale_x = scale_x;
+    if (filterscale_x < 1.0) {
+        filterscale_x = 1.0;
+    }
+
+    const double support_x = bilinear_filter_support * filterscale_x;
+
+    ksize_horiz = static_cast<int32_t>(ceil(support_x)) * 2 + 1;
+
+    kk_horiz.resize(target_width * ksize_horiz);
+
+    bounds_horiz.resize(target_width * 2);
+
+    constexpr double half_pixel = 0.5;
+    for (int32_t xx = 0; xx < target_width; ++xx) {
+        double center = (xx + half_pixel) * scale_x - half_pixel;
+        double ww = 0.0;
+        double ss = 1.0 / filterscale_x;
+
+        auto xmin = static_cast<int32_t>(center - support_x + half_pixel);
+        if (xmin < 0) {
+            xmin = 0;
+        }
+
+        auto xmax = static_cast<int32_t>(center + support_x + half_pixel);
+        if (xmax > src_width) {
+            xmax = src_width;
+        }
+        xmax -= xmin;
+
+        double* k = &kk_horiz[xx * ksize_horiz];
+        for (int32_t x = 0; x < xmax; ++x) {
+            // Bilinear filter: if |x| < 1.0, return 1.0 - |x|, else return 0.0
+            double filter_x = (x + xmin - center + half_pixel) * ss;
+            if (filter_x < 0.0) {
+                filter_x = -filter_x;
+            }
+            double w = (filter_x < 1.0) ? (1.0 - filter_x) : 0.0;
+            k[x] = w;
+            ww += w;
+        }
+
+        for (int32_t x = 0; x < xmax; ++x) {
+            if (ww != 0.0) {
+                k[x] /= ww;
+            }
+        }
+
+        for (int32_t x = xmax; x < ksize_horiz; ++x) {
+            k[x] = 0;
+        }
+
+        bounds_horiz[xx * 2 + 0] = xmin;
+        bounds_horiz[xx * 2 + 1] = xmax;
+    }
+    
+
+    std::vector<int32_t> bounds_vert;
+    std::vector<double> kk_vert;
+    int32_t ksize_vert = 0;
+
+    double filterscale_y = scale_y;
+    if (filterscale_y < 1.0) {
+        filterscale_y = 1.0;
+    }
+
+    const double support_y = bilinear_filter_support * filterscale_y;
+
+    ksize_vert = static_cast<int32_t>(ceil(support_y)) * 2 + 1;
+
+    kk_vert.resize(target_height * ksize_vert);
+
+    bounds_vert.resize(target_height * 2);
+
+    for (int32_t yy = 0; yy < target_height; ++yy) {
+        double center = (yy + half_pixel) * scale_y - half_pixel;
+        double ww = 0.0;
+        double ss = 1.0 / filterscale_y;
+
+        auto ymin = static_cast<int32_t>(center - support_y + half_pixel);
+        if (ymin < 0) {
+            ymin = 0;
+        }
+
+        auto ymax = static_cast<int32_t>(center + support_y + half_pixel);
+        if (ymax > src_height) {
+            ymax = src_height;
+        }
+        ymax -= ymin;
+
+        double* k = &kk_vert[yy * ksize_vert];
+        for (int32_t y = 0; y < ymax; ++y) {
+            // Bilinear filter: if |x| < 1.0, return 1.0 - |x|, else return 0.0
+            double filter_y = (y + ymin - center + half_pixel) * ss;
+            if (filter_y < 0.0) {
+                filter_y = -filter_y;
+            }
+            double w = (filter_y < 1.0) ? (1.0 - filter_y) : 0.0;
+            k[y] = w;
+            ww += w;
+        }
+
+        for (int32_t y = 0; y < ymax; ++y) {
+            if (ww != 0.0) {
+                k[y] /= ww;
+            }
+        }
+
+        for (int32_t y = ymax; y < ksize_vert; ++y) {
+            k[y] = 0;
+        }
+
+        bounds_vert[yy * 2 + 0] = ymin;
+        bounds_vert[yy * 2 + 1] = ymax;
+    }
+
+    const int32_t ybox_first = bounds_vert[0];
+    const int32_t ybox_last = bounds_vert[target_height * 2 - 2] + bounds_vert[target_height * 2 - 1];
+    std::vector<uint8_t> temp_buffer(3 * (ybox_last - ybox_first) * target_width);
+
+    std::vector<double> kk_horiz_norm(kk_horiz.begin(), kk_horiz.end());
+    constexpr auto shifted_coeff = static_cast<double>(1U << precision_bits);
+    for (auto& k : kk_horiz_norm) {
+        if (k < 0) {
+            k = trunc(-half_pixel + k * shifted_coeff);
+        } else {
+            k = trunc(half_pixel + k * shifted_coeff);
+        }
+    }
+
+    for (int32_t yy = 0; yy < ybox_last - ybox_first; ++yy) {
+        for (int32_t xx = 0; xx < target_width; ++xx) {
+            const int32_t xmin = bounds_horiz[xx * 2 + 0];
+            const int32_t xmax = bounds_horiz[xx * 2 + 1];
+            const double* k = &kk_horiz_norm[xx * ksize_horiz];
+
+            for (int32_t c = 0; c < 3; ++c) {
+                double ss = static_cast<double>(1U << (precision_bits - 1U)); // init_buffer
+                for (int32_t x = 0; x < xmax; ++x) {
+                    ss += static_cast<double>(src.buf[3 * ((yy + ybox_first) * src_width + (x + xmin)) + c]) * k[x];
+                }
+
+                auto saturate_val = static_cast<intmax_t>(ss) >> precision_bits;
+                if (saturate_val < 0) {
+                    temp_buffer[3 * (yy * target_width + xx) + c] = 0;
+                } else if (saturate_val > 255) {
+                    temp_buffer[3 * (yy * target_width + xx) + c] = 255;
+                } else {
+                    temp_buffer[3 * (yy * target_width + xx) + c] = static_cast<uint8_t>(saturate_val);
+                }
+            }
+        }
+    }
+
+    for (int32_t i = 0; i < target_height; ++i) {
+        bounds_vert[i * 2] -= ybox_first;
+    }
+
+    std::vector<double> kk_vert_norm(kk_vert.begin(), kk_vert.end());
+    for (auto& k : kk_vert_norm) {
+        if (k < 0) {
+            k = trunc(-half_pixel + k * shifted_coeff);
+        } else {
+            k = trunc(half_pixel + k * shifted_coeff);
+        }
+    }
+
+    for (int32_t yy = 0; yy < target_height; ++yy) {
+        for (int32_t xx = 0; xx < target_width; ++xx) {
+            const int32_t ymin = bounds_vert[yy * 2 + 0];
+            const int32_t ymax = bounds_vert[yy * 2 + 1];
+            const double* k = &kk_vert_norm[yy * ksize_vert];
+
+            for (int32_t c = 0; c < 3; ++c) {
+                double ss = static_cast<double>(1U << (precision_bits - 1U)); // init_buffer
+                for (int32_t y = 0; y < ymax; ++y) {
+                    ss += static_cast<double>(temp_buffer[3 * ((y + ymin) * target_width + xx) + c]) * k[y];
+                }
+
+                auto saturate_val = static_cast<intmax_t>(ss) >> precision_bits;
+                if (saturate_val < 0) {
+                    dst.buf[3 * (yy * target_width + xx) + c] = 0;
+                } else if (saturate_val > 255) {
+                    dst.buf[3 * (yy * target_width + xx) + c] = 255;
+                } else {
+                    dst.buf[3 * (yy * target_width + xx) + c] = static_cast<uint8_t>(saturate_val);
+                }
             }
         }
     }
