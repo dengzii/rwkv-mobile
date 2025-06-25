@@ -168,6 +168,8 @@ if (ENABLE_LLAMACPP_BACKEND)
     )
 
     option(LLAMA_STANDALONE "" OFF)
+    option(LLAMA_BUILD_TESTS "" OFF)
+    option(GGML_LLAMAFILE "" OFF)
     if (BUILD_STATIC_LIB)
         option(BUILD_SHARED_LIBS "" OFF)
         option(GGML_BACKEND_DL "" OFF)

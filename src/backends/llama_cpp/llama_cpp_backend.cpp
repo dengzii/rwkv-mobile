@@ -38,16 +38,15 @@ int llama_cpp_backend::load_model(std::string model_path) {
 
     llama_context_params ctx_params = llama_context_default_params();
     ctx_params.n_ctx = 1048576;
-    ctx_params.n_batch = 1048576;
     ctx = llama_init_from_model(model, ctx_params);
     if (!ctx) {
         return RWKV_ERROR_MODEL | RWKV_ERROR_IO;
     }
 
-#ifdef __ANDROID__
-    // TODO: set according to the number of prime cores on the device
-    llama_set_n_threads(ctx, 2, 2);
-#endif
+// #ifdef __ANDROID__
+//     // TODO: set according to the number of prime cores on the device
+//     llama_set_n_threads(ctx, 2, 2);
+// #endif
 
     vocab_size = model->vocab.n_tokens();
     hidden_size = llama_model_n_embd(model);

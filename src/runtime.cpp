@@ -640,6 +640,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             }
             if (tmp.size() >= stop_code.size() &&
                 tmp.compare(tmp.size() - stop_code.size(), stop_code.size(), stop_code) == 0) {
+                LOGI("stop code found: %s\n", stop_code.c_str());
                 stopping = true;
                 break;
             }
@@ -769,10 +770,13 @@ int runtime::set_image_prompt(std::string path) {
     LOGI("siglip duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
     float *logits = nullptr;
 
+    start = std::chrono::high_resolution_clock::now();
     int ret = eval_logits_with_embeddings(embd->embed, embd->n_image_pos, logits);
     if (ret) {
         return ret;
     }
+    end = std::chrono::high_resolution_clock::now();
+    LOGI("eval_logits_with_embeddings duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
     _backend->get_state(_state_head->next->state);
     _state_head->next->last_logits.resize(_vocab_size);
     memcpy(_state_head->next->last_logits.data(), logits, _vocab_size * sizeof(float));

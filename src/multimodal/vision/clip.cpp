@@ -707,29 +707,18 @@ static ggml_cgraph * clip_image_build_graph(clip_ctx * ctx, const clip_image_f32
         embeddings = ggml_add(ctx0, ggml_mul(ctx0, embeddings, model.post_ln_w), model.post_ln_b);
     }
 
-    // llava projector
-    // embeddings = ggml_reshape_2d(ctx0, embeddings, embeddings->ne[0], embeddings->ne[1]);
+    if (ctx->has_rwkv_adapter) {
+        embeddings = ggml_mul_mat(ctx0, model.mm_0_w, embeddings);
+        embeddings = ggml_add(ctx0, embeddings, model.mm_0_b);
 
-    // struct ggml_tensor * patches = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, num_patches);
-    // ggml_set_name(patches, "patches");
-    // ggml_set_input(patches);
+        embeddings = ggml_relu(ctx0, embeddings);
+        embeddings = ggml_mul_mat(ctx0, model.mm_2_w, embeddings);
+        embeddings = ggml_add(ctx0, embeddings, model.mm_2_b);
 
-    // shape [1, 576, 1024]
-    // ne is whcn, ne = [1024, 576, 1, 1]
-    // embeddings = ggml_get_rows(ctx0, embeddings, patches);
-
-    // print_tensor_info(embeddings, "embeddings");
-
-    embeddings = ggml_mul_mat(ctx0, model.mm_0_w, embeddings);
-    embeddings = ggml_add(ctx0, embeddings, model.mm_0_b);
-
-    embeddings = ggml_relu(ctx0, embeddings);
-    embeddings = ggml_mul_mat(ctx0, model.mm_2_w, embeddings);
-    embeddings = ggml_add(ctx0, embeddings, model.mm_2_b);
-
-    struct ggml_tensor * emb_norm = ggml_norm(ctx0, embeddings, 1e-5);
-    emb_norm = ggml_add(ctx0, ggml_mul(ctx0, emb_norm, model.mm_1_w), model.mm_1_b);
-    embeddings = ggml_add(ctx0, embeddings, emb_norm);
+        struct ggml_tensor * emb_norm = ggml_norm(ctx0, embeddings, 1e-5);
+        emb_norm = ggml_add(ctx0, ggml_mul(ctx0, emb_norm, model.mm_1_w), model.mm_1_b);
+        embeddings = ggml_add(ctx0, embeddings, emb_norm);
+    }
 
     // build the graph
     ggml_build_forward_expand(gf, embeddings);
@@ -1175,14 +1164,18 @@ struct clip_ctx * clip_model_load(const char * fname, const char * fname_adapter
             LOG_ERR("%s: failed to load vision model tensors\n", __func__);
         }
 
-        vision_model.mm_0_w              = get_tensor(new_clip->ctx_data, format(TN_RWKV_ADAPTER_PROJ, 0, "weight"));
-        vision_model.mm_0_b              = get_tensor(new_clip->ctx_data, format(TN_RWKV_ADAPTER_PROJ, 0, "bias"));
+        try {
+            vision_model.mm_0_w              = get_tensor(new_clip->ctx_data, format(TN_RWKV_ADAPTER_PROJ, 0, "weight"));
+            vision_model.mm_0_b              = get_tensor(new_clip->ctx_data, format(TN_RWKV_ADAPTER_PROJ, 0, "bias"));
 
-        vision_model.mm_1_w              = get_tensor(new_clip->ctx_data, format(TN_RWKV_ADAPTER_NORM, "weight"));
-        vision_model.mm_1_b              = get_tensor(new_clip->ctx_data, format(TN_RWKV_ADAPTER_NORM, "bias"));
+            vision_model.mm_1_w              = get_tensor(new_clip->ctx_data, format(TN_RWKV_ADAPTER_NORM, "weight"));
+            vision_model.mm_1_b              = get_tensor(new_clip->ctx_data, format(TN_RWKV_ADAPTER_NORM, "bias"));
 
-        vision_model.mm_2_w              = get_tensor(new_clip->ctx_data, format(TN_RWKV_ADAPTER_PROJ, 2, "weight"));
-        vision_model.mm_2_b              = get_tensor(new_clip->ctx_data, format(TN_RWKV_ADAPTER_PROJ, 2, "bias"));
+            vision_model.mm_2_w              = get_tensor(new_clip->ctx_data, format(TN_RWKV_ADAPTER_PROJ, 2, "weight"));
+            vision_model.mm_2_b              = get_tensor(new_clip->ctx_data, format(TN_RWKV_ADAPTER_PROJ, 2, "bias"));
+        } catch(const std::exception& /*e*/) {
+            LOG_ERR("%s: failed to load vision model tensors\n", __func__);
+        }
 
         vision_model.layers.resize(hparams.n_layer);
 
