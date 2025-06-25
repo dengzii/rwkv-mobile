@@ -1140,13 +1140,12 @@ int qnn_backend::eval(std::vector<int> ids, float *& logits, bool skip_logits_co
 
 int qnn_backend::eval_with_embeddings(const float *embeddings, int n_tokens, float *& logits) {
     if (!isTensorInitialized) return RWKV_ERROR_EVAL;
-    LOGI("[QNN] eval_with_embeddings: n_tokens: %d", n_tokens);
+    LOGD("[QNN] eval_with_embeddings: n_tokens: %d", n_tokens);
 
     int i = 0;
     if (embdPrefillSequenceLength > 0) {
         void *embedding_input_prefill = qnnIOTensorUtils->getBuffer(tokenInputTensorEmbdPrefill);
         for (; i + embdPrefillSequenceLength <= n_tokens; i += embdPrefillSequenceLength) {
-            auto start = std::chrono::high_resolution_clock::now();
             if (QNN_TENSOR_GET_DATA_TYPE(tokenInputTensorEmbdPrefill) == QNN_DATATYPE_FLOAT_32) {
                 memcpy(embedding_input_prefill, (float*)(embeddings + i * hidden_size), embdPrefillSequenceLength * hidden_size * sizeof(float));
             } else {
@@ -1155,10 +1154,7 @@ int qnn_backend::eval_with_embeddings(const float *embeddings, int n_tokens, flo
                         QNN_TENSOR_GET_QUANT_PARAMS(tokenInputTensorEmbdPrefill).scaleOffsetEncoding.scale,
                         embdPrefillSequenceLength * hidden_size);
             }
-            auto end = std::chrono::high_resolution_clock::now();
-            LOGI("eval_with_embeddings filling input tensor duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
-            start = std::chrono::high_resolution_clock::now();
             auto graphInfo = (*qnnEmbdPrefillGraphsInfo)[0];
             auto executeStatus =
                 qnnFunctionPointers.qnnInterface.graphExecute(graphInfo.graph,
@@ -1167,16 +1163,12 @@ int qnn_backend::eval_with_embeddings(const float *embeddings, int n_tokens, flo
                                                                 outputTensorsEmbdPrefill[0],
                                                                 graphInfo.numOutputTensors,
                                                                 nullptr, nullptr);
-            end = std::chrono::high_resolution_clock::now();
-            LOGI("eval_with_embeddings executing prefill graph duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
-
             if (QNN_GRAPH_NO_ERROR != executeStatus) {
                 return RWKV_ERROR_IO;
             }
         }
     }
 
-    auto start = std::chrono::high_resolution_clock::now();
     // leftovers
     for (; i < n_tokens; i++) {
         void *embedding_input = qnnIOTensorUtils->getBuffer(tokenInputTensorEmbd);
@@ -1201,10 +1193,7 @@ int qnn_backend::eval_with_embeddings(const float *embeddings, int n_tokens, flo
             return RWKV_ERROR_IO;
         }
     }
-    auto end = std::chrono::high_resolution_clock::now();
-    LOGI("eval_with_embeddings executing decode graph duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
-    start = std::chrono::high_resolution_clock::now();
     if (logits_buffer.empty()) logits_buffer.resize(vocab_size);
     void *buffer = qnnIOTensorUtils->getBuffer(logitsOutputTensor);
 
@@ -1225,8 +1214,7 @@ int qnn_backend::eval_with_embeddings(const float *embeddings, int n_tokens, flo
         return RWKV_ERROR_IO;
     }
     logits = logits_buffer.data();
-    end = std::chrono::high_resolution_clock::now();
-    LOGI("eval_with_embeddings copying logits duration: %lld ms", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+
     return RWKV_SUCCESS;
 }
 bool qnn_backend::is_available() {
