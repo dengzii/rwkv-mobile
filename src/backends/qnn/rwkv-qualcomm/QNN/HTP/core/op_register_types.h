@@ -29,6 +29,7 @@
 namespace hnnx {
 
 // package of info for op construction.
+// LCOV_EXCL_START [SAFTYSWCCB-1736] constexprs resolved during compile time
 struct op_reg_parms {
 #ifndef PREPARE_DISABLED
     OpFactory newop;
@@ -74,6 +75,7 @@ template <typename Derived, int N> [[gnu::always_inline]] constexpr op_reg_parms
 #endif
     };
 }
+// LCOV_EXCL_STOP
 
 struct simop_reg_parms {
     SimpleOpFactory sim_newop;

@@ -170,13 +170,6 @@ class Crate {
         // get pointer to an index record.
         // record 0 is the last (oldest) one.
         index_rec *index_p(int idx) { return (index_rec *)get_end_ptr() - (idx + 1); }
-        // this gives a pointer to the innermost (most recent) one, if nrec >= 1
-        index_rec *index_pn() { return (index_rec *)get_end_ptr() - nrec; }
-        bool contains_addr(void const *p)
-        {
-            uint8_t const *const px = (uint8_t const *)p;
-            return px >= get_ptr(0) && px < get_end_ptr();
-        }
         static uptr_chunk_t allocate(unsigned len);
     };
     std::vector<uptr_chunk_t> m_chunks; /// < chunks with data

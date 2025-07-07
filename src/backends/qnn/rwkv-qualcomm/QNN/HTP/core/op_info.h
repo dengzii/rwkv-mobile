@@ -37,12 +37,14 @@ class OpInfo {
     const std::string_view type_tag;
 
   public:
+    //LCOV_EXCL_START [SAFTYSWCCB-1542]
     OpInfo(cost_function_t cost_in, Flags_word flags_in, OpFactory op_factory_in, bool is_external_in,
            const std::string_view type_tag_in)
         : cost(cost_in), flags(flags_in), is_external_flag(is_external_in), is_simple_op(false),
           op_factory(op_factory_in), type_tag(type_tag_in)
     {
     }
+    //LCOV_EXCL_STOP
     OpInfo(cost_function_t cost_in, Flags_word flags_in, SimpleOpFactory simple_op_factory_in, bool is_external_in,
            const std::string_view type_tag_in)
         : cost(cost_in), flags(flags_in), is_external_flag(is_external_in), is_simple_op(true),
@@ -54,14 +56,16 @@ class OpInfo {
 
     API_EXPORT Flags_word get_flags() const { return flags; }
 
-    API_EXPORT cost_function_t const &get_cost() const { return cost; }
+    API_EXPORT cost_function_t const &get_cost() const { return cost; } //LCOV_EXCL_LINE [SAFTYSWCCB-1542]
 
     API_EXPORT bool is_external() const { return is_external_flag; }
 
+    //LCOV_EXCL_START [SAFTYSWCCB-1542]
     API_EXPORT const char *get_type_tag() const { return type_tag.data(); }
 
     API_EXPORT OpFactory get_op_factory() const { return !is_simple_op ? op_factory : nullptr; }
     API_EXPORT SimpleOpFactory get_simple_op_factory() const { return is_simple_op ? simple_op_factory : nullptr; }
+    //LCOV_EXCL_STOP
 };
 
 using InfoMapType = std::map<std::type_index, OpInfo>;

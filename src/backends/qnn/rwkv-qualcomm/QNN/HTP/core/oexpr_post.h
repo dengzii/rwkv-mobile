@@ -25,6 +25,52 @@ PUSH_VISIBILITY(default)
 
 namespace oExp {
 
+template <Variant VAR, size_t IDX, typename OPERANDS>
+inline bool ALWAYSINLINE reduce_logop(ECtx &e, OPERANDS const &operands)
+{
+    static constexpr size_t N = std::tuple_size_v<OPERANDS>;
+#ifdef WITH_OPT_DEBUG
+    using TraceState = constraint_lib::Constraint::TraceState;
+    TraceState save_state;
+    if (IDX == 0 and e.curr_rule_info and e.curr_rule_info->is(hnnx::OptimFlags::trace_rule)) {
+        save_state = e.trace;
+        e.trace.depth += 1;
+        e.trace.op = (VAR == Variant::lg_and ? "and" : VAR == Variant::lg_or ? "or" : "xor");
+    }
+    e.trace.clause = IDX;
+    auto result = [&save_state, &e](bool result) {
+        if (e.curr_rule_info and e.curr_rule_info->is(hnnx::OptimFlags::trace_rule))
+            e.trace_vector.push_back(TraceState{e.trace.depth, IDX, e.trace.op, result});
+        if (IDX == 0) e.trace = save_state;
+        return result;
+    };
+#else
+    auto result = [](bool r) { return r; };
+#endif
+    // find the first one.
+    bool result_i = std::get<IDX>(operands).eval(e);
+    if constexpr (IDX + 1 >= N) { // it's the last one .. we're done
+        return result(result_i);
+    } else if constexpr (VAR == Variant::lg_xor) {
+        // must xor with the rest
+        return result_i ^ reduce_logop<VAR, IDX + 1, OPERANDS>(e, operands);
+    } else {
+        if constexpr (VAR == Variant::lg_and) {
+            if (!result_i) return result(false); // short-cut AND if false
+        } else if constexpr (VAR == Variant::lg_or) {
+            if (result_i) return result(true); // short-cut OR if true
+        } else {
+            static_assert(false && IDX, "bad variant!?");
+        }
+        // evaluate the rest.
+        bool next = reduce_logop<VAR, IDX + 1, OPERANDS>(e, operands);
+#ifdef WITH_OPT_DEBUG
+        if (IDX == 0) e.trace = save_state;
+#endif
+        return next;
+    }
+}
+
 // opdef_accessor is a friend class of Constraint;
 // it forms a bridge to the operand map and op_def map; all
 // oExpr use this to map operand tags to OpRef, OpDef and OutputDef

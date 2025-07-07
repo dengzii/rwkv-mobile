@@ -26,6 +26,8 @@
 // QNN System API headers
 #include "System/QnnSystemContext.h"
 #include "System/QnnSystemTensor.h"
+#include "System/QnnSystemLog.h"
+#include "System/QnnSystemDlc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -113,7 +115,54 @@ typedef Qnn_ErrorHandle_t (*QnnSystemContext_FreeFn_t)(QnnSystemContext_Handle_t
 typedef Qnn_ErrorHandle_t (*QnnSystemTensor_getMemoryFootprintFn_t)(Qnn_Tensor_t tensor,
                                                                     uint64_t* footprint);
 
+//
+// From QnnSystemLog.h
+//
+
+/** @brief See QnnSystemLog_create()*/
+typedef Qnn_ErrorHandle_t (*QnnSystemLog_createFn_t)(QnnLog_Callback_t callback,
+                                                     QnnLog_Level_t maxLogLevel,
+                                                     Qnn_LogHandle_t* logger);
+
+/** @brief See QnnSystemLog_setLogLevel()*/
+typedef Qnn_ErrorHandle_t (*QnnSystemLog_setLogLevelFn_t)(Qnn_LogHandle_t logger,
+                                                          QnnLog_Level_t maxLogLevel);
+
+/** @brief See QnnSystemLog_free()*/
+typedef Qnn_ErrorHandle_t (*QnnSystemLog_freeFn_t)(Qnn_LogHandle_t logger);
 // clang-format off
+
+//
+// From QnnSystemDlc.h
+//
+
+/** @brief See QnnSystemDlc_createFromFile()*/
+typedef Qnn_ErrorHandle_t (*QnnSystemDlc_createFromFileFn_t)(Qnn_LogHandle_t logger,
+                                                             const char* dlcPath,
+                                                             QnnSystemDlc_Handle_t* dlcHandle);
+/** @brief See QnnSystemDlc_createFromBinary()*/
+typedef Qnn_ErrorHandle_t (*QnnSystemDlc_createFromBinaryFn_t)(Qnn_LogHandle_t logger,
+                                                               const uint8_t* buffer,
+                                                               const Qnn_ContextBinarySize_t bufferSize,
+                                                               QnnSystemDlc_Handle_t* dlcHandle);
+
+/** @brief See QnnSystemDlc_composeGraphs()*/
+typedef Qnn_ErrorHandle_t (*QnnSystemDlc_composeGraphsFn_t)(QnnSystemDlc_Handle_t dlcHandle,
+                                                            const QnnSystemDlc_GraphConfigInfo_t** graphConfigs,
+                                                            const uint32_t numGraphConfigs,
+                                                            Qnn_BackendHandle_t backend,
+                                                            Qnn_ContextHandle_t context,
+                                                            QnnInterface_t interface,
+                                                            QnnSystemContext_GraphInfoVersion_t graphVersion,
+                                                            QnnSystemContext_GraphInfo_t** graphs,
+                                                            uint32_t* numGraphs);
+/** @brief See QnnSystemDlc_getOpMappings()*/
+typedef Qnn_ErrorHandle_t (*QnnSystemDlc_getOpMappingsFn_t)(QnnSystemDlc_Handle_t dlcHandle,
+                                                          const Qnn_OpMapping_t** opMappings,
+                                                          uint32_t* numOpMappings);
+
+/** @brief See QnnSystemDlc_free()*/
+typedef Qnn_ErrorHandle_t (*QnnSystemDlc_freeFn_t)(QnnSystemDlc_Handle_t dlcHandle);
 
 /**
  * @brief This struct defines Qnn system interface specific to version.
@@ -126,6 +175,14 @@ typedef struct {
   QnnSystemContext_GetMetaDataFn_t       systemContextGetMetaData;
   QnnSystemContext_FreeFn_t              systemContextFree;
   QnnSystemTensor_getMemoryFootprintFn_t systemTensorGetMemoryFootprint;
+  QnnSystemLog_createFn_t                systemLogCreate;
+  QnnSystemLog_setLogLevelFn_t           systemLogSetLogLevel;
+  QnnSystemLog_freeFn_t                  systemLogFree;
+  QnnSystemDlc_createFromFileFn_t        systemDlcCreateFromFile;
+  QnnSystemDlc_createFromBinaryFn_t      systemDlcCreateFromBinary;
+  QnnSystemDlc_composeGraphsFn_t         systemDlcComposeGraphs;
+  QnnSystemDlc_getOpMappingsFn_t         systemDlcGetOpMappings;
+  QnnSystemDlc_freeFn_t                  systemDlcFree;
 } QNN_SYSTEM_INTERFACE_VER_TYPE;
 
 /// QNN_INTERFACE_VER_TYPE initializer macro
@@ -135,6 +192,14 @@ typedef struct {
   NULL, /*systemContextGetMetaData*/ \
   NULL, /*systemContextFree*/ \
   NULL, /*systemTensorGetMemoryFootprint*/ \
+  NULL, /*systemLogCreate*/ \
+  NULL, /*systemLogSetLogLevel*/ \
+  NULL, /*systemLogFree*/ \
+  NULL, /*systemDlcCreateFromFile*/ \
+  NULL, /*systemDlcCreateFromBinary*/ \
+  NULL, /*systemDlcComposeGraphs*/ \
+  NULL, /*systemDlcGetOpMappings*/ \
+  NULL, /*systemDlcFree*/ \
 }
 
 typedef struct {

@@ -64,9 +64,9 @@ template <typename TI> struct intrange_within_float<Float16, TI> {
         if constexpr (sizeof(TI) < 2) {
             return Float16(std::numeric_limits<TI>::max());
         } else if constexpr (sizeof(TI) == 2) {
-            return std::numeric_limits<TI>::is_signed ? 32752.0_f16 : 65504.0_f16;
+            return std::numeric_limits<TI>::is_signed ? Float16(32752.0f) : Float16(65504.0f);
         } else {
-            return std::numeric_limits<TI>::is_signed ? -65504.0_f16 : 65504.0_f16;
+            return std::numeric_limits<TI>::is_signed ? Float16(-65504.0f) : Float16(65504.0f);
         }
     }
     // 'min' value of integer range is always exactly representable
@@ -89,7 +89,7 @@ template <typename TI> struct intrange_within_float<float, TI> {
     // 'min' value of integer range is always exactly representable
     static inline constexpr float min() { return float(std::numeric_limits<TI>::min()); }
 };
-// LCOV_EXCL_STOP
+
 template <typename TI> struct intrange_within_float<double, TI> {
     static_assert(std::numeric_limits<TI>::is_integer);
     static inline constexpr double max()
@@ -104,6 +104,7 @@ template <typename TI> struct intrange_within_float<double, TI> {
     // 'min' value of integer range is always exactly representable
     static inline constexpr float min() { return double(std::numeric_limits<TI>::min()); }
 };
+// LCOV_EXCL_STOP
 
 template <typename TOUT, typename TIN> struct satcast_helper {
     static_assert(std::numeric_limits<TOUT>::is_specialized && std::numeric_limits<TIN>::is_specialized);
@@ -269,7 +270,7 @@ template <typename TOUT> inline TOUT saturate_round(float val)
         // convert to int32,rounding;
         int const r = Q6_R_convert_sf2w_R(val);
         if constexpr (sizeof(TOUT) < 4) return static_cast<TOUT>(hnnx::scast::q6_sat_int<TOUT>::op(r));
-        return static_cast<TOUT>(r);
+        return static_cast<TOUT>(r); // LCOV_EXCL_LINE [SAFTYSWCCB-1736]
     }
 }
 #endif

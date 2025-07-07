@@ -43,6 +43,7 @@ class reg_op_node {
     }
 
   public:
+    // LCOV_EXCL_START [SAFTYSWCCB-1736] constexprs resolved during compile time
     /** @brief reg_op_node @param a @param n @param t */
     constexpr reg_op_node(op_reg_parms const p, uint16_t const n, uint16_t const t) noexcept
         : op_parms(p), op_name_offset(n), type_tag_offset(t)
@@ -56,6 +57,8 @@ class reg_op_node {
 
     /** @brief reg_op_node */
     constexpr reg_op_node() noexcept : reg_op_node(op_reg_parms{}, 0, 0) {}
+
+    // LCOV_EXCL_STOP
 
     /** @brief process invoke the make_op_custom function */
     void core_process(std::string_view const op_name_strtab, std::string_view const type_tag_strtab) const
@@ -131,6 +134,8 @@ class reg_optim_node {
  *  a template parameter. This allows the size to be inferred by the built_array
  *  constructor template.
  */
+
+// LCOV_EXCL_START [SAFTYSWCCB-1736] constexprs resolved during compile time
 template <std::string_view::size_type S> struct sv_size_wrapper {
     std::string_view v;
 };
@@ -149,7 +154,7 @@ template <typename T, uint32_t N> class built_array {
      *  @return the array
      */
     constexpr const std::array<T, N> get_arr() const noexcept { return arr; }
-    /** @brief built_array 
+    /** @brief built_array
      *  @param old the previous array
      *  @param newElem the new element to append
      */
@@ -177,7 +182,7 @@ template <typename T, uint32_t N> class built_array {
         return built_array<T, N + I>(*this, newElem);
     }
 
-    /** @brief built_array 
+    /** @brief built_array
      *  @param old the previous array
      *  @param newElem a view of the array of new elements to append
      */
@@ -241,6 +246,8 @@ template <> constexpr bool is_strtab<type_tag_strtab_t>()
     return true;
 }
 
+// LCOV_EXCL_STOP
+
 /** @brief arr_container */
 template <typename T, bool S = is_strtab<T>()> struct arr_container {
     /** @brief chain link to the built_array contained in this structure */
@@ -266,6 +273,7 @@ class reg_op_table {
     constexpr uint32_t get_num_entries() const noexcept { return num_entries; }
     constexpr std::string_view const get_op_name_strtab() const noexcept { return op_name_strtab; }
     constexpr std::string_view const get_type_tag_strtab() const noexcept { return type_tag_strtab; }
+    // LCOV_EXCL_START [SAFTYSWCCB-1736] constexprs resolved during compile time, consexpr constructor
     constexpr reg_op_table(reg_op_node const *const p, uint32_t const n, std::string_view::value_type const *const o,
                            std::string_view::size_type const o_size, std::string_view::value_type const *const t,
                            std::string_view::size_type const t_size) noexcept
@@ -273,6 +281,7 @@ class reg_op_table {
     {
     }
     constexpr reg_op_table() noexcept : reg_op_table(nullptr, 0U, "", 0U, "", 0U) {}
+    // LCOV_EXCL_STOP
 };
 
 /** @brief reg_op_table_wrapper */
@@ -288,12 +297,14 @@ class reg_opt_table {
     constexpr reg_optim_node const *get_entries() const noexcept { return entries; }
     constexpr uint32_t get_num_entries() const noexcept { return num_entries; }
     constexpr std::string_view const get_file_name() const noexcept { return file_name; }
+    // LCOV_EXCL_START [SAFTYSWCCB-1736] constexprs resolved during compile time, consexpr constructor
     constexpr reg_opt_table(reg_optim_node const *const p, uint32_t const n,
                             std::string_view::value_type const *const f) noexcept
         : entries(p), num_entries(n), file_name{f}
     {
     }
     constexpr reg_opt_table() noexcept : reg_opt_table(nullptr, 0U, "") {}
+    // LCOV_EXCL_STOP
 };
 
 /** @brief reg_opt_table_wrapper */
@@ -330,12 +341,13 @@ template <uint32_t I> using ba_opt_table = built_array<reg_opt_table_wrapper, I>
 /**
  * @brief
  * NodeCounter template converts the __COUNTER__'s
- * current value to counts for number of reg_op_nodes and 
+ * current value to counts for number of reg_op_nodes and
  * reg_optim_nodes created so far. It is specialized upon every
  * REGISTER_OP/DEF_OPT by incrementing either "reg_op_count"
- * or "reg_opt_count", with member functions that can get the 
+ * or "reg_opt_count", with member functions that can get the
  * current counts.
  */
+// LCOV_EXCL_START [SAFTYSWCCB-1736] constexprs resolved during compile time
 template <typename UNIQ_TY, int32_t I> class NodeCounter {
     /** @brief inc_op @return 0, or 1 if the op count is incremented */
     constexpr static int32_t inc_op() noexcept { return 0; }
@@ -385,7 +397,7 @@ template <typename U, size_t I> constexpr auto type_tag_chain()
  * - The result of the existence check
  * - The offset the new string
  * when appending to the Op name and type suffix string tables.
- * 
+ *
  * @tparam U Unique type for identifying the translation unit containing this update
  * @tparam I Unique index number identifying the "ith" Op to be registered in this file
  */
@@ -402,7 +414,7 @@ template <typename U, uint32_t I> struct StrtabUpdate {
 
 /**
  * @brief strtab_append Append string to table iff it is not already present.
- * @tparam U Unique type to ensure independence of specializations across translation units 
+ * @tparam U Unique type to ensure independence of specializations across translation units
  * @tparam I REGISTER_OP index number
  * @tparam N Current table size
  */
@@ -425,6 +437,7 @@ constexpr std::string_view make_string_view(std::array<std::string::value_type, 
 {
     return arr.size() != 0 ? std::string_view{arr.data(), arr.size()} : std::string_view{"", 1};
 }
+// LCOV_EXCL_STOP
 
 } // namespace hnnx
 

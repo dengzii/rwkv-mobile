@@ -1,6 +1,6 @@
 //==============================================================================
 //
-// Copyright (c) 2020 Qualcomm Technologies, Inc.
+// Copyright (c) Qualcomm Technologies, Inc.
 // All Rights Reserved.
 // Confidential and Proprietary - Qualcomm Technologies, Inc.
 //
@@ -44,9 +44,7 @@ class Deserializer;
 
 // some options flags (powers of 2) for calls to Tensor::allocate
 enum AllocOptions {
-    uncached_int8 = 0x1, // override MemoryClass to UnCached.
-    uncached_int16 = 0x2,
-    uncached_fp16 = 0x4
+    AllocOpts_packed = 0x1 // allocation will be packed
 };
 
 /*
@@ -154,8 +152,9 @@ class Allocator {
      * Deserialize the allocator, restore internal data from buffer.
      */
     API_EXPORT virtual void deserialize(HexagonNNEnv &env, Deserializer &dctx,
-                                        hexagon_nn_wide_address_const_t weight_data = 0U,
-                                        const size_t weight_length = 0);
+                                        hexagon_nn_wide_address_const_t params_weights = 0U,
+                                        const size_t params_weights_length = 0,
+                                        hexagon_nn_wide_iovec_t const &weights = NULL_IOVEC);
 
     API_EXPORT virtual int find_replaceable_mempool(unsigned const replaceable_pool_seq,
                                                     fa::PoolDesc &found_pool) const;
@@ -226,6 +225,9 @@ class MemPoolRunTimeAccessor {
     // used to construct the ConstExtentDescriptor during prep
     // implementation in fa_alloc.h
     API_EXPORT fa::PoolDesc const *get_descriptor(unsigned pool_id) const;
+
+    // get the id of first DDR mempool
+    API_EXPORT unsigned get_first_ddr_pool_id() const;
 };
 
 } // namespace hnnx

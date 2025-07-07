@@ -37,6 +37,7 @@
 #include "size_align_code.h"
 #include "deser_concurrent.h"
 #include "hexagon_nn_types.h"
+#include "conditional_default_deleter.h"
 
 namespace hnnx {
 class DMA_Manager;
@@ -100,7 +101,7 @@ using op_deserializer_map_t = std::map<std::string_view, std::pair<op_deserializ
 using tensor_deserializer_map_t = std::map<std::string_view, tensor_deserializer_fn, trick_stringview_lt>;
 using cexdesc_deserializer_map = std::map<std::string, ConstExtentDesc>;
 
-using const_extent_t = std::pair<hexagon_nn_wide_address_t, size_t>;
+using const_extent_t = std::pair<hexagon_nn_wide_address_t, uint64_t>;
 using weight_buf_deserializer_map = std::map<std::string, const_extent_t>;
 
 /**
@@ -476,6 +477,11 @@ class Deserializer : public Deserz {
     uint32_t crate_size_according_to_segments() const;
 
   protected:
+    ///
+    /// @brief Type for a unique readonly block-of-bytes (32b array)
+    ///
+    typedef std::unique_ptr<const uint32_t[], conditional_default_deleter<const uint32_t[]>> unique_readonly_blob_t;
+
     std::vector<void const *> objindex; // index of pointers to shape, etc.
     // the state of the 'tensor connectivity' deserialize engine.
     DeserTensorConn tensorconn;
@@ -491,6 +497,13 @@ class Deserializer : public Deserz {
     // do the reference fixups on a segment. Return true if OK.
     // See Deserz::apply_segment_fixups for public API.
     static bool do_segment_fixups(runlist_fixup_state &seginfo, Deserz const &dctx0);
+
+    ///
+    /// @brief Function to load header part of constant extent section
+    /// @param [in] ptr Pointer to constant extent section
+    /// @return Unique readonly blob pointing to header
+    ///
+    unique_readonly_blob_t load_header(hexagon_nn_wide_address_const_t const addr);
 
   public:
     inline constexpr bool classic_format() const { return format_version == 0; }
@@ -524,15 +537,17 @@ class Deserializer : public Deserz {
     // and to do basic check.
     API_EXPORT std::vector<uint32_t> extract_const_extent_table(size_t posn_in_words);
     std::vector<uint32_t> extract_const_extent_table(hexagon_nn_wide_address_const_t weight_data,
-                                                     const size_t weight_size);
+                                                     const uint64_t weight_size);
     // given a destination char pointer, prefilled with \null, fills it in with the name of the const_extent
     // caller must provide destination of sufficient length
-    std::string name_from_weight_data(hexagon_nn_wide_address_const_t weight_data, const uint32_t weight_length);
+    std::string name_from_weight_data(hexagon_nn_wide_address_const_t weight_data, const uint64_t weight_length);
+
     // helper func for above. return -1 if name not present.
-    std::string get_name(hexagon_nn_wide_address_const_t weight_data, const uint32_t weight_length);
+    std::string get_name(hexagon_nn_wide_address_const_t weight_data, const uint64_t weight_length);
     // give a vector of weight_data buffers, stores them all in the appropriate map
     void store_named_weight_bufs(const hexagon_nn_wide_address_const_t *const buffers, const uint64_t *const lengths,
                                  const unsigned num_buffers);
+    void store_named_weight_bufs(std::vector<hexagon_nn_wide_iovec_t const *> const &named_weights);
     //
     // copy 'len' bytes of data at offset offs_bytes in the pickle into location dstp.
     // returns true if it's possible. You can maybe pass a DMA_Manager to have it queued...
@@ -540,7 +555,7 @@ class Deserializer : public Deserz {
     API_EXPORT bool extract_const_extent_data(uint64_t offs_bytes, size_t len, void *dstp, DMA_Manager *dma = nullptr);
     // same, using an external const_extent
     bool extract_const_extent_data(uint64_t offs_bytes, size_t len, void *dstp,
-                                   hexagon_nn_wide_address_const_t weight_data, const size_t weight_length);
+                                   hexagon_nn_wide_address_const_t weight_data, const uint64_t weight_length);
 
     // This extracts the 'objindex', when it is needed e.g. to 'patch' interfaces.
     // Must be done only after deserializing, and can only be done once.

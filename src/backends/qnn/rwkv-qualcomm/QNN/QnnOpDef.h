@@ -25,7 +25,7 @@
 #define QNN_OP_PACKAGE_NAME_QTI_AISW "qti.aisw"
 
 #define QNN_OPSET_VERSION_MAJOR 2
-#define QNN_OPSET_VERSION_MINOR 1
+#define QNN_OPSET_VERSION_MINOR 3
 #define QNN_OPSET_VERSION_PATCH 0
 
 #define QNN_OP_ARGB_TO_RGB                      "ArgbToRgb"
@@ -78,6 +78,7 @@
 #define QNN_OP_BUFFER_MODE_BLOCKING           0
 #define QNN_OP_BUFFER_MODE_NON_BLOCKING_LEFT  1
 #define QNN_OP_BUFFER_MODE_NON_BLOCKING_RIGHT 2
+#define QNN_OP_BUFFER_PARAM_BUFFER_PADDING    "buffer_padding"
 
 #define QNN_OP_CAST "Cast"
 
@@ -425,6 +426,10 @@
 #define QNN_OP_INSTANCE_NORM_REGION_ACROSS_CHANNEL    1
 #define QNN_OP_INSTANCE_NORM_REGION_ACROSS_ALL        2
 
+#define QNN_OP_IS_INF                       "IsInf"
+#define QNN_OP_IS_INF_PARAM_DETECT_NEGATIVE "detect_negative"
+#define QNN_OP_IS_INF_PARAM_DETECT_POSITIVE "detect_positive"
+
 #define QNN_OP_L2_NORM               "L2Norm"
 #define QNN_OP_L2_NORM_PARAM_AXIS    "axis"
 #define QNN_OP_L2_NORM_PARAM_AXES    "axes"
@@ -640,6 +645,7 @@
 #define QNN_OP_SCATTER_ELEMENTS_REDUCTION_NONE  0
 #define QNN_OP_SCATTER_ELEMENTS_REDUCTION_ADD   1
 #define QNN_OP_SCATTER_ELEMENTS_REDUCTION_MUL   2
+#define QNN_OP_SCATTER_ELEMENTS_REDUCTION_MAX   3
 
 #define QNN_OP_SCATTER_ND                 "ScatterNd"
 #define QNN_OP_SCATTER_ND_PARAM_REDUCTION "reduction"

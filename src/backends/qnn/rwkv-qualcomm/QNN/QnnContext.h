@@ -75,6 +75,8 @@ typedef enum {
   QNN_CONTEXT_ERROR_ABORTED = QNN_MIN_ERROR_CONTEXT + 12,
   /// Call aborted early due to a QnnSignal timeout
   QNN_CONTEXT_ERROR_TIMED_OUT = QNN_MIN_ERROR_CONTEXT + 13,
+  /// Incremental Binary Buffer was not allocated by backend
+  QNN_CONTEXT_ERROR_INCREMENT_INVALID_BUFFER = QNN_MIN_ERROR_CONTEXT + 14,
   ////////////////////////////////////////////
   QNN_CONTEXT_MAX_ERROR = QNN_MAX_ERROR_CONTEXT,
   // Unused, present to ensure 32 bits.
@@ -118,6 +120,8 @@ typedef enum {
   QNN_CONTEXT_CONFIG_PERSISTENT_BINARY = 7,
   /// Sets the context binary check type when reading binary caches
   QNN_CONTEXT_CONFIG_BINARY_COMPATIBILITY = 8,
+  /// Defer graph deserialization till first graph retrieval
+  QNN_CONTEXT_CONFIG_OPTION_DEFER_GRAPH_INIT = 9,
   // Unused, present to ensure 32 bits.
   QNN_CONTEXT_CONFIG_UNDEFINED = 0x7FFFFFFF
 } QnnContext_ConfigOption_t;
@@ -185,6 +189,8 @@ typedef struct {
     uint8_t isPersistentBinary;
     /// Used with QNN_CONTEXT_CONFIG_BINARY_COMPATIBILITY
     QnnContext_BinaryCompatibilityType_t binaryCompatibilityType;
+    /// Used with QNN_CONTEXT_CONFIG_OPTION_DEFER_GRAPH_INIT
+    uint8_t isGraphInitDeferred;
   };
 } QnnContext_Config_t;
 
@@ -753,6 +759,40 @@ Qnn_ErrorHandle_t QnnContext_createFromBinaryListAsync(Qnn_BackendHandle_t backe
                                                        const QnnContext_Params_t** contextParams,
                                                        const QnnContext_Config_t** listConfig,
                                                        Qnn_SignalHandle_t signal);
+
+/**
+ * @brief A function to finish context creation when originally created with deffered
+ *        graph initialization enabled (see QNN_CONTEXT_CONFIG_OPTION_DEFER_GRAPH_INIT)
+ *
+ * @param[in] context A context handle.
+ *
+ * @param[in] profile The profile handle on which metrics are populated and can be queried. Use
+ *                    NULL handle to disable profile collection. A handle being re-used would reset
+ *                    and is populated with values from the current call.
+ *
+ * @return Error code:
+ *         - QNN_SUCCESS: no error is encountered
+ *         - QNN_CONTEXT_ERROR_UNSUPPORTED_FEATURE: a feature is not supported
+ *         - QNN_CONTEXT_ERROR_INVALID_ARGUMENT: _binaryBuffer_ or _context_ is NULL
+ *         - QNN_CONTEXT_ERROR_MEM_ALLOC: memory allocation error while creating context
+ *         - QNN_CONTEXT_ERROR_CREATE_FROM_BINARY: failed to deserialize binary and
+ *           create context from it
+ *         - QNN_CONTEXT_ERROR_BINARY_VERSION: incompatible version of the binary
+ *         - QNN_CONTEXT_ERROR_BINARY_CONFIGURATION: binary is not configured for this device
+ *         - QNN_CONTEXT_ERROR_BINARY_SUBOPTIMAL: suboptimal binary is used when
+ *           QNN_CONTEXT_BINARY_COMPATIBILITY_STRICT is specified in the config option
+ *         - QNN_CONTEXT_ERROR_SET_PROFILE: failed to set profiling info
+ *         - QNN_CONTEXT_ERROR_INVALID_HANDLE: _backend_, __profile_, or _device_ is not a
+ *           valid handle
+ *         - QNN_CONTEXT_ERROR_INVALID_CONFIG: one or more config values is invalid
+ *         - QNN_COMMON_ERROR_SYSTEM_COMMUNICATION: SSR occurence (successful recovery)
+ *         - QNN_COMMON_ERROR_SYSTEM_COMMUNICATION_FATAL: SSR occurence (unsuccessful recovery)
+ *
+ * @note Use corresponding API through QnnInterface_t.
+ */
+QNN_API
+Qnn_ErrorHandle_t QnnContext_finalize(Qnn_ContextHandle_t context, Qnn_ProfileHandle_t profile);
+
 /**
  * @brief Retrieve a section of the binary as specified by __section__. The size of this section
  *        depends on the type of section requested. For example, for QNN_CONTEXT_SECTION_UPDATABLE
@@ -918,8 +958,8 @@ Qnn_ErrorHandle_t QnnContext_applyBinarySection(Qnn_ContextHandle_t context,
  * @return Error code:
  *         - QNN_SUCCESS: no error is encountered
  *         - QNN_CONTEXT_ERROR_INVALID_HANDLE: _contextHandle_ is not a valid handle
- *         - QNN_CONTEXT_ERROR_INVALID_ARGUMENT: _properties_ is NULL or at least one property option
- *           is invalid
+ *         - QNN_CONTEXT_ERROR_INVALID_ARGUMENT: _properties_ is NULL or at least one property
+ *           option is invalid
  *         - QNN_CONTEXT_ERROR_UNSUPPORTED_FEATURE: at least one valid property option is not
  *           supported
  *
@@ -928,6 +968,78 @@ Qnn_ErrorHandle_t QnnContext_applyBinarySection(Qnn_ContextHandle_t context,
 QNN_API
 Qnn_ErrorHandle_t QnnContext_getProperty(Qnn_ContextHandle_t contextHandle,
                                          QnnContext_Property_t** properties);
+
+/**
+ * @brief A function to get the next piece of the context binary, incrementally produced from the
+ *        backend. The backend returns a pointer to constant data which it owns, the data's size and
+ *        the starting offset where the incremental binary buffer begins. The memory provided here
+ *        must be released through QnnContext_releaseIncrementalBinary. Incremental pieces of the
+ *        context binary may be provided in random order i.e. startOffset is independent of previous
+ *        calls.
+ *
+ *        @note modifications made to the context in between calls to
+ *        QnnContext_getIncrementalBinary results in undefined behavior.
+ *
+ * @param[in] context A context handle.
+ *
+ * @param[out] binaryBuffer Pointer to backend provided/owned buffer
+ *
+ * @param[out] startOffset Starting offset for binary data.
+ *
+ * @param[out] writtenBufferSize Amount of memory actually written into _binaryBuffer_, in bytes.
+ *
+ * @return Error code:
+ *         - QNN_SUCCESS: no error is encountered
+ *         - QNN_CONTEXT_ERROR_UNSUPPORTED_FEATURE: a feature is not supported
+ *         - QNN_CONTEXT_ERROR_INVALID_HANDLE:  _context_ is not a valid handle
+ *         - QNN_CONTEXT_ERROR_INVALID_ARGUMENT: one of the arguments to the API is invalid/NULL
+ *         - QNN_CONTEXT_ERROR_NOT_FINALIZED: if there were any non-finalized entities in the
+ *           context
+ *         - QNN_CONTEXT_ERROR_GET_BINARY_FAILED: Operation failure due to other factors
+ *         - QNN_COMMON_ERROR_OPERATION_NOT_PERMITTED: Attempting to get binary for a
+ *           context re-created from a cached binary.
+ *         - QNN_CONTEXT_ERROR_MEM_ALLOC: Not enough memory is available to retrieve the context
+ *           content.
+ *
+ * @note Use corresponding API through QnnInterface_t.
+ */
+QNN_API
+Qnn_ErrorHandle_t QnnContext_getIncrementalBinary(Qnn_ContextHandle_t context,
+                                                  const void** binaryBuffer,
+                                                  Qnn_ContextBinarySize_t* startOffset,
+                                                  Qnn_ContextBinarySize_t* writtenBufferSize);
+/**
+ * @brief A function to release a incrementally allocated portion of the context binary
+ *        retrieved from a previous call to QnnContext_getIncrementalBinary.
+ *
+ * @param[in] context A context handle.
+ *
+ * @param[out] binaryBuffer Pointer to backend provided/owned buffer
+ *
+ * @param[out] startOffset Starting offset for binary data.
+ *
+ * @param[out] writtenBufferSize Amount of memory actually written into _binaryBuffer_, in bytes.
+ *
+ * @return Error code:
+ *         - QNN_SUCCESS: no error is encountered
+ *         - QNN_CONTEXT_ERROR_UNSUPPORTED_FEATURE: a feature is not supported
+ *         - QNN_CONTEXT_ERROR_INVALID_HANDLE:  _context_ is not a valid handle
+ *         - QNN_CONTEXT_ERROR_INVALID_ARGUMENT: one of the arguments to the API is invalid/NULL
+ *         - QNN_CONTEXT_ERROR_NOT_FINALIZED: if there were any non-finalized entities in the
+ *           context
+ *         - QNN_COMMON_ERROR_OPERATION_NOT_PERMITTED: Attempting to get binary for a
+ *           context re-created from a cached binary.
+ *         - QNN_CONTEXT_ERROR_INCREMENT_INVALID_BUFFER: The buffer __binaryBuffer__ starting at
+ *           __startOffset__ was not allocated by the backend.
+ *         - QNN_CONTEXT_ERROR_MEM_ALLOC: Not enough memory is available to retrieve the context
+ *           content.
+ *
+ * @note Use corresponding API through QnnInterface_t.
+ * */
+QNN_API
+Qnn_ErrorHandle_t QnnContext_releaseIncrementalBinary(Qnn_ContextHandle_t context,
+                                                      const void* binaryBuffer,
+                                                      Qnn_ContextBinarySize_t startOffset);
 
 /**
  * @brief A function to free the context and all associated graphs, operations & tensors

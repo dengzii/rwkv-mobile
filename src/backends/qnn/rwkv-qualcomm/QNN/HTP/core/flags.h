@@ -41,6 +41,7 @@ enum class Flags : unsigned {
     IS_PRELOAD, // Op is a chunk preload op
     CAN_BE_SRC_DESTRUCTIVE, // Op will work correctly if input[0] and output[0] are at the same places in TCM
     IS_WEIGHT_FOR_BIT_REARRANGE, // Indicates Weight data will be used for bit rearrangement
+    IS_PREDICATE_MARKER,
     XXX_LAST_FLAG
 };
 // NOTE: if you add new background op types (FOR_HVX, RESOURCE_HVX, etc) make sure to update
@@ -95,12 +96,17 @@ inline constexpr bool test_flag_for(Flags_word w, Flags which)
 {
     return (safe_rshift(w, static_cast<unsigned>(which)) & 1u) != 0;
 }
+
+// LCOV_EXCL_START [SAFTYSWCCB-1542]
 inline constexpr bool test_flag_and(Flags_word w, Flags which_a, Flags which_b)
 {
     if ((safe_rshift(w, static_cast<unsigned>(which_a)) & 1u) == 0) return false;
     return (safe_rshift(w, static_cast<unsigned>(which_b)) & 1u) != 0;
 }
+//LCOV_EXCL_STOP
 
+// LCOV_EXCL_START [SAFTYSWCCB-1736] constexprs resolved during compile time
+// used in pub/impl/op_register.h for internal ops with constexpr lva
 template <typename T, int S> class FlagCounter {
   public:
     constexpr static unsigned increment() { return 0U; }
@@ -112,13 +118,16 @@ template <typename T> class FlagCounter<T, -1> {
   public:
     constexpr static unsigned get() { return 0U; }
 };
+//LCOV_EXCL_STOP
 
 #define DOCS_UNSET ""
 
+// LCOV_EXCL_START [SAFTYSWCCB-1542]
 template <typename T> [[maybe_unused]] static constexpr const char *docs_for()
 {
     return DOCS_UNSET;
 }
+//LCOV_EXCL_STOP
 
 } // namespace hnnx
 
@@ -128,7 +137,9 @@ template <typename T> [[maybe_unused]] static constexpr const char *docs_for()
  */
 #define FLAGS_FOR_IMPL(T, S, ...)                                                                                                                                                                                                   \
     using hnnx::FlagCounter;                                                                                                                                                                                                        \
+    /* LCOV_EXCL_START [SAFTYSWCCB-1736] constexprs resolved during compile time */                                                                                                                                                 \
     template <> constexpr unsigned FlagCounter<T, S>::increment() { return 1U; }                                                                                                                                                    \
+    /* LCOV_EXCL_STOP */                                                                                                                                                                                                            \
     template <> constexpr Flags_word hnnx::flags_for<T, FlagCounter<T, S>::get()>()                                                                                                                                                 \
     {                                                                                                                                                                                                                               \
         constexpr Flags_word flags = hnnx::flagval_generate<__VA_ARGS__>;                                                                                                                                                           \

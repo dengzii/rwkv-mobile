@@ -165,6 +165,18 @@ extern "C" {
  */
 #define QNN_PROPERTY_CONTEXT_SUPPORT_CUSTOM_PROPERTY (QNN_PROPERTY_GROUP_CONTEXT + 14)
 
+/**
+ * @brief Property key for determining whether a backend supports QnnContext_getIncrementalBinary
+ *        and QnnContext_releaseIncrementalBinary.
+ */
+#define QNN_PROPERTY_CONTEXT_SUPPORT_INCREMENTAL_BINARY (QNN_PROPERTY_GROUP_CONTEXT + 15)
+
+/**
+ * @brief Property key for determining whether a backend supports deferred graph initialization
+ *        during context creation. See QNN_CONTEXT_CONFIG_OPTION_DEFER_GRAPH_INIT.
+ */
+#define QNN_PROPERTY_CONTEXT_SUPPORT_DEFERRED_GRAPH_INIT (QNN_PROPERTY_GROUP_CONTEXT + 16)
+
 ///
 /// Definition of QNN_PROPERTY_GROUP_GRAPH property group. This group is Core (non-optional) API.
 ///

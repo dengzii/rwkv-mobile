@@ -35,9 +35,11 @@ inline int ceiling_log2(size_t value)
         int const clz = HEX_COUNT_LEADING_ZERO_UL((unsigned long)value - 1);
         return 8 * sizeof(unsigned long) - clz;
     } else {
+        // LCOV_EXCL_START [SAFTYSWCCB-1736] device with 8 byte size_t
         int const clz = HEX_COUNT_LEADING_ZERO_ULL((unsigned long long)value - 1);
         return 8 * sizeof(unsigned long long) - clz;
     }
+    // LCOV_EXCL_STOP
 }
 
 // hash T to uint32_t

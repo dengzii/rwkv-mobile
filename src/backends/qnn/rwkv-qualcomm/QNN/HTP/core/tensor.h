@@ -68,6 +68,7 @@
  * * Make the Abstract/Base/Generic naming consistent.  I like "Generic" at the moment.
  */
 #include <cassert>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <numeric>
@@ -125,6 +126,7 @@ struct OctetType {
 #include "weak_linkage.h"
 PUSH_VISIBILITY(default)
 
+class NullInterface;
 template <typename T> class PlainInterface;
 template <typename T> class ScaleOffsetInterface;
 
@@ -170,6 +172,8 @@ extern long long int dma_validate_cycles;
 
 namespace hnnx {
 API_EXPORT extern uint64_t checksum_bytes(uint64_t prev, uint8_t const *bytes, unsigned n);
+class InterfaceRef;
+struct intfc_methods;
 
 // this is to solve a circular dependency issue; defined in graph.h
 class DMA_Manager;
@@ -284,39 +288,183 @@ template <typename REPLFUNC> class MemBlockReplBlockWrapper : public MemBlockEnu
  */
 
 class Interface {
+  protected:
+    // base class has the 'dtype info' for the interface. It must occupy an
+    // aligned 4-byte location.
+    alignas(4) dtype_info dtinfo;
+
+    explicit constexpr Interface(dtype_info const dti) : dtinfo(dti) {}
+    using intfc_methods = hnnx::intfc_methods;
+
   public:
+    // Base class can read this info directly from the 'dtinfo' field:
+    constexpr inline dtype_info get_dt_info() const noexcept { return dtinfo; }
+    constexpr inline unsigned element_size() const noexcept { return dtinfo.elbytes; }
+    constexpr inline DType get_dtype() const noexcept { return dtinfo.dtype; }
+    constexpr inline bool is_quantized() const noexcept { return dtinfo.is_quant; }
+
     struct qparms {
         int offset;
         float scale;
         float scale_recip;
     };
+    using read_float_fp = float (*)(Interface const *, void const *) noexcept;
+    using write_float_fp = void (*)(Interface const *, void *, const float) noexcept;
+    using get_qparms_fp = qparms const *(*)(Interface const *) noexcept;
+    using ifc_hash_fp = uint32_t (*)(Interface const *) noexcept;
+    using ifc_compare_fp = int (*)(Interface const *, Interface const *) noexcept;
+    static unsigned constexpr N_types = unsigned(DType::ZZ_LAST_DTYPE);
+
+    // This constructs an InterfaceRef for an arbitrary Interface instance, by using the dtype
+    // in the header word to select the method table.
+    // This is in tensor.cc; it is expected to be used fairly rarely, and maybe not at all at runtime,
+    // but it will be pretty quick.
+    API_EXPORT hnnx::InterfaceRef get_refobj() const;
+
+    template <typename IFC> static Interface const *canonical_instance_for(); // inline is below
 
   protected:
+    template <DType DT> static intfc_methods const &methods_for(); // inline is below
+
     API_EXPORT static constexpr qparms null_parms = {0, 1.0f, 1.0f};
-
-  public:
-    virtual void write_float(void *ptr, const float in) const noexcept = 0;
-    virtual float read_float(const void *ptr) const noexcept = 0;
-    unsigned element_size() const noexcept { return get_dt_info().elbytes; }
-    DType get_dtype() const noexcept { return get_dt_info().dtype; }
-    bool is_quantized() const noexcept { return get_dt_info().is_quant; }
-
-    // these are 'virtual-by-proxy...'
-    API_EXPORT inline float get_scale() const noexcept { return get_qparms()->scale; }
-    API_EXPORT inline float get_scale_recip() const noexcept { return get_qparms()->scale_recip; }
-    API_EXPORT inline int32_t get_offset() const noexcept { return get_qparms()->offset; }
-    API_EXPORT bool compare_equal(Interface const &) const noexcept; // implements operator == in general case
-
-    virtual dtype_info get_dt_info() const noexcept { return hnnx::dtype_info_v<DType::UNKNOWN>; }
-
-  protected:
-    API_EXPORT virtual qparms const *get_qparms() const noexcept { return &null_parms; }
-    API_EXPORT virtual bool compare_eq_same_type(Interface const *rhs) const noexcept = 0;
+    static inline qparms const *get_null_qparms(Interface const *) noexcept { return &null_parms; }
 };
 
 namespace hnnx {
-template <typename IFCT> Interface::qparms &qparms_for_interface_patch(size_t);
+// ONLY for use in intfc_methods
+class IfcExemplar final : public Interface {
+  public:
+    constexpr IfcExemplar(dtype_info const dt) : Interface(dt) {}
+    constexpr IfcExemplar() : Interface(dtype_info{}) {}
+};
+
+//
+// for each 'concrete' subclass of Interace, there is one private instance
+// of this, which is 'static constexpr methods_instance',
+// e.g. PlainInterface<float>::methods_instance is one of these.
+// The ifc_hash' method does not compute the complete hash; it remains to 'xor' with unsigned(dtype).
+// In cases where it just returns 0, a null ptr can be used.
+//
+struct intfc_methods {
+    hnnx::IfcExemplar exemplar; // <- contains the dtype_info
+    Interface::read_float_fp read_float;
+    Interface::write_float_fp write_float;
+    Interface::get_qparms_fp get_qparms;
+    Interface::ifc_hash_fp ifc_hash; // <- may be null if it always returns 0 (e.g. PlainInterface)
+    Interface::ifc_compare_fp ifc_compare; // <- may be null if always returns 0 (e.g. PlainIterface).
+};
+// All of the intfc_methods are stored in this table, which can be indexed by DType.
+using ifc_method_table_t = std::array<intfc_methods, Interface::N_types>;
+constexpr ifc_method_table_t construct_ifc_method_table(); // in tensor.cc; not publicly visible
+// This is defined in tensor.cc, and built at compile time.
+API_EXPORT_IMPORT extern const ifc_method_table_t ifc_method_table;
+
+} // namespace hnnx
+// can define this now.
+template <DType DT> inline hnnx::intfc_methods const &Interface::methods_for()
+{
+    return hnnx::ifc_method_table[unsigned(DT)];
 }
+//
+// for a given actual interface class, get a pointer to a 'canonical'
+// instance; this is actually the 'exemplar' field in the methods table.
+//  - Must be a subclass of Interface
+//  - Must have a 'dtype' attribute (or be NullInterface)
+//  - Must be the same size as Interface (cannot be used for ScaleOffsetInterface).
+//
+template <typename IFC> inline Interface const *Interface::canonical_instance_for()
+{
+    static_assert(std::is_base_of_v<Interface, IFC>);
+    static_assert(sizeof(IFC) == sizeof(Interface));
+    constexpr DType dt = IFC::dtype;
+    return &hnnx::ifc_method_table[unsigned(dt)].exemplar;
+}
+// NullInterface doesn't have a dtype (and maybe shouldn't...)
+template <> inline Interface const *Interface::canonical_instance_for<NullInterface>()
+{
+    return &hnnx::ifc_method_table[unsigned(DType::UNKNOWN)].exemplar;
+}
+
+namespace hnnx {
+// The 'interface(); virtual method of Tensor now returns this object.
+// If the interface is anything but ScaleOffsetInterface, the 'interface' ptr can be null.
+class InterfaceRef {
+
+  public:
+    using qparms = Interface::qparms;
+
+  protected:
+    intfc_methods const *methods_p;
+    Interface const *intfc_p;
+
+  private: // use make_null() method if needed
+    constexpr InterfaceRef() : methods_p(nullptr), intfc_p(nullptr) {}
+
+  public:
+    InterfaceRef(InterfaceRef const &) = default;
+    InterfaceRef &operator=(InterfaceRef const &) = default;
+    // not really public since null_init_token isn't
+
+    API_EXPORT InterfaceRef(intfc_methods const &mthods, Interface const *ifc_p) : methods_p(&mthods), intfc_p(ifc_p) {}
+    API_EXPORT qparms const *get_qparms() const { return methods_p->get_qparms(intfc_p); }
+    API_EXPORT float get_scale() const { return methods_p->get_qparms(intfc_p)->scale; }
+    API_EXPORT float get_scale_recip() const { return methods_p->get_qparms(intfc_p)->scale_recip; }
+    API_EXPORT int32_t get_offset() const { return methods_p->get_qparms(intfc_p)->offset; }
+    API_EXPORT void write_float(void *ptr, const float in) const noexcept { methods_p->write_float(intfc_p, ptr, in); }
+    API_EXPORT float read_float(const void *ptr) const noexcept { return methods_p->read_float(intfc_p, ptr); }
+    API_EXPORT uint32_t interface_hash() const noexcept
+    {
+        uint32_t h = methods_p->ifc_hash ? methods_p->ifc_hash(intfc_p) : 0;
+        return h ^ uint32_t(methods_p->exemplar.get_dtype());
+    }
+    API_EXPORT dtype_info get_dt_info() const noexcept { return methods_p->exemplar.get_dt_info(); }
+    API_EXPORT unsigned element_size() const noexcept { return methods_p->exemplar.element_size(); }
+    API_EXPORT DType get_dtype() const noexcept { return methods_p->exemplar.get_dtype(); }
+    API_EXPORT bool is_quantized() const noexcept { return methods_p->exemplar.is_quantized(); }
+    // might as well have get_refobj() method, for consistency of interface...
+    API_EXPORT inline InterfaceRef get_refobj() const { return *this; }
+
+    // this is used as a 'pseudo-ctor' to make a null InterfaceRef, in a few places.
+    // (null ctor is currently private)
+    static inline constexpr InterfaceRef make_null() { return InterfaceRef{}; }
+
+    Interface const *get_intfc_ptr() const { return intfc_p; }
+    intfc_methods const *get_methods_ptr() const { return methods_p; }
+
+    // Ordered compare of two 'InterfaceRef'. If the types are different (detected by
+    // different method pointers), then we order based on the addresses of the method
+    // tables; since the method tables are all in one big array, this means they are
+    // ordered according to 'dtype'.
+    API_EXPORT int compare(InterfaceRef const &rhs) const noexcept
+    {
+        if (methods_p != rhs.methods_p) return (methods_p < rhs.methods_p) ? -1 : 1;
+        if (intfc_p == rhs.intfc_p) return 0; // same type, same object
+        auto fp = methods_p->ifc_compare;
+        return (fp == nullptr) ? 0 : (*fp)(intfc_p, rhs.intfc_p);
+    }
+    API_EXPORT bool compare_eq(InterfaceRef const &rhs) const noexcept
+    {
+        if (methods_p != rhs.methods_p) return false;
+        if (intfc_p == rhs.intfc_p) return true; // same type, same object
+        auto fp = methods_p->ifc_compare;
+        return (fp == nullptr) ? true : ((*fp)(intfc_p, rhs.intfc_p) == 0);
+    }
+    friend inline bool operator==(InterfaceRef const &lhs, InterfaceRef const &rhs) noexcept
+    {
+        return lhs.compare_eq(rhs);
+    }
+    friend inline bool operator!=(InterfaceRef const &lhs, InterfaceRef const &rhs) noexcept
+    {
+        return !lhs.compare_eq(rhs);
+    }
+    friend inline bool operator<(InterfaceRef const &lhs, InterfaceRef const &rhs) noexcept
+    {
+        return lhs.compare(rhs) < 0;
+    }
+};
+
+template <typename IFCT> Interface::qparms &qparms_for_interface_patch(size_t);
+} // namespace hnnx
 
 namespace hnnx {
 // make_interface<INTFC>::from_odef( Graph &, OutputDef const &odef)
@@ -346,24 +494,29 @@ class GenericAccessorRO {
   protected:
     void *data;
     const Interface &interface;
+    Interface::read_float_fp read_fp;
 
   public:
-    API_EXPORT GenericAccessorRO(void const *data_in, const Interface &interface_in)
-        : data(const_cast<void *>(data_in)), interface(interface_in)
+    API_EXPORT GenericAccessorRO(void const *const data_in, hnnx::InterfaceRef const &interface_in)
+        : data(const_cast<void *>(data_in)), interface(*interface_in.get_intfc_ptr()),
+          read_fp(interface_in.get_methods_ptr()->read_float)
     {
     }
     API_EXPORT GenericAccessorRO(GenericAccessorRO const &) = default;
     typedef GenericAccessorRO AccessorRO;
-    API_EXPORT inline float as_float() const { return interface.read_float(data); }
+    API_EXPORT inline float as_float() const { return (*read_fp)(&interface, data); }
     API_EXPORT inline operator float() const { return as_float(); }
 };
 class GenericAccessor : public GenericAccessorRO {
+    Interface::write_float_fp write_fp;
+
   public:
-    API_EXPORT GenericAccessor(void *data_in, const Interface &interface_in) : GenericAccessorRO(data_in, interface_in)
+    API_EXPORT GenericAccessor(void *const data_in, hnnx::InterfaceRef const &interface_in)
+        : GenericAccessorRO(data_in, interface_in), write_fp(interface_in.get_methods_ptr()->write_float)
     {
     }
     API_EXPORT GenericAccessor(GenericAccessor const &) = default;
-    API_EXPORT inline void set_float(float v) { interface.write_float(data, v); }
+    API_EXPORT inline void set_float(float v) { write_fp(&interface, data, v); }
     API_EXPORT inline float operator=(float v)
     {
         set_float(v);
@@ -383,6 +536,26 @@ class GenericAccessor : public GenericAccessorRO {
         return this->as_float();
     }
 };
+// this is returned by Tensor::get_dtype_intfc()
+//
+struct DTypeScaleOff {
+    DType dtype;
+    float scale;
+    int offset;
+    DTypeScaleOff(DType dt, float sc, int zo) noexcept : dtype(dt), scale(sc), offset(zo) {}
+    explicit DTypeScaleOff(DType dt) noexcept : dtype(dt), scale(1.0f), offset(0) {}
+    DTypeScaleOff() noexcept : DTypeScaleOff(DType::UNKNOWN) {}
+    // construct from dtype and qparms ref, etc...
+    DTypeScaleOff(DType dt, Interface::qparms const &qpp) noexcept : dtype(dt), scale(qpp.scale), offset(qpp.offset) {}
+    DTypeScaleOff(DType dt, hnnx::InterfaceRef const &iref) noexcept : DTypeScaleOff(dt, *iref.get_qparms()) {}
+    explicit DTypeScaleOff(hnnx::InterfaceRef const &iref) noexcept
+        : DTypeScaleOff(iref.get_dtype(), *iref.get_qparms())
+    {
+    }
+    DTypeScaleOff(DTypeScaleOff const &) = default;
+    DTypeScaleOff &operator=(DTypeScaleOff const &) = default;
+};
+
 /**
  * For each 'interface' there are a pair of accessor classes
  *   Interface::Accessor
@@ -421,20 +594,44 @@ class GenericAccessor : public GenericAccessorRO {
  */
 
 class NullInterface final : public Interface {
-  public:
-    API_EXPORT inline constexpr NullInterface() {}
-    API_EXPORT virtual void write_float(void *ptr, const float in) const noexcept override final {}
-    API_EXPORT virtual float read_float(const void *ptr) const noexcept override final { return 0.0f; }
-    API_EXPORT int compare(const NullInterface &rhs) const { return 0; };
-    API_EXPORT uint32_t interface_hash() const noexcept { return 0; }
+    friend constexpr hnnx::ifc_method_table_t hnnx::construct_ifc_method_table();
 
+  public:
+    API_EXPORT inline constexpr NullInterface() : Interface(hnnx::dtype_info_v<DType::UNKNOWN>) {}
+
+    static inline constexpr dtype_info get_dt_info() noexcept { return hnnx::dtype_info_v<DType::UNKNOWN>; }
+    static inline qparms const *get_qparms() noexcept { return &Interface::null_parms; }
+    static inline constexpr DType get_dtype() noexcept { return get_dt_info().dtype; }
+    static inline constexpr unsigned element_size() noexcept { return get_dt_info().elbytes; }
+    static inline constexpr bool is_quantized() noexcept { return get_dt_info().is_quant; }
+    static inline uint32_t interface_hash() noexcept { return uint32_t(DType::UNKNOWN); }
+
+  private:
+    static void write_float(Interface const *, void *ptr, const float in) noexcept {}
+    static float read_float(Interface const *, const void *ptr) noexcept { return 0.0f; }
+
+    // LCOV_EXCL_START [SAFTYSWCCB-1736] constexprs resolved during compile time
+    static constexpr intfc_methods get_method_table()
+    {
+        return {hnnx::dtype_info_v<DType::UNKNOWN>, read_float, write_float, get_null_qparms, nullptr, nullptr};
+    }
+    // LCOV_EXCL_STOP
+
+  public:
     // hide the slower implementations in the base class...
     API_EXPORT inline float get_scale() const noexcept { return 1.0f; }
     API_EXPORT inline float get_scale_recip() const noexcept { return 1.0f; }
     API_EXPORT inline int32_t get_offset() const noexcept { return 0; }
+    API_EXPORT int compare(const NullInterface &rhs) const { return 0; };
+
+    static inline hnnx::InterfaceRef get_refobj() noexcept
+    {
+        return hnnx::InterfaceRef(methods_for<DType::UNKNOWN>(), Interface::canonical_instance_for<NullInterface>());
+    }
+    // NullInterface has a null DTypeScaleOff
+    static inline DTypeScaleOff get_dtype_scaleoff() noexcept { return DTypeScaleOff(); }
 
   private:
-    API_EXPORT virtual bool compare_eq_same_type(Interface const *rhs) const noexcept override final { return true; }
     // Accessor for NullInterface - empty class.
     struct nullval {
         operator float() const { return 0.0f; }
@@ -444,7 +641,7 @@ class NullInterface final : public Interface {
         using element_type = nullval;
         using AccessorRO = AcsrRO;
         API_EXPORT AcsrRO() {}
-        API_EXPORT AcsrRO(void const *, NullInterface const &) {}
+        API_EXPORT AcsrRO(void const *, NullInterface const *) {}
         API_EXPORT AcsrRO(AcsrRO const &) = default;
         API_EXPORT inline element_type value() const { return nullval{}; }
         API_EXPORT inline float as_float() const { return 0.0f; }
@@ -454,7 +651,7 @@ class NullInterface final : public Interface {
       public:
         using element_type = nullval;
         using AccessorRO = AcsrRO;
-        API_EXPORT Acsr(void *, const NullInterface &) {}
+        API_EXPORT Acsr(void *, const NullInterface *) {}
         API_EXPORT Acsr(Acsr const &) = default;
         API_EXPORT inline void set_float(float v) {}
         API_EXPORT inline void set_value(element_type v) {}
@@ -471,9 +668,14 @@ class NullInterface final : public Interface {
 // make_interface for NullInterface; easy, just have one
 // and return a pointer to it.
 template <> struct hnnx::make_interface<NullInterface> {
-    API_EXPORT_IMPORT static NullInterface null_ifc; // in tensor.cc
-    API_EXPORT static Interface const *from_odef(Graph &, OutputDef const &odef) { return &null_ifc; }
-    API_EXPORT static Interface const *from_deser(Deserz &dctx, Interface const **) { return &null_ifc; }
+    API_EXPORT static inline Interface const *from_odef(Graph &, OutputDef const &odef)
+    {
+        return Interface::canonical_instance_for<NullInterface>();
+    }
+    API_EXPORT static inline Interface const *from_deser(Deserz &dctx, Interface const **)
+    {
+        return Interface::canonical_instance_for<NullInterface>();
+    }
 };
 
 /**
@@ -484,36 +686,54 @@ template <> struct hnnx::make_interface<NullInterface> {
  * they would get converted to floats.
  */
 template <typename T> class PlainInterface final : public Interface {
+    friend constexpr hnnx::ifc_method_table_t hnnx::construct_ifc_method_table();
+
   public:
     using element_type = T;
     static constexpr DType dtype = dtype_of_type<PlainInterface>();
-    template <typename TX> using interface_other_type = PlainInterface<TX>;
-    API_EXPORT explicit constexpr PlainInterface(const OutputDef &def) {}
-    API_EXPORT constexpr PlainInterface() {}
+    API_EXPORT explicit constexpr PlainInterface(const OutputDef &def) : Interface(get_dt_info()) {}
+    API_EXPORT constexpr PlainInterface() : Interface(get_dt_info()) {}
     API_EXPORT explicit constexpr PlainInterface(hnnx::Deserz &) : PlainInterface() {}
     API_EXPORT static inline constexpr T convert_from_float(const float &in)
     {
         return saturate_round<T>(in);
     } // except for T=float!
     API_EXPORT static inline constexpr float convert_to_float(const T &in) { return float(in); }
-    API_EXPORT virtual void write_float(void *ptr,
-                                        const float in) const noexcept override final; // inlined below
-    API_EXPORT virtual inline float read_float(const void *ptr) const noexcept override final
+
+    static inline qparms const *get_qparms() noexcept { return &Interface::null_parms; }
+    static inline constexpr dtype_info get_dt_info() noexcept { return hnnx::dtype_info_v<dtype>; }
+    static inline constexpr DType get_dtype() noexcept { return dtype; }
+    static inline constexpr unsigned element_size() noexcept { return get_dt_info().elbytes; }
+    static inline constexpr bool is_quantized() noexcept { return get_dt_info().is_quant; }
+
+  private:
+    static void write_float(Interface const *self, void *ptr, const float in) noexcept; // inlined below
+    static inline float read_float(Interface const *, const void *ptr) noexcept
     {
         auto p = static_cast<const T *>(ptr);
         return convert_to_float(*p);
     }
-    API_EXPORT virtual dtype_info get_dt_info() const noexcept override final { return hnnx::dtype_info_v<dtype>; }
-    API_EXPORT int compare(const PlainInterface &rhs) const { return 0; }
-    API_EXPORT uint32_t interface_hash() const noexcept { return 1; } // different from NullInterface
+    // LCOV_EXCL_START [SAFTYSWCCB-1736] constexprs resolved during compile time
+    static constexpr intfc_methods get_method_table()
+    {
+        return {hnnx::dtype_info_v<dtype>, read_float, write_float, get_null_qparms, nullptr, nullptr};
+    }
+    // LCOV_EXCL_STOP
 
-    // hide the slower implementations in the base class...
-    API_EXPORT inline float get_scale() const noexcept { return 1.0f; }
-    API_EXPORT inline float get_scale_recip() const noexcept { return 1.0f; }
-    API_EXPORT inline int32_t get_offset() const noexcept { return 0; }
+  public:
+    static inline uint32_t interface_hash() noexcept { return uint32_t(dtype); }
+    static inline hnnx::InterfaceRef get_refobj() noexcept
+    {
+        return hnnx::InterfaceRef(methods_for<dtype>(), Interface::canonical_instance_for<PlainInterface>());
+    }
+    static inline DTypeScaleOff get_dtype_scaleoff() noexcept { return DTypeScaleOff(dtype); }
+
+    API_EXPORT static inline int compare(const PlainInterface &rhs) noexcept { return 0; }
+    API_EXPORT static inline float get_scale() noexcept { return 1.0f; }
+    API_EXPORT static inline float get_scale_recip() noexcept { return 1.0f; }
+    API_EXPORT static inline int32_t get_offset() noexcept { return 0; }
 
   private:
-    API_EXPORT virtual bool compare_eq_same_type(Interface const *rhs) const noexcept override final { return true; }
     // Accessor for PlainInterface
     // Doesn't need a reference to interface, just a data pointer (or data, for AcsrRO)
     // We can't actually call it AccessorRO since it needs to contain a typedef AccessorRO.
@@ -526,7 +746,7 @@ template <typename T> class PlainInterface final : public Interface {
       public:
         using element_type = T;
         using AccessorRO = AcsrRO;
-        API_EXPORT AcsrRO(void const *data_in, PlainInterface const &) : val(*static_cast<T const *>(data_in)) {}
+        API_EXPORT AcsrRO(void const *data_in, PlainInterface const *) : val(*static_cast<T const *>(data_in)) {}
         API_EXPORT AcsrRO(AcsrRO const &) = default;
         API_EXPORT AcsrRO &operator=(AcsrRO const &) = default;
         API_EXPORT AcsrRO(Acsr const &a) : val(a.value()) {}
@@ -541,7 +761,7 @@ template <typename T> class PlainInterface final : public Interface {
       public:
         using element_type = T;
         using AccessorRO = AcsrRO;
-        API_EXPORT Acsr(void *data_in, PlainInterface const &) : data(static_cast<T *>(data_in)) {}
+        API_EXPORT Acsr(void *data_in, PlainInterface const *) : data(static_cast<T *>(data_in)) {}
         API_EXPORT Acsr(Acsr const &) = default;
         API_EXPORT inline element_type value() const { return *data; }
         API_EXPORT inline float as_float() const { return convert_to_float(*data); }
@@ -591,13 +811,13 @@ template <> API_EXPORT inline constexpr Float16 PlainInterface<Float16>::convert
     Float16 const max_as_fp16 = std::numeric_limits<Float16>::max();
     float const max_as_fp32 = static_cast<float>(max_as_fp16);
 
-    if (in > max_as_fp32) return max_as_fp16;
-    if (in < -max_as_fp32) return -max_as_fp16;
+    if (in > max_as_fp32) return std::numeric_limits<Float16>::infinity();
+    if (in < -max_as_fp32) return -std::numeric_limits<Float16>::infinity();
     return static_cast<Float16>(in);
 }
 
 // needs to be defined *after* convert_from_float is specialized
-template <typename T> API_EXPORT inline void PlainInterface<T>::write_float(void *ptr, const float in) const noexcept
+template <typename T> inline void PlainInterface<T>::write_float(Interface const *, void *ptr, const float in) noexcept
 {
     auto p = static_cast<T *>(ptr);
     *p = convert_from_float(in);
@@ -607,9 +827,14 @@ template <typename T> API_EXPORT inline void PlainInterface<T>::write_float(void
 // and return a pointer to it.
 
 template <typename T> struct hnnx::make_interface<PlainInterface<T>> {
-    API_EXPORT static PlainInterface<T> const &get_plain_ifc();
-    API_EXPORT static Interface const *from_odef(Graph &, OutputDef const &odef) { return &get_plain_ifc(); }
-    API_EXPORT static Interface const *from_deser(Deserz &dctx, Interface const **) { return &get_plain_ifc(); }
+    API_EXPORT static inline Interface const *from_odef(Graph &, OutputDef const &odef)
+    {
+        return Interface::canonical_instance_for<PlainInterface<T>>();
+    }
+    API_EXPORT static inline Interface const *from_deser(Deserz &dctx, Interface const **)
+    {
+        return Interface::canonical_instance_for<PlainInterface<T>>();
+    }
 };
 
 extern template class PlainInterface<float>; // in tensor.cc
@@ -626,16 +851,77 @@ extern template class PlainInterface<NN_INT64_T>;
  * The reciprocal of scale should be computed so we don't have to divide.
  */
 
-template <typename T> class ScaleOffsetInterface final : public Interface {
+class SOIfcBase : public Interface { // base of ScaleOffsetInterface<T>
   protected:
     Interface::qparms qp; // offset, scale, scale_recip;
-    friend Interface::qparms &hnnx::qparms_for_interface_patch<ScaleOffsetInterface>(size_t);
+    template <typename X> friend Interface::qparms &hnnx::qparms_for_interface_patch(size_t);
     Interface::qparms &qparms_for_patch() { return qp; }
+    // Can only be constructed by subclass.
+    SOIfcBase(const int offset_, const float scale_, const dtype_info dt_)
+        : Interface(dt_), qp({offset_, scale_, 1.0f / scale_})
+    {
+    }
+    SOIfcBase(const OutputDef &def, const dtype_info dt_) : SOIfcBase(def.zero_offset, def.stepsize, dt_)
+    {
+        if (def.stepsize == 0.0f) debuglog("Oops: zero stepsize");
+    }
+    SOIfcBase(hnnx::Deserz &dctx, const dtype_info dt_) : Interface(dt_)
+    {
+        qp.offset = dctx.deserialize_uint32();
+        qp.scale = dctx.deserialize_float();
+        qp.scale_recip = 1.0f / qp.scale;
+    }
+
+    // these two are protected here (they only make sense in comparing same type)
+    // but are exposed in subclass via wrappers
+    API_EXPORT inline int compare(const SOIfcBase &rhs) const noexcept
+    {
+        if (qp.offset != rhs.qp.offset) return (qp.offset < rhs.qp.offset) ? -1 : 1;
+        if (qp.scale != rhs.qp.scale) return (qp.scale < rhs.qp.scale) ? -1 : 1;
+        return 0;
+    }
+    API_EXPORT inline bool compare_eq(const SOIfcBase &rhs) const noexcept
+    {
+        return qp.offset == rhs.qp.offset && qp.scale == rhs.qp.scale;
+    }
 
   public:
+    API_EXPORT inline float get_scale() const noexcept { return qp.scale; }
+    API_EXPORT inline float get_scale_recip() const noexcept { return qp.scale_recip; }
+    API_EXPORT inline int32_t get_offset() const noexcept { return qp.offset; }
+    API_EXPORT inline qparms const *get_qparms() const noexcept { return &qp; }
+
+  protected:
+    static inline Interface::qparms const *get_qparms_meth(Interface const *const self) noexcept
+    {
+        return &static_cast<SOIfcBase const &>(*self).qp;
+    }
+    static int ifc_compare(Interface const *const lhs, Interface const *const rhs) noexcept
+    {
+        auto const &rhs_ref = *static_cast<SOIfcBase const *>(rhs);
+        return static_cast<SOIfcBase const *>(lhs)->compare(rhs_ref);
+    }
+    static uint32_t ifc_hash(Interface const *const self) noexcept
+    {
+        Interface::qparms const *qpp = get_qparms_meth(self);
+        // NOTE; it's important that if two ScaleOffsetInterface<T> objects for two *different*
+        // T have the same scale and offset, they must have different hash values. So 'dtype'.
+        // is rolled into the hash. Hash collisions are OK if either scale or offset is different.
+        return unsigned(qpp->offset) * 0x10661 ^ (image_convert<unsigned, float>(qpp->scale) << 1);
+    }
+};
+
+template <typename T> class ScaleOffsetInterface final : public SOIfcBase {
+    friend constexpr hnnx::ifc_method_table_t hnnx::construct_ifc_method_table();
+
+  public:
+    API_EXPORT ScaleOffsetInterface(const int offs_, const float scale_) : SOIfcBase(offs_, scale_, get_dt_info()) {}
+    API_EXPORT explicit ScaleOffsetInterface(const OutputDef &def) : SOIfcBase(def, get_dt_info()) {}
+    API_EXPORT ScaleOffsetInterface() : SOIfcBase(0, 1.0f, get_dt_info()) {}
+    API_EXPORT explicit ScaleOffsetInterface(hnnx::Deserz &dctx) : SOIfcBase(dctx, get_dt_info()) {}
+
     using element_type = T;
     static constexpr DType dtype = dtype_of_type<ScaleOffsetInterface>();
-    template <typename TX> using interface_other_type = ScaleOffsetInterface<TX>;
     template <typename TX> API_EXPORT static inline constexpr T saturate(TX in) { return saturate_cast<T>(in); }
     API_EXPORT inline constexpr T convert_from_float(float in) const
     {
@@ -648,58 +934,44 @@ template <typename T> class ScaleOffsetInterface final : public Interface {
         else
             return (float(in) - qp.offset) * qp.scale;
     }
-    API_EXPORT virtual inline void write_float(void *ptr, const float in) const noexcept override final
+    static constexpr inline dtype_info get_dt_info() noexcept { return hnnx::dtype_info_v<dtype>; }
+    static inline constexpr DType get_dtype() noexcept { return dtype; }
+    static inline constexpr unsigned element_size() noexcept { return get_dt_info().elbytes; }
+    static inline constexpr bool is_quantized() noexcept { return get_dt_info().is_quant; }
+
+  private:
+    static inline void write_float(Interface const *const self, void *ptr, const float in) noexcept
     {
         assert(ptr != nullptr);
         auto p = static_cast<T *>(ptr);
-        *p = convert_from_float(in);
+        *p = static_cast<ScaleOffsetInterface<T> const *>(self)->convert_from_float(in);
     }
-    API_EXPORT virtual inline float read_float(const void *ptr) const noexcept override final
+    static inline float read_float(Interface const *const self, const void *ptr) noexcept
     {
         assert(ptr != nullptr);
         auto p = static_cast<const T *>(ptr);
-        return convert_to_float(*p);
+        return static_cast<ScaleOffsetInterface<T> const *>(self)->convert_to_float(*p);
     }
-    API_EXPORT virtual dtype_info get_dt_info() const noexcept override final { return hnnx::dtype_info_v<dtype>; }
-    // hide the slower implementations of these in the base class...
-    API_EXPORT inline float get_scale() const noexcept { return qp.scale; }
-    API_EXPORT inline float get_scale_recip() const noexcept { return qp.scale_recip; }
-    API_EXPORT inline int32_t get_offset() const noexcept { return qp.offset; }
+    // LCOV_EXCL_START [SAFTYSWCCB-1736] constexprs resolved during compile time
+    static constexpr intfc_methods get_method_table()
+    {
+        return {hnnx::dtype_info_v<dtype>, read_float, write_float, get_qparms_meth, ifc_hash, ifc_compare};
+    }
+    // LCOV_EXCL_STOP
 
-    API_EXPORT ScaleOffsetInterface(const int offset_, const float scale_) : qp({offset_, scale_, 1.0f / scale_}) {}
-    API_EXPORT ScaleOffsetInterface(const OutputDef &def) : ScaleOffsetInterface(def.zero_offset, def.stepsize)
+  public:
+    inline uint32_t interface_hash() const noexcept { return ifc_hash(this) ^ uint32_t(dtype); }
+
+    inline hnnx::InterfaceRef get_refobj() const noexcept { return hnnx::InterfaceRef(methods_for<dtype>(), this); }
+    inline DTypeScaleOff get_dtype_scaleoff() const noexcept { return DTypeScaleOff(dtype, *get_qparms_meth(this)); }
+
+    API_EXPORT inline int compare(const ScaleOffsetInterface &rhs) const noexcept { return SOIfcBase::compare(rhs); }
+    API_EXPORT inline bool compare_eq(const ScaleOffsetInterface &rhs) const noexcept
     {
-        if (def.stepsize == 0.0f) debuglog("Oops: zero stepsize");
-    }
-    API_EXPORT ScaleOffsetInterface() : ScaleOffsetInterface(0, 1.0f) {}
-    API_EXPORT ScaleOffsetInterface(hnnx::Deserz &dctx)
-    {
-        qp.offset = dctx.deserialize_uint32();
-        qp.scale = dctx.deserialize_float();
-        qp.scale_recip = 1.0f / qp.scale;
-    }
-    API_EXPORT int compare(const ScaleOffsetInterface &rhs) const
-    {
-        if (qp.offset != rhs.qp.offset) return (qp.offset - rhs.qp.offset);
-        if (qp.scale != rhs.qp.scale) return (qp.scale < rhs.qp.scale) ? -1 : 1;
-        return 0;
-    }
-    API_EXPORT inline int compare_eq(const ScaleOffsetInterface &rhs) const noexcept
-    {
-        return qp.offset == rhs.qp.offset && qp.scale == rhs.qp.scale;
-    }
-    API_EXPORT uint32_t interface_hash() const noexcept
-    {
-        return unsigned(qp.offset) * 0x10661 ^ (image_convert<unsigned, float>(qp.scale) << 1);
+        return SOIfcBase::compare_eq(rhs);
     }
 
   private:
-    API_EXPORT virtual Interface::qparms const *get_qparms() const noexcept final { return &qp; }
-
-    API_EXPORT virtual bool compare_eq_same_type(Interface const *rhs) const noexcept override final
-    {
-        return compare_eq(*static_cast<ScaleOffsetInterface const *>(rhs));
-    }
     // Accessor for ScaleOffsetInterface
     class Acsr;
     class AcsrRO {
@@ -710,8 +982,8 @@ template <typename T> class ScaleOffsetInterface final : public Interface {
       public:
         using element_type = T;
         using AccessorRO = AcsrRO;
-        API_EXPORT AcsrRO(void const *data_in, const ScaleOffsetInterface &interface_in)
-            : val(*static_cast<T const *>(data_in)), interface(interface_in)
+        API_EXPORT AcsrRO(void const *data_in, const ScaleOffsetInterface *interface_in)
+            : val(*static_cast<T const *>(data_in)), interface(*interface_in)
         {
         }
 
@@ -732,8 +1004,8 @@ template <typename T> class ScaleOffsetInterface final : public Interface {
       public:
         using element_type = T;
         using AccessorRO = AcsrRO;
-        API_EXPORT Acsr(void *data_in, const ScaleOffsetInterface &interface_in)
-            : data(static_cast<T *>(data_in)), interface(interface_in)
+        API_EXPORT Acsr(void *data_in, const ScaleOffsetInterface *interface_in)
+            : data(static_cast<T *>(data_in)), interface(*interface_in)
         {
         }
         Acsr(Acsr const &) = default;
@@ -800,45 +1072,6 @@ template <typename T> struct hnnx::make_interface<ScaleOffsetInterface<T>> {
 extern template class ScaleOffsetInterface<uint8_t>; // in tensor.cc
 extern template class ScaleOffsetInterface<uint16_t>;
 
-// compare interface. If they are different subclasses, or if either
-// or both are 'Interface', this one will be called.
-//
-// Note: there is no operator !=  - if it's added, it has to be added
-// adjacent to all of these or it will be slow. So, just use !(a==b).
-//
-API_EXPORT inline bool operator==(Interface const &a, Interface const &b) noexcept
-{
-    // returns true if a,b are different types; otherwise
-    // returns a->compare_eq_same_type(&b).
-    return a.compare_equal(b);
-}
-
-// Specialize for each subclass.
-// All instances of NullInterface are the same.
-API_EXPORT inline bool operator==(NullInterface const &, NullInterface const &) noexcept
-{
-    return true;
-}
-
-// All instances of PlainInterface<T> are the same
-template <typename T> API_EXPORT inline bool operator==(PlainInterface<T> const &, PlainInterface<T> const &) noexcept
-{
-    return true;
-}
-// we do need to compare ScaleOffsetInterface
-template <typename T>
-API_EXPORT inline bool operator==(ScaleOffsetInterface<T> const &a, ScaleOffsetInterface<T> const &b) noexcept
-{
-    if (&a == &b) return true; // same object!
-    return a.compare_eq(b);
-}
-
-/*
- * We could define a min/max interface, it would be equivalent to ScaleOffset interface.
- * We could enhance the interfaces with overflow flags
- * We could add a scale interface for signed, symmetric values
- */
-
 //////////////////////////////////////////////////////////////////////////////////////////
 /// @brief compile-time traits of tensor classes
 /// E.g. the construct tensor_traits<TYPE>::element_type will obtain the element_type
@@ -860,6 +1093,7 @@ API_EXPORT inline bool operator==(ScaleOffsetInterface<T> const &a, ScaleOffsetI
 ///  - constexpr bool has_padding
 ///  - constexpr bool is_chunked;
 ///  - constexpr bool is_indirect;      // usually same as is_chunked; always <= is_chunked
+///  - constexpr bool is_singular;     // set when SingularLayout is used, Only when !is_chunked, !is_indirect
 ///  - typedef raw_type                 // See below [1]
 ///
 /// Only in ConcreteTensor:
@@ -876,21 +1110,6 @@ API_EXPORT inline bool operator==(ScaleOffsetInterface<T> const &a, ScaleOffsetI
 template <typename TENST> using tensor_traits = typename TENST::traits;
 
 //////////////////////////////////////////////////////////////////////////////////////////
-
-// this is returned by Tensor::get_dtype_intfc()
-//
-struct DTypeScaleOff {
-    DType dtype;
-    float scale;
-    int offset;
-    DTypeScaleOff(DType dt, float sc, int zo) : dtype(dt), scale(sc), offset(zo) {}
-    explicit DTypeScaleOff(DType dt) : dtype(dt), scale(1.0f), offset(0) {}
-    DTypeScaleOff() : DTypeScaleOff(DType::UNKNOWN) {}
-    // construct from an Interface
-    API_EXPORT DTypeScaleOff(DType dt, Interface const &) noexcept;
-    DTypeScaleOff(DTypeScaleOff const &) = default;
-    DTypeScaleOff &operator=(DTypeScaleOff const &) = default;
-};
 
 /*
  * Now that we have Interfaces and Accessors, which we will use to give a consistent interface to Tensors,
@@ -919,15 +1138,8 @@ class Tensor {
     // Use with 'dims' to query dimension sizes by name e.g. auto [h, d] = tensor.dims(Tensor::HEIGHT, Tensor::DEPTH)
     enum dimensions { BATCH, HEIGHT, WIDTH, DEPTH, CHANNEL };
 
-    // These functions are not really part of the interface, but we use them to implement operator()
-    // EJP: FIXME: alternative strategies for implementing these, flat index may not make sense
-    // for all types of layout.  We could pass rank,coords to generic_accessor
-    API_EXPORT virtual Interface const &interface() const noexcept = 0;
-    API_EXPORT GenericAccessor generic_accessor(void *p) noexcept { return GenericAccessor(p, interface()); }
-    API_EXPORT GenericAccessorRO generic_accessor_ro(void const *p) const noexcept
-    {
-        return GenericAccessorRO(p, interface());
-    }
+    API_EXPORT virtual hnnx::InterfaceRef interface() const noexcept = 0;
+
     struct traits { // empty
     };
 
@@ -951,7 +1163,29 @@ class Tensor {
     // Note, this is a const method returning a non-const pointer;
     // but we only allow it to publicly return a non-const
     // pointer when used in non-const wrapper methods.
-    API_EXPORT virtual void *element_addr(size_t rank, SIdx const coords_in[]) const noexcept = 0;
+    // if 'iref' is not null, *iref is also set to what interface() would return.
+    API_EXPORT virtual void *element_addr(size_t rank, SIdx const coords_in[],
+                                          hnnx::InterfaceRef *iref = nullptr) const noexcept = 0;
+    // this is for implementing dims(..indices...) in Tensor and subclasses.
+    // The 'dims_r' is a return from get_dims() method.
+    template <typename... T> //
+    static inline std::array<size_t, sizeof...(T)> //
+    dims_extractor(std::pair<size_t const *, size_t> const dims_r, T... indices)
+    {
+        auto const read_dim = [dims_r](unsigned i) -> size_t { return (i < dims_r.second) ? dims_r.first[i] : 1; };
+        return {read_dim(indices)...};
+    }
+    // this is for implementing dims()
+    template <unsigned R, typename... T> //
+    static inline constexpr std::array<size_t, R> //
+    dims_extractor_all(std::pair<size_t const *, size_t> const dims_r)
+    {
+        std::array<size_t, R> result{};
+        for (unsigned i = 0; i < R; i++) {
+            result[i] = (i < dims_r.second) ? dims_r.first[i] : 1;
+        }
+        return result;
+    }
 
   public:
     // element_ptr on insufficiently specialized class gives the result as a void *.
@@ -982,43 +1216,41 @@ class Tensor {
         return std::make_tuple(ptr[1], ptr[2]);
     }
 
-    API_EXPORT constexpr std::array<size_t, 4> dims() const
+    ALWAYSINLINE inline std::array<size_t, 4> dims() const
     { // make compatible with typical concrete tensor.
-        std::array<size_t, 4> ret{0};
-        for (int i = 0; i < 4; i++) {
-            ret[i] = dim(i);
-        }
-        return ret;
+        return dims_extractor_all<4>(get_dims());
     }
 
     template <typename... T> API_EXPORT const std::array<size_t, sizeof...(T)> dims(T... indices) const
     {
-        std::array<size_t, sizeof...(indices)> dim_sizes = {dim(indices)...};
-        return dim_sizes;
+        return dims_extractor(get_dims(), indices...);
     }
 
     API_EXPORT virtual DTypeScaleOff get_dtype_intfc() const noexcept = 0;
     template <typename... T> API_EXPORT const std::array<size_t, sizeof...(T)> max_dims(T... indices) const
     {
-        std::array<size_t, sizeof...(indices)> dim_sizes = {max_dim(indices)...};
-        return dim_sizes;
+        return dims_extractor(get_max_dims(), indices...);
     }
     // if you need more than one of these, it is recommended to unpack
     // the result from get_dtype_intfc()
     API_EXPORT DType get_dtype() const { return get_dtype_intfc().dtype; }
-    API_EXPORT float get_interface_scale() const { return get_dtype_intfc().scale; }
-    API_EXPORT NN_INT32_T get_interface_offset() const { return get_dtype_intfc().offset; }
+    API_EXPORT float interface_scale() const { return get_dtype_intfc().scale; }
+    API_EXPORT NN_INT32_T interface_offset() const { return get_dtype_intfc().offset; }
     API_EXPORT OutputDef gen_output_def() const;
 
     template <typename... ind_types> API_EXPORT inline GenericAccessorRO operator()(ind_types... inds) const
     {
         const std::array<SIdx, sizeof...(ind_types)> indarr = {static_cast<SIdx>(inds)...};
-        return this->generic_accessor_ro(element_addr(sizeof...(ind_types), indarr.data()));
+        hnnx::InterfaceRef intfc = hnnx::InterfaceRef::make_null();
+        void *const ptr = element_addr(sizeof...(ind_types), indarr.data(), &intfc);
+        return GenericAccessorRO(ptr, intfc);
     }
     template <typename... ind_types> API_EXPORT inline GenericAccessor operator()(ind_types... inds)
     {
         const std::array<SIdx, sizeof...(ind_types)> indarr = {static_cast<SIdx>(inds)...};
-        return this->generic_accessor(element_addr(sizeof...(ind_types), indarr.data()));
+        hnnx::InterfaceRef intfc = hnnx::InterfaceRef::make_null();
+        void *const ptr = element_addr(sizeof...(ind_types), indarr.data(), &intfc);
+        return GenericAccessor(ptr, intfc);
     }
 
     /*
@@ -1066,6 +1298,7 @@ class Tensor {
         tformat_is_indirect = 1u << 18u,
         tformat_is_chunked = 1u << 19u,
         tformat_is_not_flat = 1u << 20u,
+        tformat_is_singular = 1u << 21u,
         tformat_tmode_shift = 28u,
         tformat_tmode_mask = 0xFu,
     };
@@ -1093,6 +1326,7 @@ class Tensor {
         if (!std::is_base_of_v<FlatMemoryLayout<rankval>, typename TRAITS::layout_type>) {
             result |= tformat_is_not_flat;
         }
+        if (TRAITS::is_singular) result |= tformat_is_singular;
         return (hnnx::SerOpsInterface::tensMODE_general << tformat_tmode_shift) | result;
     }
 
@@ -1348,8 +1582,9 @@ class FakeTensor : public Tensor {
 
   protected:
     // all will throw exception if called
-    API_EXPORT virtual void *element_addr(size_t rank, SIdx const coords_in[]) const noexcept override;
-    API_EXPORT virtual Interface const &interface() const noexcept override;
+    API_EXPORT virtual void *element_addr(size_t rank, SIdx const coords_in[],
+                                          hnnx::InterfaceRef *iref = nullptr) const noexcept override;
+    API_EXPORT virtual hnnx::InterfaceRef interface() const noexcept override;
     API_EXPORT virtual void allocate_func(hnnx::Allocator &allocator, unsigned options) override;
     API_EXPORT virtual void *raw_data() noexcept override;
     API_EXPORT virtual size_t total_storage_elements() const override;
@@ -1402,13 +1637,17 @@ template <unsigned TRank> class RankedTensor : public Tensor {
     {
         static_assert(Rank == (sizeof...(ind_types)), "# of coords must match Rank");
         const SIdx indarr[] = {static_cast<SIdx>(inds)...};
-        return this->generic_accessor_ro(this->element_addr(Rank, indarr));
+        hnnx::InterfaceRef intfc = hnnx::InterfaceRef::make_null();
+        void *const ptr = element_addr(Rank, indarr, &intfc);
+        return GenericAccessorRO(ptr, intfc);
     }
     template <typename... ind_types> API_EXPORT inline GenericAccessor operator()(ind_types... inds)
     {
         static_assert(Rank == (sizeof...(ind_types)), "# of coords must match Rank");
         const SIdx indarr[] = {static_cast<SIdx>(inds)...};
-        return this->generic_accessor(this->element_addr(Rank, indarr));
+        hnnx::InterfaceRef intfc = hnnx::InterfaceRef::make_null();
+        void *const ptr = element_addr(Rank, indarr, &intfc);
+        return GenericAccessor(ptr, intfc);
     }
 };
 
@@ -1432,11 +1671,16 @@ template <unsigned TRank> class TensorShape : public RankedTensor<TRank> {
   protected:
     API_EXPORT static constexpr NullInterface null_interface{};
     // These functions are not really part of the interface, but we need them to implement operator()
-    API_EXPORT virtual void *element_addr(size_t rank, SIdx const coords_in[]) const noexcept override final
+    API_EXPORT virtual void *element_addr(size_t rank, SIdx const coords_in[],
+                                          hnnx::InterfaceRef *const iref = nullptr) const noexcept override final
     {
+        if (iref) *iref = NullInterface::get_refobj();
         return nullptr;
     }
-    API_EXPORT virtual Interface const &interface() const noexcept override { return null_interface; }
+    API_EXPORT virtual hnnx::InterfaceRef interface() const noexcept override final
+    {
+        return NullInterface::get_refobj();
+    }
 
   public:
     API_EXPORT const char *true_name() const override { return type_name<TensorShape<TRank>>(); };
@@ -1458,8 +1702,7 @@ template <unsigned TRank> class TensorShape : public RankedTensor<TRank> {
     API_EXPORT const std::array<size_t, Rank> &max_dims() const { return dims(); };
     template <typename... T> API_EXPORT const std::array<size_t, sizeof...(T)> dims(T... indices) const
     {
-        std::array<size_t, sizeof...(indices)> dim_sizes = {dim(indices)...};
-        return dim_sizes;
+        return Tensor::dims_extractor(get_dims(), indices...);
     }
     API_EXPORT virtual std::pair<size_t const *, size_t> get_dims() const noexcept override
     {
@@ -1467,11 +1710,13 @@ template <unsigned TRank> class TensorShape : public RankedTensor<TRank> {
     }
     template <typename... T> API_EXPORT const std::array<size_t, sizeof...(T)> max_dims(T... indices) const
     {
-        std::array<size_t, sizeof...(indices)> dim_sizes = {max_dim(indices)...};
-        return dim_sizes;
+        return Tensor::dims_extractor(get_max_dims(), indices...);
     }
     API_EXPORT virtual std::pair<size_t const *, size_t> get_max_dims() const noexcept override { return get_dims(); }
-    API_EXPORT virtual DTypeScaleOff get_dtype_intfc() const noexcept override { return DTypeScaleOff(); }
+    API_EXPORT virtual DTypeScaleOff get_dtype_intfc() const noexcept override
+    {
+        return NullInterface::get_dtype_scaleoff();
+    }
 
     API_EXPORT virtual uint32_t get_tensor_format_code() const noexcept override
     {
@@ -1575,7 +1820,10 @@ template <DType DT> class TensorSclrDT : public Tensor {
     Interface_t interface_inst;
 
   public:
-    API_EXPORT virtual Interface_t const &interface() const noexcept override final { return interface_inst; }
+    API_EXPORT virtual hnnx::InterfaceRef interface() const noexcept override final
+    {
+        return interface_inst.get_refobj();
+    }
     API_EXPORT inline float interface_scale() const { return interface_inst.get_scale(); }
     API_EXPORT inline float interface_scale_recip() const { return interface_inst.get_scale_recip(); }
     API_EXPORT inline int32_t interface_offset() const { return interface_inst.get_offset(); }
@@ -1597,8 +1845,10 @@ template <DType DT> class TensorSclrDT : public Tensor {
 
   protected:
     // These functions are not really part of the interface, but we need them to implement operator()
-    API_EXPORT virtual void *element_addr(size_t rank, SIdx const coords_in[]) const noexcept override final
+    API_EXPORT virtual void *element_addr(size_t rank, SIdx const coords_in[],
+                                          hnnx::InterfaceRef *const iref = nullptr) const noexcept override final
     {
+        if (iref) *iref = interface_inst.get_refobj();
         return (void *)&value;
     }
 
@@ -1630,7 +1880,7 @@ template <DType DT> class TensorSclrDT : public Tensor {
     static constexpr DType dtype = dtype_of_type<Interface_t>();
     API_EXPORT virtual DTypeScaleOff get_dtype_intfc() const noexcept override
     {
-        return DTypeScaleOff(dtype, interface());
+        return interface_inst.get_dtype_scaleoff();
     }
 
     // Optional, but maybe helpful?
@@ -1683,11 +1933,11 @@ template <DType DT> class TensorSclrDT : public Tensor {
 
     template <typename... ind_types> API_EXPORT inline const Const_Accessor_t operator()(ind_types... inds) const
     {
-        return Const_Accessor_t((void *)&value, this->interface());
+        return Const_Accessor_t((void *)&value, &interface_inst);
     }
     template <typename... ind_types> API_EXPORT inline Accessor_t operator()(ind_types... inds)
     {
-        return Accessor_t(&value, this->interface());
+        return Accessor_t(&value, &interface_inst);
     }
     API_EXPORT virtual void enum_memory_blocks(hnnx::MemBlockEnumerator &) const override { return; }
 
@@ -1702,6 +1952,7 @@ template <DType DT> class TensorSclrDT : public Tensor {
   protected:
     API_EXPORT virtual int compare_sametype(const Tensor *rhs_in) const override
     {
+        // FIXME @@ if Interface_t is quantized, we should compare quantization too.
         auto *rhs = static_cast<const TensorSclrDT *>(rhs_in);
         if (this->value < rhs->value) return -1;
         if (this->value == rhs->value) return 0;
@@ -1734,6 +1985,7 @@ template <typename STYPE, typename TLayout, typename Pad_t> struct layout_mem_co
     using storage_type = STYPE;
     static constexpr TLayout layout{};
     static constexpr Pad_t pad{};
+    static constexpr bool is_singular = std::is_same_v<TLayout, SingularMemoryLayout<Rank>>;
 
     storage_type *bulk_data;
 
@@ -1765,6 +2017,7 @@ template <typename STYPE, typename TLayout, typename Pad_t> struct layout_mem_co
     API_EXPORT ALWAYSINLINE void *element_addr(Shape_t const *shp, size_t rank, SIdx const coords_in[]) const noexcept
     {
         //assert(rank == Rank);
+        static_assert(!is_singular);
         const std::array<size_t, Rank> padded_coords =
                 pad.pad_coords(hnnx::ptr_to_stdarray<Rank, SIdx>(&coords_in[0]), shp->pad);
         size_t const offset = layout.linear_offset(padded_coords, shp->max_dims);
@@ -1776,6 +2029,7 @@ template <typename STYPE, typename TLayout, typename Pad_t> struct layout_mem_co
     ALWAYSINLINE void *element_addr(Shape_t const *shp, size_t rank, SIdx const coords_in[],
                                     std::array<size_t, Rank> const &valid_dims) const noexcept
     {
+        static_assert(!is_singular);
         const std::array<size_t, Rank> padded_coords =
                 pad.pad_coords(hnnx::ptr_to_stdarray<Rank, SIdx>(&coords_in[0]), shp->pad);
         size_t const offset = layout.linear_offset(padded_coords, valid_dims);
@@ -1791,6 +2045,7 @@ template <typename STYPE, typename TLayout, typename Pad_t> struct layout_mem_co
     // block size for allocation
     API_EXPORT inline ALWAYSINLINE static size_t get_elements_per_block(Shape_t const *shp)
     {
+        if (is_singular) return 1;
         return std::accumulate(shp->max_dims.cbegin(), shp->max_dims.cend(), 1, std::multiplies<size_t>());
     }
     // find the address of the block pointer containing the specified coords.
@@ -2113,6 +2368,7 @@ template <typename Linfo> class LayoutTensor : public RankedTensor<Linfo::Rank> 
         static constexpr unsigned rank = Rank;
         static constexpr bool is_indirect = LayoutTensor::is_indirect;
         static constexpr bool is_chunked = LayoutTensor::is_chunked;
+        static constexpr bool is_singular = std::is_same<TLayout, SingularMemoryLayout<Rank>>::value;
         static constexpr bool has_padding = !std::is_same<Pad_t, NoPadding<Rank>>::value;
         using pad_type = Pad_t;
         using layout_type = TLayout;
@@ -2120,16 +2376,28 @@ template <typename Linfo> class LayoutTensor : public RankedTensor<Linfo::Rank> 
     };
 
   protected:
+    static constexpr bool is_singular = traits::is_singular;
+    // this function is used to construct the 'shape' pointer in prepare mode,
+    // and is different for 'singular' case
+    ALWAYSINLINE inline static Shape<Rank> const *init_shape_p(Graph &graph_in, const OutputDef &def)
+    {
+        Shape_t const shp(hnnx::ptr_to_stdarray<Rank, size_t>(&def.max_sizes[0]),
+                          TLayout::pad(hnnx::ptr_to_stdarray<Rank, size_t>(&def.max_sizes[0])));
+        if constexpr (is_singular) {
+            if (std::find_if(shp.dims.begin(), shp.dims.end(), [](size_t d) { return d != 1; }) != shp.dims.end()) {
+                throw std::runtime_error("singular tensor with shape not 1's");
+            }
+        }
+        return Shape_t::canonical_shape(graph_in, shp);
+    }
     // only used in the deserialize ctor
     Interface const *&interface_ptr_ref() { return const_cast<Interface const *&>(interface_ptr); }
     // ctors are marked noinline; otherwise they just get inlined
     // into all the ConcreteTensor ctors, which isn't really helpful.
     [[gnu::noinline]] API_EXPORT LayoutTensor(const Op *producer_in, const OutputDef &def, Graph &graph_in,
                                               Interface const *(*ifc_maker)(Graph &, OutputDef const &))
-        : BaseRT(producer_in), interface_ptr((*ifc_maker)(graph_in, def)),
-          shape(Shape_t::canonical_shape(
-                  graph_in, Shape_t(hnnx::ptr_to_stdarray<Rank, size_t>(&def.max_sizes[0]),
-                                    mem.layout.pad(hnnx::ptr_to_stdarray<Rank, size_t>(&def.max_sizes[0]))))),
+        : BaseRT(producer_in), interface_ptr((*ifc_maker)(graph_in, def)), //
+          shape(init_shape_p(graph_in, def)), //
           dynamic_shape(
                   Dynamic_shape_t::crated_shape(graph_in, Dynamic_shape_t(shape->dims, DynamicStatus::ValidData))),
           mem(shape, graph_in)
@@ -2159,10 +2427,10 @@ template <typename Linfo> class LayoutTensor : public RankedTensor<Linfo::Rank> 
     API_EXPORT const std::array<size_t, Rank> &dims() const { return dynamic_shape->get_dims(); }
     API_EXPORT virtual inline size_t max_dim(size_t index) const noexcept override final { return shape->dims[index]; }
     API_EXPORT const std::array<size_t, Rank> &max_dims() const { return shape->dims; }
+
     template <typename... T> API_EXPORT const std::array<size_t, sizeof...(T)> dims(T... indices) const
     {
-        std::array<size_t, sizeof...(indices)> dim_sizes = {dim(indices)...};
-        return dim_sizes;
+        return Tensor::dims_extractor(get_dims(), indices...);
     }
     API_EXPORT virtual std::pair<size_t const *, size_t> get_dims() const noexcept final
     {
@@ -2170,8 +2438,7 @@ template <typename Linfo> class LayoutTensor : public RankedTensor<Linfo::Rank> 
     }
     template <typename... T> API_EXPORT const std::array<size_t, sizeof...(T)> max_dims(T... indices) const
     {
-        std::array<size_t, sizeof...(indices)> dim_sizes = {max_dim(indices)...};
-        return dim_sizes;
+        return Tensor::dims_extractor(get_max_dims(), indices...);
     }
     API_EXPORT virtual std::pair<size_t const *, size_t> get_max_dims() const noexcept final
     {
@@ -2215,10 +2482,10 @@ template <typename Linfo> class LayoutTensor : public RankedTensor<Linfo::Rank> 
     {
         return (void const *)dynamic_shape;
     };
-    API_EXPORT virtual Interface const &interface() const noexcept override { return *interface_ptr; }
-    API_EXPORT inline float interface_scale() const { return interface().get_scale(); }
-    API_EXPORT inline float interface_scale_recip() const { return interface().get_scale_recip(); }
-    API_EXPORT inline int32_t interface_offset() const { return interface().get_offset(); }
+    // 'interface()' needs to be overriden in ConcreteTensor
+    API_EXPORT inline float interface_scale() const { return this->interface().get_scale(); }
+    API_EXPORT inline float interface_scale_recip() const { return this->interface().get_scale_recip(); }
+    API_EXPORT inline int32_t interface_offset() const { return this->interface().get_offset(); }
 
     // for direct access to bulk_data, in contiguous tensors only
     //  data_ptr() can be assigned to.
@@ -2390,27 +2657,27 @@ template <typename Linfo> class LayoutTensor : public RankedTensor<Linfo::Rank> 
     // get_raw_addr(...) on this class gives a storage_type *.
     template <typename... ind_types> API_EXPORT inline storage_type const *get_raw_addr(ind_types... inds) const
     {
-        static_assert(Rank == (sizeof...(ind_types)), "# of coords must match Rank");
+        static_assert(is_singular || Rank == (sizeof...(ind_types)), "# of coords must match Rank");
         const std::array<SIdx, Rank> coords = {{static_cast<SIdx>(inds)...}};
-        return (storage_type const *)this->element_addr(Rank, coords.data());
+        return (storage_type const *)element_addr0(Rank, coords.data());
     }
     template <typename... ind_types> API_EXPORT inline storage_type *get_raw_addr(ind_types... inds)
     {
-        static_assert(Rank == (sizeof...(ind_types)), "# of coords must match Rank");
+        static_assert(is_singular || Rank == (sizeof...(ind_types)), "# of coords must match Rank");
         const std::array<SIdx, Rank> coords = {{static_cast<SIdx>(inds)...}};
-        return (storage_type *)this->element_ptr(Rank, coords.data());
+        return (storage_type *)element_addr0(Rank, coords.data());
     }
     template <typename... ind_types> API_EXPORT inline storage_type const &get_raw(ind_types... inds) const
     {
-        static_assert(Rank == (sizeof...(ind_types)), "# of coords must match Rank");
+        static_assert(is_singular || Rank == (sizeof...(ind_types)), "# of coords must match Rank");
         const std::array<SIdx, Rank> coords = {{static_cast<SIdx>(inds)...}};
-        return *(storage_type const *)this->element_addr(Rank, coords.data());
+        return *(storage_type const *)element_addr0(Rank, coords.data());
     }
     template <typename... ind_types> API_EXPORT inline storage_type &get_raw(ind_types... inds)
     {
-        static_assert(Rank == (sizeof...(ind_types)), "# of coords must match Rank");
+        static_assert(is_singular || Rank == (sizeof...(ind_types)), "# of coords must match Rank");
         const std::array<SIdx, Rank> coords = {{static_cast<SIdx>(inds)...}};
-        return *(storage_type *)this->element_addr(Rank, coords.data());
+        return *(storage_type *)element_addr0(Rank, coords.data());
     }
     // tile interface. These are defined in tile_extract.h
     API_EXPORT virtual void const *read_tile(unsigned flags, void *buffer, size_t b, int h, int w,
@@ -2459,11 +2726,17 @@ template <typename Linfo> class LayoutTensor : public RankedTensor<Linfo::Rank> 
 
   protected:
     // element_addr is delegated to the particular specialization of layout_mem
-    API_EXPORT virtual ALWAYSINLINE void *element_addr(size_t rank,
-                                                       const SIdx coords_in[]) const noexcept final override
+    // virtual method 'element_addr' is defined only in the concrete subclasses, and calls this.
+    // (in addition to sometimes returning an interface)
+    ALWAYSINLINE void *element_addr0(size_t rank, const SIdx coords_in[]) const noexcept
     {
-        return mem.element_addr(shape, rank, coords_in, dynamic_shape->get_dims());
+        if constexpr (!is_singular) {
+            return mem.element_addr(shape, rank, coords_in, dynamic_shape->get_dims());
+        } else {
+            return mem.raw_data();
+        }
     }
+
     // compare_sametype is not overloaded here; LayoutTensor is an abstract class
 
     // This is called from ConcreteTensor::compare_sametype to fully compare two tensors
@@ -2496,7 +2769,9 @@ template <typename Linfo> class LayoutTensor : public RankedTensor<Linfo::Rank> 
         size_t const nblocks = this->mem.get_block_list_len(this->shape);
         size_t const blocksize = sizeof(storage_type) * this->mem.get_elements_per_block(this->shape);
         size_t const align = traits::is_indirect ? blocksize : std::min(size_t(256), sizeof(storage_type));
-
+        if constexpr (traits::is_singular) {
+            options |= unsigned(hnnx::AllocOpts_packed);
+        }
         allocator.allocate_n(blocktab, // pointer to pointers,
                              nblocks, // number of pointers
                              blocksize, align, mclass, options, this->get_dtype());
@@ -2544,6 +2819,7 @@ template <typename Tinfo> class ConcreteTensor : public LayoutTensor<typename Ti
     API_EXPORT static constexpr bool is_indirect = Tinfo::is_indirect;
     API_EXPORT static constexpr unsigned Rank = Layout_t::Rank;
     using BaseLayout = LayoutTensor<typename Tinfo::Lconfig>;
+    static constexpr bool is_singular = BaseLayout::traits::is_singular;
     using BaseRT = typename BaseLayout::BaseRT;
 
     // make sure it's compatible with supplied base class
@@ -2551,6 +2827,8 @@ template <typename Tinfo> class ConcreteTensor : public LayoutTensor<typename Ti
                           std::is_same<Layout_t, typename BaseLayout::traits::layout_type>::value &&
                           std::is_same<Pad_t, typename BaseLayout::traits::pad_type>::value,
                   "incompatible base class for ConcreteTensor");
+
+    inline Interface_t const *interface_typed() const { return static_cast<Interface_t const *>(this->interface_ptr); }
 
   public:
     API_EXPORT const char *true_name() const override { return Tinfo::typetag; };
@@ -2593,27 +2871,24 @@ template <typename Tinfo> class ConcreteTensor : public LayoutTensor<typename Ti
 
     API_EXPORT virtual DTypeScaleOff get_dtype_intfc() const noexcept override
     {
-        return DTypeScaleOff(dtype, interface());
+        return interface_typed()->get_dtype_scaleoff();
     }
 
-    // note: pp 10.3/5 of c++: I can override 'virtual Interface const &interface() const'
-    // with 'virtual X const & interface() const;' if X is based on Interface. When this method
-    // is called with a baser reference, the result is just quietly converted to Interface &.
-    API_EXPORT virtual Interface_t const &interface() const noexcept override final
+    API_EXPORT virtual hnnx::InterfaceRef interface() const noexcept override final
     {
-        return static_cast<Interface_t const &>(*this->interface_ptr);
+        return interface_typed()->get_refobj();
     }
-    API_EXPORT inline float interface_scale() const { return interface().get_scale(); }
-    API_EXPORT inline float interface_scale_recip() const { return interface().get_scale_recip(); }
-    API_EXPORT inline int32_t interface_offset() const { return interface().get_offset(); }
+    API_EXPORT inline float interface_scale() const { return interface_typed()->get_scale(); }
+    API_EXPORT inline float interface_scale_recip() const { return interface_typed()->get_scale_recip(); }
+    API_EXPORT inline int32_t interface_offset() const { return interface_typed()->get_offset(); }
 
     API_EXPORT inline ALWAYSINLINE const element_type *element_ptr(size_t rank, const SIdx coords[]) const
     {
-        return (element_type const *)this->element_addr(rank, coords);
+        return (element_type const *)this->element_addr0(rank, coords);
     }
     API_EXPORT inline ALWAYSINLINE element_type *element_ptr(size_t rank, const SIdx coords[])
     {
-        return (element_type *)this->element_addr(rank, coords);
+        return (element_type *)this->element_addr0(rank, coords);
     }
 
     // Some methods return the same thing as in LayoutTensor, but
@@ -2661,39 +2936,39 @@ template <typename Tinfo> class ConcreteTensor : public LayoutTensor<typename Ti
     //
     template <typename... ind_types> API_EXPORT inline Const_Accessor_t operator()(ind_types... inds) const
     {
-        static_assert(Rank == (sizeof...(ind_types)), "# of coords must match Rank");
+        static_assert(is_singular || Rank == (sizeof...(ind_types)), "# of coords must match Rank");
         const std::array<SIdx, Rank> coords = {static_cast<SIdx>(inds)...};
-        return Const_Accessor_t(this->element_addr(Rank, coords.data()), this->interface());
+        return Const_Accessor_t(this->element_addr0(Rank, coords.data()), interface_typed());
     }
     template <typename... ind_types> API_EXPORT inline Accessor_t operator()(ind_types... inds)
     {
-        static_assert(Rank == (sizeof...(ind_types)), "# of coords must match Rank");
+        static_assert(is_singular || Rank == (sizeof...(ind_types)), "# of coords must match Rank");
         const std::array<SIdx, Rank> coords = {{static_cast<SIdx>(inds)...}};
-        return Accessor_t(this->element_addr(Rank, coords.data()), this->interface());
+        return Accessor_t(this->element_addr0(Rank, coords.data()), interface_typed());
     }
     template <typename... ind_types> API_EXPORT inline element_type const &get_raw(ind_types... inds) const
     {
-        static_assert(Rank == (sizeof...(ind_types)), "# of coords must match Rank");
+        static_assert(is_singular || Rank == (sizeof...(ind_types)), "# of coords must match Rank");
         const std::array<SIdx, Rank> coords = {{static_cast<SIdx>(inds)...}};
-        return *(element_type const *)this->element_addr(Rank, coords.data());
+        return *(element_type const *)this->element_addr0(Rank, coords.data());
     }
     template <typename... ind_types> API_EXPORT inline element_type &get_raw(ind_types... inds)
     {
-        static_assert(Rank == (sizeof...(ind_types)), "# of coords must match Rank");
+        static_assert(is_singular || Rank == (sizeof...(ind_types)), "# of coords must match Rank");
         const std::array<SIdx, Rank> coords = {{static_cast<SIdx>(inds)...}};
-        return *(element_type *)this->element_addr(Rank, coords.data());
+        return *(element_type *)this->element_addr0(Rank, coords.data());
     }
     template <typename... ind_types> API_EXPORT inline element_type const *get_raw_addr(ind_types... inds) const
     {
-        static_assert(Rank == (sizeof...(ind_types)), "# of coords must match Rank");
+        static_assert(is_singular || Rank == (sizeof...(ind_types)), "# of coords must match Rank");
         const std::array<SIdx, Rank> coords = {{static_cast<SIdx>(inds)...}};
-        return (element_type const *)this->element_addr(Rank, coords.data());
+        return (element_type const *)this->element_addr0(Rank, coords.data());
     }
     template <typename... ind_types> API_EXPORT inline element_type *get_raw_addr(ind_types... inds)
     {
-        static_assert(Rank == (sizeof...(ind_types)), "# of coords must match Rank");
+        static_assert(is_singular || Rank == (sizeof...(ind_types)), "# of coords must match Rank");
         const std::array<SIdx, Rank> coords = {{static_cast<SIdx>(inds)...}};
-        return (element_type *)this->element_addr(Rank, coords.data());
+        return (element_type *)this->element_addr0(Rank, coords.data());
     }
     API_EXPORT virtual uint32_t get_tensor_format_code() const noexcept override
     {
@@ -2722,11 +2997,22 @@ template <typename Tinfo> class ConcreteTensor : public LayoutTensor<typename Ti
     }
 
   protected:
+    // because this (may) need to return an "InterfaceRef" via iref pointer, it's defined
+    // here in the 'Concrete' class, but it uses the non-virtual 'element_addr0'
+    // in the LayoutTensor base class to find the address, and adds the InterfaceRef if
+    // requested.
+    API_EXPORT virtual ALWAYSINLINE void *
+    element_addr(size_t rank, const SIdx coords_in[],
+                 hnnx::InterfaceRef *const iref = nullptr) const noexcept final override
+    {
+        if (iref) *iref = interface_typed()->get_refobj();
+        return this->element_addr0(rank, coords_in);
+    }
     API_EXPORT virtual int compare_sametype(const Tensor *rhs_in) const override
     {
         // compare the interface, and then all the rest is done in compare_sametype_layout.
-        auto *rhs = static_cast<const ConcreteTensor *>(rhs_in);
-        int const icmp = interface().compare(rhs->interface());
+        auto *rhs = static_cast<ConcreteTensor const *>(rhs_in);
+        int const icmp = interface_typed()->compare(*rhs->interface_typed());
         if (icmp != 0) return icmp;
         return this->compare_sametype_layout(rhs);
     }
@@ -3017,23 +3303,6 @@ template <typename T> class TensorCIter {
     ~TensorCIter() {}
 };
 
-//----- to be removed start -----
-// HashTable tensor
-// EJP: FIXME in the future!
-// We want tensors in the future to be read-only
-// This has mutable members
-// Instead we will need to allocate the normal stuff in memory
-// And separately allocate a little extra in the per-instance mutable data pool for the mutable data
-// But for now we will just modify the tensor.
-template <typename Tinfo> class HashTableTensor : public ConcreteTensor<Tinfo> {
-  public:
-    //basically inherit constructors
-    using ConcreteTensor<Tinfo>::ConcreteTensor;
-    // Add extra scalar parameters for metadata: capacity, etc. Note these are mutable!
-    mutable uint32_t max_chain = 0; // EJP: FIXME: MUTABLE!
-};
-//----- to be removed end -----
-
 namespace Ldefs {
 template <unsigned elbytes> struct stype_for;
 template <> struct stype_for<1> {
@@ -3142,28 +3411,6 @@ template <typename T> API_FUNC_EXPORT constexpr const char *code_to_type_name()
     }                                                                                                                  \
     DEFINE_TYPENAMES(ConcreteTensor<Tdefs::NAME>, ENCODENAME);
 
-//----- to be removed start -----
-#define TENSORDEF_HASH(NAME, LAYOUTNAME, DTYPE, MCLASS, ENCODENAME)                                                    \
-    namespace Tdefs {                                                                                                  \
-    struct API_EXPORT NAME {                                                                                           \
-        using Lconfig = Ldefs::LAYOUTNAME;                                                                             \
-        using Tlayout = Lconfig::Tlayout;                                                                              \
-        using storage_type = Lconfig::storage_type;                                                                    \
-        using element_type = dtype_traits<DTYPE>::element_type;                                                        \
-        static_assert(sizeof(element_type) == sizeof(storage_type), "layout has wrong element size");                  \
-        using Interface_t = std::conditional_t<dtype_traits<DTYPE>::is_quant, ScaleOffsetInterface<element_type>,      \
-                                               PlainInterface<element_type>>;                                          \
-        static constexpr size_t Rank = Lconfig::Rank;                                                                  \
-        using Pad_t = Lconfig::Pad_t;                                                                                  \
-        static constexpr bool is_chunked = Lconfig::is_chunked;                                                        \
-        static constexpr bool is_indirect = Lconfig::is_indirect;                                                      \
-        static constexpr MemoryClass memclass = MCLASS;                                                                \
-        static constexpr const char *typetag = ENCODENAME;                                                             \
-    };                                                                                                                 \
-    }                                                                                                                  \
-    DEFINE_TYPENAMES(HashTableTensor<Tdefs::NAME>, ENCODENAME);
-//----- to be removed end -----
-
 #define TENSORDEF(NAME, LAYOUTNAME, DTYPE, ENCODENAME)                                                                 \
     TENSORDEF_MC(NAME, LAYOUTNAME, DTYPE, MemoryClass::Default, ENCODENAME)
 
@@ -3187,8 +3434,10 @@ LAYOUTDEF(WideCrouton_8, 1, R4WideCroutonLayout, Padding)
 LAYOUTDEF(WideCrouton2x2_8, 1, R4WideCrouton2x2Layout, Padding)
 LAYOUTDEF(WideCrouton_32, 4, R4WideCrouton4Layout, Padding)
 
-LAYOUTDEF(R4Depth32_32, 4, R4Depth32MemoryLayout, NoPadding)
-LAYOUTDEF(R4Depth32_32pad, 4, R4Depth32MemoryLayout, Padding)
+// UNUSED LAYOUTDEF(R4Depth32_32, 4, R4Depth32MemoryLayout, NoPadding)
+// UNUSED LAYOUTDEF(R4Depth32_32pad, 4, R4Depth32MemoryLayout, Padding)
+
+LAYOUTDEF(R4Singular_16, 2, R4SingularMemoryLayout, NoPadding)
 
 DEFINE_TYPENAME(LayoutTensor<Ldefs::Flat_8>, "yfB")
 DEFINE_TYPENAME(LayoutTensor<Ldefs::Flat5D_8>, "yf5B")
@@ -3202,6 +3451,8 @@ DEFINE_TYPENAME(LayoutTensor<Ldefs::Flat_64>, "yfL")
 DEFINE_TYPENAME(LayoutTensor<Ldefs::Crouton_8>, "ycB")
 DEFINE_TYPENAME(LayoutTensor<Ldefs::Crouton_16>, "ycH")
 DEFINE_TYPENAME(LayoutTensor<Ldefs::Crouton_32>, "ycI")
+
+DEFINE_TYPENAME(LayoutTensor<Ldefs::R4Singular_16>, "yqH")
 
 // 5D LAYOUTDEFs for Croutons
 // LAYOUTDEF(Crouton_8_5D, 1, R5CroutonLayout, Padding)
@@ -3236,6 +3487,7 @@ TENSORDEF_MC(QInt8Crouton_TCM, Crouton_8, DType::QInt8, MemoryClass::TCM, "Cb")
 TENSORDEF(QuantUint16, Flat_16, DType::QUInt16, "fH")
 TENSORDEF(QuantUint16_5D, Flat5D_16, DType::QUInt16, "f5H")
 TENSORDEF(QuantInt16, Flat_16, DType::QInt16, "fh")
+TENSORDEF(QuantInt16_5D, Flat5D_16, DType::QInt16, "f5h")
 TENSORDEF(QUint16Crouton, Crouton_16, DType::QUInt16, "cH")
 TENSORDEF(QInt16Crouton, Crouton_16, DType::QInt16, "ch")
 TENSORDEF(F16Crouton, Crouton_16, DType::Float16, "ce")
@@ -3246,6 +3498,7 @@ TENSORDEF(PlainFloat16_5D, Flat5D_16, DType::Float16, "f5e")
 TENSORDEF_MC(QuantUint16_TCM, Flat_16, DType::QUInt16, MemoryClass::TCM, "FH")
 TENSORDEF_MC(QuantUint16_5D_TCM, Flat5D_16, DType::QUInt16, MemoryClass::TCM, "F5H")
 TENSORDEF_MC(QuantInt16_TCM, Flat_16, DType::QInt16, MemoryClass::TCM, "Fh")
+TENSORDEF_MC(QuantInt16_5D_TCM, Flat5D_16, DType::QInt16, MemoryClass::TCM, "F5h")
 TENSORDEF_MC(QUint16Crouton_TCM, Crouton_16, DType::QUInt16, MemoryClass::TCM, "CH")
 TENSORDEF_MC(QInt16Crouton_TCM, Crouton_16, DType::QInt16, MemoryClass::TCM, "Ch")
 TENSORDEF_MC(F16Crouton_TCM, Crouton_16, DType::Float16, MemoryClass::TCM, "Ce")
@@ -3261,8 +3514,6 @@ TENSORDEF(QuantInt32, Flat_32, DType::QInt32, "fs")
 TENSORDEF(PlainFloat, Flat_32, DType::Float32, "ff")
 TENSORDEF(PlainFloat5D, Flat5D_32, DType::Float32, "f5f")
 TENSORDEF(QFloat, Flat_32, DType::Int32, "ft")
-TENSORDEF(D32Float, R4Depth32_32, DType::Float32, "rf")
-TENSORDEF(D32PaddedFloat, R4Depth32_32pad, DType::Float32, "pf")
 TENSORDEF(Int32Crouton, Crouton_32, DType::Int32, "ci")
 TENSORDEF(QInt32Crouton, Crouton_32, DType::QInt32, "cs")
 TENSORDEF(QInt32WideCrouton, WideCrouton_32, DType::QInt32, "ws")
@@ -3280,12 +3531,12 @@ TENSORDEF_MC(QFloat_TCM, Flat_32, DType::Int32, MemoryClass::TCM, "Ft")
 TENSORDEF_MC(Int32Crouton_TCM, Crouton_32, DType::Int32, MemoryClass::TCM, "Ci")
 TENSORDEF_MC(QFloatCrouton_TCM, Crouton_32, DType::Int32, MemoryClass::TCM, "Ct")
 TENSORDEF_MC(FloatCrouton_TCM, Crouton_32, DType::Float32, MemoryClass::TCM, "Cf")
-TENSORDEF_HASH(Int32Hash, Flat_32, DType::Int32, MemoryClass::Default, "o1i") // to be removed
-TENSORDEF_HASH(Int32Hash_TCM, Flat_32, DType::Int32, MemoryClass::TCM, "O1i") // to be removed
 
 // 64-bit
 TENSORDEF(Int64, Flat_64, DType::Int64, "fl")
 TENSORDEF_MC(Int64_TCM, Flat_64, DType::Int64, MemoryClass::TCM, "Fl")
+
+TENSORDEF(Predicate, R4Singular_16, DType::QUInt16, "qH")
 
 DEFINE_TYPENAMES(Vector<Tensor *>, "t*");
 DEFINE_TYPENAMES(TensorScalar<float>, "nf");
@@ -3313,8 +3564,6 @@ extern template class ConcreteTensor<Tdefs::PlainFloat16_5D>;
 extern template class ConcreteTensor<Tdefs::PlainFloat16_5D_TCM>;
 extern template class ConcreteTensor<Tdefs::QFloat>;
 extern template class ConcreteTensor<Tdefs::QFloat_TCM>;
-extern template class ConcreteTensor<Tdefs::D32Float>;
-extern template class ConcreteTensor<Tdefs::D32PaddedFloat>;
 extern template class ConcreteTensor<Tdefs::QuantUint8>;
 extern template class ConcreteTensor<Tdefs::QuantUint8_5D>;
 extern template class ConcreteTensor<Tdefs::QuantInt8>;
@@ -3322,7 +3571,9 @@ extern template class ConcreteTensor<Tdefs::QuantInt8_5D>;
 extern template class ConcreteTensor<Tdefs::QuantUint16>;
 extern template class ConcreteTensor<Tdefs::QuantUint16_5D>;
 extern template class ConcreteTensor<Tdefs::QuantInt16>;
+extern template class ConcreteTensor<Tdefs::QuantInt16_5D>;
 extern template class ConcreteTensor<Tdefs::QuantInt16_TCM>;
+extern template class ConcreteTensor<Tdefs::QuantInt16_5D_TCM>;
 extern template class ConcreteTensor<Tdefs::QuantInt32>;
 extern template class ConcreteTensor<Tdefs::QuantInt32_TCM>;
 extern template class ConcreteTensor<Tdefs::Int32>;
@@ -3356,6 +3607,7 @@ extern template class ConcreteTensor<Tdefs::QFloatCrouton>;
 extern template class ConcreteTensor<Tdefs::QFloatCrouton_TCM>;
 extern template class ConcreteTensor<Tdefs::FloatCrouton>;
 extern template class ConcreteTensor<Tdefs::FloatCrouton_TCM>;
+extern template class ConcreteTensor<Tdefs::Predicate>;
 
 // standard layouts are instantiated in tensor.h
 extern template class LayoutTensor<Ldefs::Flat_8>;
@@ -3368,6 +3620,16 @@ extern template class LayoutTensor<Ldefs::Crouton_8>;
 extern template class LayoutTensor<Ldefs::Crouton_16>;
 extern template class LayoutTensor<Ldefs::Crouton_32>;
 
+// shape and scalar tensor
+extern template class TensorShape<1>;
+extern template class TensorShape<2>;
+extern template class TensorShape<3>;
+extern template class TensorShape<4>;
+extern template class TensorShape<5>;
+
+extern template class TensorSclrDT<dtype_of_type<PlainInterface<float>>()>;
+extern template class TensorSclrDT<dtype_of_type<PlainInterface<NN_INT32_T>>()>;
+
 template <typename T> // FIXME  - alias for transition
 using TensorContiguous = ConcreteTensor<T>;
 
@@ -3376,8 +3638,6 @@ typedef ConcreteTensor<Tdefs::PlainFloat16_5D> PlainFloat16Tensor5D;
 typedef ConcreteTensor<Tdefs::PlainFloat5D> PlainFloatTensor5D;
 typedef ConcreteTensor<Tdefs::PlainFloat> PlainFloatTensor;
 typedef ConcreteTensor<Tdefs::PlainFloat16> PlainFloat16Tensor;
-typedef ConcreteTensor<Tdefs::D32Float> D32FloatTensor;
-typedef ConcreteTensor<Tdefs::D32PaddedFloat> D32PaddedFloatTensor;
 typedef ConcreteTensor<Tdefs::QuantUint8> QuantUint8Tensor;
 typedef ConcreteTensor<Tdefs::QuantUint8_5D> QuantUint8Tensor5D;
 typedef ConcreteTensor<Tdefs::QuantInt8> QuantInt8Tensor;
@@ -3385,6 +3645,7 @@ typedef ConcreteTensor<Tdefs::QuantInt8_5D> QuantInt8Tensor5D;
 typedef ConcreteTensor<Tdefs::QuantUint16> QuantUint16Tensor;
 typedef ConcreteTensor<Tdefs::QuantUint16_5D> QuantUint16Tensor5D;
 typedef ConcreteTensor<Tdefs::QuantInt16> QuantInt16Tensor;
+typedef ConcreteTensor<Tdefs::QuantInt16_5D> QuantInt16Tensor5D;
 typedef ConcreteTensor<Tdefs::QuantInt32> QuantInt32Tensor;
 typedef ConcreteTensor<Tdefs::Int32> Int32Tensor;
 typedef ConcreteTensor<Tdefs::Int32_5D> Int32Tensor5D;
@@ -3405,7 +3666,8 @@ typedef ConcreteTensor<Tdefs::QInt32WideCrouton> QInt32WideCroutonTensor;
 typedef ConcreteTensor<Tdefs::QUint8Crouton4x1> QUint8Crouton4x1Tensor;
 typedef ConcreteTensor<Tdefs::QUint8Crouton2x2> QUint8Crouton2x2Tensor;
 typedef ConcreteTensor<Tdefs::QFloat> QFloatTensor;
-typedef HashTableTensor<Tdefs::Int32Hash> Int32HashTableTensor; // to be removed
+
+typedef ConcreteTensor<Tdefs::Predicate> PredicateTensor;
 
 // These were once TensorContiguous
 typedef ConcreteTensor<Tdefs::PlainFloat> PlainFloatContiguousTensor;
@@ -3418,6 +3680,7 @@ struct ModifiedDerivedTypeParent {
     using PlainFloat16Tensor5D_TCM = PlainFloat16Tensor5D;
     using QFloatTensor_TCM = QFloatTensor;
     using QuantInt16Tensor_TCM = QuantInt16Tensor;
+    using QuantInt16Tensor5D_TCM = QuantInt16Tensor5D;
     using QuantInt32Tensor_TCM = QuantInt32Tensor;
     using QUint8CroutonTensor_TCM = QUint8CroutonTensor;
     using QInt8CroutonTensor_TCM = QInt8CroutonTensor;
@@ -3442,7 +3705,6 @@ struct ModifiedDerivedTypeParent {
     using Int32Tensor_TCM = Int32Tensor;
     using Int32Tensor5D_TCM = Int32Tensor5D;
     using Int64Tensor_TCM = Int64Tensor;
-    using Int32HashTableTensor_TCM = Int32HashTableTensor; // to be removed
 };
 
 /////////////////////////
@@ -3453,6 +3715,7 @@ typedef ConcreteTensor<Tdefs::PlainFloat16_TCM> PlainFloat16Tensor_TCM;
 typedef ConcreteTensor<Tdefs::PlainFloat16_5D_TCM> PlainFloat16Tensor5D_TCM;
 typedef ConcreteTensor<Tdefs::QFloat_TCM> QFloatTensor_TCM;
 typedef ConcreteTensor<Tdefs::QuantInt16_TCM> QuantInt16Tensor_TCM;
+typedef ConcreteTensor<Tdefs::QuantInt16_5D_TCM> QuantInt16Tensor5D_TCM;
 typedef ConcreteTensor<Tdefs::QuantInt32_TCM> QuantInt32Tensor_TCM;
 typedef ConcreteTensor<Tdefs::QUint8Crouton_TCM> QUint8CroutonTensor_TCM;
 typedef ConcreteTensor<Tdefs::QInt8Crouton_TCM> QInt8CroutonTensor_TCM;
@@ -3474,7 +3737,6 @@ typedef ConcreteTensor<Tdefs::QFloatCrouton_TCM> QFloatCroutonTensor_TCM;
 typedef ConcreteTensor<Tdefs::QUint8WideCrouton_TCM> QUint8WideCroutonTensor_TCM;
 typedef ConcreteTensor<Tdefs::QUint8WideCrouton2x2_TCM> QUint8WideCrouton2x2Tensor_TCM;
 typedef ConcreteTensor<Tdefs::QInt32WideCrouton_TCM> QInt32WideCroutonTensor_TCM;
-typedef HashTableTensor<Tdefs::Int32Hash_TCM> Int32HashTableTensor_TCM; // to be removed
 
 // These were once TensorContiguous
 typedef ConcreteTensor<Tdefs::Int32_TCM> Int32Tensor_TCM;
@@ -3507,11 +3769,11 @@ using TypicalTensors =
                    QuantInt32Tensor, Int32Tensor, Int32Tensor5D, Int32Tensor6D, QUint8CroutonTensor, QInt8CroutonTensor,
                    QUint8Crouton4x1Tensor, QUint8Crouton2x2Tensor, QUint16CroutonTensor, QInt16CroutonTensor,
                    QInt32CroutonTensor, QFloatTensor, QFloatCroutonTensor, Int32CroutonTensor, PlainFloat16Tensor_TCM,
-                   PlainFloat16Tensor5D, Int64Tensor, Int32HashTableTensor /*to be removed*/>;
+                   PlainFloat16Tensor5D, Int64Tensor, QuantInt16Tensor5D>;
 
 namespace hnnx {
 // these tensor types are 'pre-registered' for deserialize
-
+// clang-format off
 using CoreTensors =
         std::tuple<PlainFloatTensor, PlainFloatTensor5D, PlainFloat16Tensor, Int32Tensor, Int32Tensor5D, Int32Tensor6D,
                    PlainFloatTensor_TCM, PlainFloatTensor5D_TCM, Int32Tensor_TCM, QuantUint8Tensor, QuantUint8Tensor5D,
@@ -3522,10 +3784,13 @@ using CoreTensors =
                    QUint16CroutonTensor, QInt8CroutonTensor_TCM, QUint16CroutonTensor_TCM, QInt32CroutonTensor,
                    QInt16CroutonTensor, QInt16CroutonTensor_TCM, QInt32CroutonTensor_TCM, QInt32WideCroutonTensor,
                    QInt32WideCroutonTensor_TCM, QFloatTensor, QFloatCroutonTensor, Int32CroutonTensor,
-                   Int32CroutonTensor_TCM, D32FloatTensor, D32PaddedFloatTensor, F16CroutonTensor, F16CroutonTensor_TCM,
+                   Int32CroutonTensor_TCM,
+                   F16CroutonTensor, F16CroutonTensor_TCM,
                    QUint8WideCroutonTensor, QUint8WideCroutonTensor_TCM, QUint8Crouton2x2Tensor_TCM,
                    QUint8WideCrouton2x2Tensor_TCM, PlainFloat16Tensor_TCM, PlainFloat16Tensor5D, Int32Tensor5D_TCM,
-                   Int64Tensor, Int64Tensor_TCM, Int32HashTableTensor, Int32HashTableTensor_TCM /*to be removed*/>;
+                   Int64Tensor, Int64Tensor_TCM,
+                   QuantInt16Tensor5D_TCM, QuantInt16Tensor5D>;
+// clang-format on
 
 API_EXPORT const char *get_op_true_name(const Op *op);
 
@@ -3614,7 +3879,7 @@ template <typename TensorType> struct API_EXPORT tensor_generator_lookup {
             else {
                 debuglog(
                         "def.dtype %u, tensor_traits<TensorType>::dtype %u, def.rank %u, tensor_traits<TensorType>::rank %u",
-                        def.dtype, tensor_traits<TensorType>::dtype, def.rank,
+                        (unsigned)def.dtype, (unsigned)tensor_traits<TensorType>::dtype, def.rank,
                         unsigned(tensor_traits<TensorType>::rank));
             }
         }

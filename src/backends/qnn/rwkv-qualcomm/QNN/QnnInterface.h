@@ -1,10 +1,10 @@
-//=============================================================================
+//==============================================================================
 //
-//  Copyright (c) 2021-2024 Qualcomm Technologies, Inc.
-//  All Rights Reserved.
+//  Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+//  All rights reserved.
 //  Confidential and Proprietary - Qualcomm Technologies, Inc.
 //
-//=============================================================================
+//==============================================================================
 
 /**
  *  @file
@@ -207,6 +207,10 @@ typedef Qnn_ErrorHandle_t (*QnnContext_CreateFromBinaryListAsyncFn_t)(
     const QnnContext_Config_t** listConfig,
     Qnn_SignalHandle_t signal);
 
+/** @brief See QnnContext_finalize()*/
+typedef Qnn_ErrorHandle_t (*QnnContext_FinalizeFn_t)(Qnn_ContextHandle_t context,
+                                                     Qnn_ProfileHandle_t profile);
+
 /** @brief See QnnContext_getBinarySectionSize()*/
 typedef Qnn_ErrorHandle_t (*QnnContext_GetBinarySectionSizeFn_t)(
     Qnn_ContextHandle_t context,
@@ -235,6 +239,17 @@ typedef Qnn_ErrorHandle_t (*QnnContext_ApplyBinarySectionFn_t)(
 /** @brief See QnnContext_getProperty()*/
 typedef Qnn_ErrorHandle_t (*QnnContext_GetPropertyFn_t)(Qnn_ContextHandle_t contextHandle,
                                                         QnnContext_Property_t** properties);
+
+/** @brief See QnnContext_getIncrementalBinary()*/
+typedef Qnn_ErrorHandle_t (*QnnContext_GetIncrementalBinaryFn_t)(
+    Qnn_ContextHandle_t context,
+    const void** binaryBuffer,
+    Qnn_ContextBinarySize_t* startOffset,
+    Qnn_ContextBinarySize_t* writtenBufferSize);
+
+/** @brief See QnnContext_releaseIncrementalBinary()*/
+typedef Qnn_ErrorHandle_t (*QnnContext_ReleaseIncrementalBinaryFn_t)(
+    Qnn_ContextHandle_t context, const void* binaryBuffer, Qnn_ContextBinarySize_t startOffset);
 //
 // From QnnGraph.h
 //
@@ -534,6 +549,9 @@ typedef struct {
   QnnContext_ApplyBinarySectionFn_t         contextApplyBinarySection;
   QnnBackend_GetPropertyFn_t                backendGetProperty;
   QnnContext_GetPropertyFn_t                contextGetProperty;
+  QnnContext_GetIncrementalBinaryFn_t       contextGetIncrementalBinary;
+  QnnContext_ReleaseIncrementalBinaryFn_t   contextReleaseIncrementalBinary;
+  QnnContext_FinalizeFn_t                   contextFinalize;
 } QNN_INTERFACE_VER_TYPE;
 
 /// QNN_INTERFACE_VER_TYPE initializer macro
@@ -602,6 +620,9 @@ typedef struct {
   NULL, /*contextApplyBinarySection*/ \
   NULL, /*backendGetProperty*/ \
   NULL, /*contextGetProperty*/ \
+  NULL, /*contextGetIncrementalProperty*/ \
+  NULL, /*contextReleaseIncrementalProperty*/ \
+  NULL, /*contextFinalize*/ \
 }
 
 typedef struct {

@@ -316,6 +316,7 @@ inline void ALWAYSINLINE pause_just_enough()
 #if (__HEXAGON_ARCH__ >= 73)
     //    asm volatile("pause(#1023)");
     asm volatile("pause(#255)");
+// LCOV_EXCL_START [SAFTYSWCCB-1735]
 #elif (__HEXAGON_ARCH__ >= 69)
     asm volatile("pause(#128)");
 #else
@@ -324,6 +325,7 @@ inline void ALWAYSINLINE pause_just_enough()
     asm volatile("%0 = add(pc,#8); jumpr %0;" : : "r"(tmp));
     asm volatile("%0 = add(pc,#8); jumpr %0;" : : "r"(tmp));
     asm volatile("%0 = add(pc,#8); jumpr %0;" : : "r"(tmp));
+// LCOV_EXCL_STOP
 #endif
 }
 
@@ -584,7 +586,9 @@ inline HVX_Vector uint64_to_float(HVX_VectorPair bigval)
 #if HEX_ARCH >= 73
     return uint64_to_float(Q6_V_hi_W(bigval), Q6_V_lo_W(bigval));
 #else
+    // LCOV_EXCL_START [SAFTYSWCCB-1735]
     return Q6_Vsf_equals_Vqf32(uint64_to_qfloat(Q6_V_hi_W(bigval), Q6_V_lo_W(bigval)));
+    // LCOV_EXCL_STOP
 #endif
 }
 
@@ -664,6 +668,7 @@ template <bool RND> static inline HVX_Vector convert_sf_to_s32_core(HVX_Vector v
     // Can use the fancy new intrinsic for this!
     return Q6_Vw_equals_Vsf(vals);
 #else
+    // LCOV_EXCL_START [SAFTYSWCCB-1735]
     const HVX_Vector const_zero = Q6_V_vzero();
     const HVX_Vector const_7fffff = Q6_V_vsplat_R(0x7fffff);
     const HVX_Vector const_800000 = Q6_V_vsplat_R(0x800000);
@@ -695,6 +700,7 @@ template <bool RND> static inline HVX_Vector convert_sf_to_s32_core(HVX_Vector v
     HVX_Vector v_neg = Q6_V_vand_QR(p_neg, -1); // 0xFFFFFFFF in -ve lanes, 0 in >=0
     mant = Q6_V_vxor_VV(Q6_Vw_vadd_VwVw(mant, v_neg), v_neg);
     return mant;
+    // LCOV_EXCL_STOP
 #endif // HEX_ARCH >= 73
 }
 
@@ -721,11 +727,13 @@ template <bool RND> static inline HVX_Vector convert_hf_to_s16_core(HVX_Vector v
         return Q6_Vh_equals_Vhf(vals);
     }
 #else
+    // LCOV_EXCL_START [SAFTYSWCCB-1735]
     if constexpr (RND) {
         return hnnx::s16_from_hf_rnd_sat<0>(vals);
     } else {
         return hnnx::s16_from_hf_sat<0>(vals);
     }
+    // LCOV_EXCL_STOP
 #endif // HEX_ARCH >= 73
 }
 
@@ -746,63 +754,10 @@ static inline HVX_Vector convert_s32_to_sf(const HVX_Vector vals)
 #if HEX_ARCH >= 73
     return Q6_Vsf_equals_Vw(vals);
 #else
+    // LCOV_EXCL_START [SAFTYSWCCB-1735]
     return int32_to_float(vals);
+    // LCOV_EXCL_STOP
 #endif
-}
-
-// Apply a saturating left shift on a vector of i32 values, will detect if the shift caused overflow
-// And apply saturation in such cases
-inline HVX_Vector ALWAYSINLINE q6op_Vw_vasl_VwVw_sat(const HVX_Vector vin, const HVX_Vector vshift)
-{
-    // Step 0: construct saturation vector constants
-    // Both of these should be hoisted by the compiler
-    const HVX_Vector vi32_max = Q6_V_vsplat_R(0x7FFFFFFF);
-    const HVX_Vector vi32_min = Q6_V_vnot_V(vi32_max);
-    // Step 1a: determine saturation vector to use, based on the sign of the input vector
-    const HVX_VectorPred qlt_zero = Q6_Q_vcmp_gt_VwVw(Q6_V_vzero(), vin);
-    const HVX_Vector vsat = Q6_V_vmux_QVV(qlt_zero, vi32_min, vi32_max);
-    // Step 1b: shift the vector, allowing overflow to occur
-    const HVX_Vector vshift_unsafe = Q6_Vw_vasl_VwVw(vin, vshift);
-    // Saturation required if the sign flipped
-    // This can be checked, by XOR'ing the pre and post shifted values
-    // If the result has the sign bit set, then the sign was flipped during the shift
-    const HVX_VectorPred qsat = Q6_Q_vcmp_gt_VwVw(Q6_V_vzero(), Q6_V_vxor_VV(vshift_unsafe, vin));
-    return Q6_V_vmux_QVV(qsat, vsat, vshift_unsafe);
-}
-
-// Early versions of the V79 Toolchain are unable to compile the Q6_Vuh_vasr_WwVuh_rnd_sat intrinsic
-// This define is used to force all hardware versions to use the synthetic version
-// To enable short term testing
-#define ALLOW_INTRINSIC_SHIFT 1
-
-// Q6_Vuh_vasr_WwVuh_rnd_sat was introduced in V69
-// This function allows us to implement the functionality of Q6_Vuh_vasr_WwVuh_rnd_sat
-// On earlier targets, while simply using Q6_Vuh_vasr_WwVuh_rnd_sat directly when able
-inline HVX_Vector ALWAYSINLINE q6op_Vuh_vasr_WwVuh_rnd_sat(const HVX_VectorPair win, const HVX_Vector vshift)
-{
-#if HEX_ARCH >= 69 && ALLOW_INTRINSIC_SHIFT
-    // Instruction available, use intrinsic function
-    return Q6_Vuh_vasr_WwVuh_rnd_sat(win, vshift);
-#else
-    // Instruction unavailable, implement functionality
-    // Q6_Vuh_vasr_WwVuh_rnd_sat computes:
-    // out = usat_16((in + (1 << (shift - 1))) >> shift)
-    // For each output element
-    // We can achieve this by first perform a non-narrowing shift by shift - 1
-    // Then perform a narrowing shift with rounding and saturation, with a shift amount of 1
-    // Or a narrowing shift with saturation and a shift amount of 0 (if the original shift amount was 0)
-    const HVX_Vector vone = Q6_V_vsplat_R(1);
-    const HVX_Vector vshift_lo = Q6_Vh_vshuffe_VhVh(Q6_V_vzero(), vshift);
-    const HVX_Vector vshift_hi = Q6_Vh_vshuffo_VhVh(Q6_V_vzero(), vshift);
-    const HVX_Vector vshift_lo_adjusted = Q6_Vuw_vsub_VuwVuw_sat(vshift_lo, vone);
-    const HVX_Vector vshift_hi_adjusted = Q6_Vuw_vsub_VuwVuw_sat(vshift_hi, vone);
-    const HVX_Vector vin_shifted_lo = Q6_Vw_vasr_VwVw(Q6_V_lo_W(win), vshift_lo_adjusted);
-    const HVX_Vector vin_shifted_hi = Q6_Vw_vasr_VwVw(Q6_V_hi_W(win), vshift_hi_adjusted);
-    const HVX_VectorPred qshift_type = Q6_Q_vcmp_gt_VuhVuh(vshift, Q6_V_vzero());
-    const HVX_Vector vshift_rnd_sat = Q6_Vuh_vasr_VwVwR_rnd_sat(vin_shifted_hi, vin_shifted_lo, 1);
-    const HVX_Vector vshift_sat = Q6_Vuh_vasr_VwVwR_sat(vin_shifted_hi, vin_shifted_lo, 0);
-    return Q6_V_vmux_QVV(qshift_type, vshift_rnd_sat, vshift_sat);
-#endif // HEX_ARCH >= 69 && ALLOW_INTRINSIC_SHIFT
 }
 
 #if defined(__hexagon__)

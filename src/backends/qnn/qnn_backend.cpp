@@ -5,6 +5,9 @@
 #include <any>
 
 #ifdef ENABLE_QNN
+#include "qnn_backend.h"
+#include "commondef.h"
+#include "soc_detect.h"
 #include "PAL/DynamicLoading.hpp"
 #include "DynamicLoadUtil.hpp"
 #include "DataUtil.hpp"
@@ -15,9 +18,6 @@
 #include <HTP/QnnHtpGraph.h>
 #include <HTP/QnnHtpContext.h>
 #include <QnnContext.h>
-#include "qnn_backend.h"
-#include "commondef.h"
-#include "soc_detect.h"
 #endif
 
 #include "logger.h"

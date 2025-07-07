@@ -34,10 +34,12 @@ inline char const *get_opname_with_pkg_prefix(std::string &tmp, char const *opst
     return tmp.c_str();
 }
 
+// LCOV_EXCL_START [SAFTYSWCCB-1542]
 inline bool opname_has_pkg_prefix(char const *opstr)
 {
     return strstr(opstr, "::") != nullptr;
 }
+// LCOV_EXCL_STOP
 
 API_C_FUNC std::string API_FUNC_NAME(get_default_pkg_name)();
 

@@ -174,7 +174,7 @@ enum class Variant : int {
 };
 // in this namespace, ECtx is the type whose reference gets passed
 // to all the eval methods and std::function objects.
-typedef constraint_lib::Constraint const ECtx;
+typedef constraint_lib::Constraint ECtx;
 // sFunction<T>:  std::function returning T (using ECtx as a parameter)
 //
 template <typename T> using sFunction = OptFunction<T(ECtx &)>;
@@ -371,28 +371,7 @@ inline constexpr auto make_binop(A a, expr<Variant::value, TB> b, OPER op)
 // expands recursively until IDX=N-1
 //
 template <Variant VAR, size_t IDX, typename OPERANDS>
-inline bool ALWAYSINLINE reduce_logop(ECtx &e, OPERANDS const &operands)
-{
-    static constexpr size_t N = std::tuple_size_v<OPERANDS>;
-    // find the first one.
-    bool result_i = std::get<IDX>(operands).eval(e);
-    if constexpr (IDX + 1 >= N) { // it's the last one .. we're done
-        return result_i;
-    } else if constexpr (VAR == Variant::lg_xor) {
-        // must xor with the rest
-        return result_i ^ reduce_logop<VAR, IDX + 1, OPERANDS>(e, operands);
-    } else {
-        if constexpr (VAR == Variant::lg_and) {
-            if (!result_i) return false; // short-cut AND if false
-        } else if constexpr (VAR == Variant::lg_or) {
-            if (result_i) return true; // short-cut OR if true
-        } else {
-            static_assert(false && IDX, "bad variant!?");
-        }
-        // evaluate the rest.
-        return reduce_logop<VAR, IDX + 1, OPERANDS>(e, operands);
-    }
-}
+inline bool ALWAYSINLINE reduce_logop(ECtx &e, OPERANDS const &operands);
 
 // || operator (delayed eval of subexpressions)
 //

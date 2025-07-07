@@ -1,6 +1,6 @@
 //==============================================================================
 //
-//  Copyright (c) 2022-2024 Qualcomm Technologies, Inc.
+//  Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 //  All Rights Reserved.
 //  Confidential and Proprietary - Qualcomm Technologies, Inc.
 //
@@ -94,7 +94,181 @@ extern "C" {
  */
 #define QNN_HTP_PROFILE_EVENTTYPE_GRAPH_FINALIZE_ACCEL_TIME_MICROSEC 2003
 
+/* Graph Performance Estimate Support
+ *
+ **/
+/**
+ * @brief QnnProfile_EventType_t definition to get profile information
+ *        that corresponds to Performance Estimates for the graph
+ *        when client invokes QnnGraph_finalize.
+ *        This is just a dummy event which will print only the heading
+ *        with no value  or unit.
+ * @note HTP Performance Estimates maybe available on both
+ *       QNN_PROFILE_LEVEL_BASIC and QNN_PROFILE_LEVEL_DETAILED levels
+ */
+#define QNN_HTP_PROFILE_EVENTTYPE_GRAPH_FINALIZE_PERF_ESTIMATE 2004
 
+/**
+ * @brief QnnProfile_EventType_t definition to get perf mode at which
+ *        the perf estimates are collected during QnnGraph_finalize.
+ *        The value returned is the perf mode in string with no unit.
+ *
+ * @note Perf mode maybe available on both
+ *       QNN_PROFILE_LEVEL_BASIC and QNN_PROFILE_LEVEL_DETAILED levels
+ */
+#define QNN_HTP_PROFILE_EVENTTYPE_GRAPH_FINALIZE_PERF_ESTIMATE_MODE 2005
+
+/**
+ * @brief QnnProfile_EventType_t definition to get profile information
+ *        that corresponds to simulated execution cycles during
+ *        QnnGraph_finalize.
+ *        The value returned is number of cycles.
+ *
+ * @note Simulated execution cycles maybe available on both
+ *       QNN_PROFILE_LEVEL_BASIC and QNN_PROFILE_LEVEL_DETAILED levels
+ */
+#define QNN_HTP_PROFILE_EVENTTYPE_GRAPH_FINALIZE_PERF_ESTIMATE_SIM_EXEC_CYCLES 2006
+
+/**
+ * @brief QnnProfile_EventType_t definition to get profile information
+ *        that corresponds to a lower estimate of simulated execution
+ *        cycles during QnnGraph_finalize.
+ *        The value returned is number of cycles.
+ *
+ * @note Simulated execution cycles lower estimate maybe available on both
+ *       QNN_PROFILE_LEVEL_BASIC and QNN_PROFILE_LEVEL_DETAILED levels
+ */
+#define QNN_HTP_PROFILE_EVENTTYPE_GRAPH_FINALIZE_PERF_ESTIMATE_SIM_EXEC_LOWER_CYCLES 2007
+
+/**
+ * @brief QnnProfile_EventType_t definition to get profile information
+ *        that corresponds to a upper estimate of simulated execution
+ *        cycles during QnnGraph_finalize.
+ *        The value returned is number of cycles.
+ *
+ * @note Simulated execution cycles upper estimate maybe available on both
+ *       QNN_PROFILE_LEVEL_BASIC and QNN_PROFILE_LEVEL_DETAILED levels
+ */
+#define QNN_HTP_PROFILE_EVENTTYPE_GRAPH_FINALIZE_PERF_ESTIMATE_SIM_EXEC_UPPER_CYCLES 2008
+
+/**
+ * @brief QnnProfile_EventType_t definition to get profile information
+ *        that corresponds to DDR information for each HTP during
+ *        QnnGraph_finalize.
+ *        This is just a dummy event which will print only the heading
+ *        with no value  or unit.
+ *
+ * @note DDR Information for each HTP maybe available on both
+ *       QNN_PROFILE_LEVEL_BASIC and QNN_PROFILE_LEVEL_DETAILED levels
+ */
+#define QNN_HTP_PROFILE_EVENTTYPE_GRAPH_FINALIZE_PERF_ESTIMATE_BANDWIDTH_STATS 2009
+
+/**
+ * @brief QnnProfile_EventType_t definition to get profile information
+ *        that corresponds to the HTP ID on chip during QnnGraph_finalize.
+ *        The value returned is the HTP ID with no unit.
+ *
+ * @note HTP ID's maybe available on both
+ *       QNN_PROFILE_LEVEL_BASIC and QNN_PROFILE_LEVEL_DETAILED levels
+ */
+#define QNN_HTP_PROFILE_EVENTTYPE_GRAPH_FINALIZE_PERF_ESTIMATE_BANDWIDTH_STATS_HTP_ID 2010
+
+/**
+ * @brief QnnProfile_EventType_t definition to get profile information
+ *        that corresponds to the Graph defined inputs or the total reads
+ *        (in bytes) from DDR for graph input related tensors (weights,
+ *        bias, activations) which do not have predecessors.
+ *        The value returned is the num of blocks in bytes.
+ *
+ * @note Graph defined inputs for each HTP maybe available on both
+ *       QNN_PROFILE_LEVEL_BASIC and QNN_PROFILE_LEVEL_DETAILED levels
+ */
+#define QNN_HTP_PROFILE_EVENTTYPE_GRAPH_FINALIZE_PERF_ESTIMATE_INPUT_FILL 2011
+
+/**
+ * @brief QnnProfile_EventType_t definition to get profile information
+ *        that corresponds to the total reads (in bytes) from DDR for
+ *        compiler generated fill operators which have predecessors and
+ *        successors and originate on the same HTP.
+ *        The value returned is the num of blocks in bytes.
+ *
+ * @note Intermediate Fill Information for each HTP maybe available on both
+ *       QNN_PROFILE_LEVEL_BASIC and QNN_PROFILE_LEVEL_DETAILED levels
+ */
+#define QNN_HTP_PROFILE_EVENTTYPE_GRAPH_FINALIZE_PERF_ESTIMATE_INTERMEDIATE_FILL 2012
+
+/**
+ * @brief QnnProfile_EventType_t definition to get profile information
+ *        that corresponds to the total writes (in bytes) from DDR for
+ *        compiler generated fill operators which have predecessors and
+ *        successors and originate on the same HTP.
+ *        The value returned is the num of blocks in bytes.
+ *
+ * @note Intermediate Spill Information for each HTP maybe available on both
+ *       QNN_PROFILE_LEVEL_BASIC and QNN_PROFILE_LEVEL_DETAILED levels
+ */
+#define QNN_HTP_PROFILE_EVENTTYPE_GRAPH_FINALIZE_PERF_ESTIMATE_INTERMEDIATE_SPILL 2013
+
+/**
+ * @brief QnnProfile_EventType_t definition to get profile information
+ *        that corresponds to the total reads (in bytes) from DDR for
+ *        fills which were generated by a different HTP core and do not
+ *        have a predecessor, but have a successor.
+ *        The value returned is the num of blocks in bytes.
+ *
+ * @note Inter HTP Fill Information for each HTP maybe available on both
+ *       QNN_PROFILE_LEVEL_BASIC and QNN_PROFILE_LEVEL_DETAILED levels
+ */
+#define QNN_HTP_PROFILE_EVENTTYPE_GRAPH_FINALIZE_PERF_ESTIMATE_INTER_HTP_FILL 2014
+
+/**
+ * @brief QnnProfile_EventType_t definition to get profile information
+ *        that corresponds to the total writes (in bytes) from DDR for
+ *        fills which were generated by a different HTP core and do not
+ *        have a successor, but have a predecessor.
+ *        The value returned is the num of blocks in bytes.
+ *
+ * @note Inter HTP Spill Information for each HTP maybe available on both
+ *       QNN_PROFILE_LEVEL_BASIC and QNN_PROFILE_LEVEL_DETAILED levels
+ */
+#define QNN_HTP_PROFILE_EVENTTYPE_GRAPH_FINALIZE_PERF_ESTIMATE_INTER_HTP_SPILL 2015
+
+/**
+ * @brief QnnProfile_EventType_t definition to get profile information
+ *        that corresponds to the total writes (in bytes) to DDR for
+ *        graph output related tensors which do not have successors.
+ *        The value returned is the num of blocks in bytes.
+ *
+ * @note Graph output related tensors for each HTP maybe available on both
+ *       QNN_PROFILE_LEVEL_BASIC and QNN_PROFILE_LEVEL_DETAILED levels
+ */
+#define QNN_HTP_PROFILE_EVENTTYPE_GRAPH_FINALIZE_PERF_ESTIMATE_OUTPUT_SPILL 2016
+
+/**
+ * @brief QnnProfile_EventType_t definition to get profile information
+ *        that corresponds to the total number of missing ops which do
+ *        not have any cost associated with them while getting the graph
+ *        performance estimates.
+ *        The value returned is the num of missing ops with no unit.
+ *
+ * @note Number of missing cost ops maybe available on both
+ *       QNN_PROFILE_LEVEL_BASIC and QNN_PROFILE_LEVEL_DETAILED levels
+ */
+#define QNN_HTP_PROFILE_EVENTTYPE_GRAPH_FINALIZE_PERF_ESTIMATE_MISSING_COST_OPS 2017
+
+/**
+ * @brief QnnProfile_EventType_t definition to get profile information
+ *        that corresponds to the op ids of the missing ops which do
+ *        not have any cost associated with them while getting the graph
+ *        performance estimates.
+ *        The value returned is the opname along with the op id (decimal
+ *        format) of the ops which does not have any costs associated
+ *        with them.
+ *
+ * @note Opname and Op ids of missing cost ops are available only with
+ *       QNN_PROFILE_LEVEL_DETAILED levels
+ */
+#define QNN_HTP_PROFILE_EVENTTYPE_GRAPH_FINALIZE_PERF_ESTIMATE_MISSING_COST_OPID 2018
 
 /**
  * @brief QnnProfile_EventType_t definition to get profile information

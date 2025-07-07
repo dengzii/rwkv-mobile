@@ -1,6 +1,6 @@
 //==============================================================================
 //
-// Copyright (c) 2020-2023 Qualcomm Technologies, Inc.
+// Copyright (c) Qualcomm Technologies, Inc.
 // All Rights Reserved.
 // Confidential and Proprietary - Qualcomm Technologies, Inc.
 //
@@ -59,14 +59,20 @@ void op_serialize_common(Serializer &sctx, Op const *op, std::type_info const *a
 static constexpr unsigned OP_SEQNO_MARKER_XOR = 0x1303ee71u;
 static constexpr unsigned OP_SEQNO_MARKER_MASK = 0x1FFFFFFFu; // upper 3 bits reserved for flags.
 static constexpr unsigned OP_SEQNO_PRELOAD_FLAG = 0x80000000u;
-// if this bit is set in the sequence word, it means one or more 'extended addribute'
+// if this bit is set in the sequence word, it means one or more 'extended attribute'
 // words follow.
 static constexpr unsigned OP_SEQNO_EXTATTR_FLAG = 0x40000000u;
 // The general format for 'extended attribute' word is;
 //  bits 30..24 tell you what it means, and
 //   bit 31 tells you it's not the last one.
-// The only defined one is '1' in bits 30..24, which means the following Op is 'self-slicing'
 static constexpr unsigned OP_EXTATTR_SELF_SLICING = 0x1; // 8 LSBs = # of slices (>=2)
+
+// bits 23..0 points to the index of predicate conditions
+// bits 30..24 tell you what it means
+// bit 31 tell you that you are are not the last one
+static constexpr unsigned OP_EXTATTR_PREDICATE = 0x2;
+// Getting the last 24 bits. It contains the predicate offset and the sense
+static constexpr unsigned OP_PRED_OFFSET_SENSE_MASK = 0x00ffffff;
 
 } // namespace hnnx
 

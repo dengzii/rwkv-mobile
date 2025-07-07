@@ -163,6 +163,12 @@ POP_VISIBILITY()
  * having to return a funcgtion<OpRef(OpDef &)> and all the lambda stuff
  */
 
+// Need separate function because underlying std::map of opdef_map_t is protected
+template <typename opdef_map_t, typename OpId_t> inline bool exists(opdef_map_t const &m, const OpId_t &test)
+{
+    return m.find(test) != m.end();
+}
+
 template <template <typename, typename> class C, typename K, typename V>
 inline bool exists(C<K, V> const &m, const K &test)
 {
@@ -1006,7 +1012,6 @@ class Match : public GraphOptContext_Base {
     OptimFilter optim_filter; // used for WITH_OPT_DEBUG; empty otherwise
     MatchOpState matchop_state;
     bool pending_show_replacement = false;
-    GraphOptInfo const *curr_rule_info = 0; // only used in WITH_OPT_DEBUG
 
     // op_id_counter is saved here before 'replace'; after replace, any
     // OpId which are >= this in the upper 32 bits are 'new'.
@@ -1024,6 +1029,7 @@ class Match : public GraphOptContext_Base {
 
   public:
     API_EXPORT void replacement_succeed(OpId newop);
+    GraphOptInfo const *curr_rule_info = 0; // only used in WITH_OPT_DEBUG
 
   public:
     // this can be used to test whether an OpId was created since the replacement
@@ -1145,6 +1151,22 @@ class Constraint : public hnnx::Match {
     template <typename UniqueType> static ReplFuncBool constraint();
     typedef ReplFuncBool (*constraintfn_type)();
     friend class tiling::TileShapeBase;
+
+#ifdef WITH_OPT_DEBUG
+    // This is current state associated with
+    // evaluation of a logical operator (and, or)
+    // inside a predicated
+    struct TraceState {
+        unsigned depth; // depth in the expression tree, 1 is the outermost and or or
+        unsigned clause; // cluse number within that and/or, starting with 0
+        const char *op; // operator type, "and" or "or"
+        bool result; // result
+    };
+    // Current evaluate state
+    TraceState trace{0, 0, "", false};
+    // History of evaluations
+    std::vector<TraceState> trace_vector;
+#endif
 };
 
 } // namespace constraint_lib
@@ -1215,6 +1237,34 @@ class Replacement : public Constraint {
     Replacement(GraphPrepare &g) : Constraint(g), m_curr_op(NULL) {}
 
   public:
+    struct ReplacedId {
+      private:
+        OpId replaced_id = 0;
+
+      public:
+        ReplacedId() {} // = default;
+
+        bool inline is_set() const { return replaced_id != 0; }
+        bool inline is_clear() const { return replaced_id == 0; }
+
+        void inline set(OpId replaced_id_in)
+        {
+            assert(replaced_id_in != 0);
+            assert(is_clear());
+            replaced_id = replaced_id_in;
+        }
+        void inline clear()
+        {
+            assert(is_set());
+            replaced_id = 0;
+        }
+        OpId inline get() const
+        {
+            assert(is_set());
+            return replaced_id;
+        }
+    };
+
     API_EXPORT auto find_context(hnnx::split_context_tag_t tag)
     {
         auto cur = split_context.rbegin();
@@ -1230,24 +1280,7 @@ class Replacement : public Constraint {
     }
     hnnx::MatchOpState &get_matchop_state() { return matchop_state; }
     OpRef match_root() const { return matchop_state.bound_opref[0]; }
-    API_EXPORT OpRef do_replacement(const OpDef &oldop, ReplFunc const &replace_func)
-    {
-        try {
-            OpRef const newop_ref = replace_func(*this, oldop);
-            // if(oldop.id != newop_ref.input_id)
-            //     replacement_succeed(newop_ref.input_id); // hook for debug
-            return newop_ref;
-        } catch (SkipAutosplit &e) {
-            // We encountered an autosplit rule that should
-            // be ignored because we are using centralized
-            // tiling instead. Just return the original node
-#ifdef WITH_DEBUG_OPT
-            debuglog("TILE: skip autothread %s", curr_rule_info->get_debug_filepos().c_str());
-#endif
-            return OpRef(oldop.id);
-        }
-    }
-
+    API_EXPORT OpRef do_replacement(const OpDef &oldop, ReplFunc const &replace_func);
     API_EXPORT static void set_pkg_flag(std::string &s) { pkg_flag = s; }
 
   private:
@@ -1740,6 +1773,36 @@ class Replacement : public Constraint {
     API_EXPORT OpRef do_OP_ITER(OpDef const &old, OpDef const &base_op, Split_Context &splitinfo, int lo_index,
                                 int hi_index, ReplFunc const &f);
 
+    /// \ingroup OptReplacement
+    /// @brief INHERIT_MEMOS_FROM(refexp, expr) - evaluate 'expr' inheriting any persistent memos from 'refexp'
+
+    API_EXPORT void do_INHERIT_MEMOS(const OpDef &old, OpDef &newdef);
+
+    API_HIDDEN inline static ReplFunc INHERIT_MEMOS_FROM(ReplFunc_or_Operand &&ref, ReplFunc_general &&f)
+    {
+        return ReplFunc::create([=](Replacement &rpx, const OpDef &old) -> OpRef {
+            OpRef const ref_id = ref(rpx, old);
+            OpRef new_id = f(rpx, old);
+            rpx.do_INHERIT_MEMOS(ref_id.dereference(rpx), new_id.dereference(rpx));
+            return new_id;
+        });
+    }
+
+    /// \ingroup OptReplacement
+    /// @brief WITH_MEMOS(refexp, expr) - evaluate 'expr' using 'refexp' for persistant memos
+
+    API_EXPORT void do_WITH_MEMOS(const OpDef &old, OpDef &newdef);
+
+    API_HIDDEN inline static ReplFunc WITH_MEMOS(ReplFunc_or_Operand &&ref, ReplFunc_general &&f)
+    {
+        return ReplFunc::create([=](Replacement &rpx, const OpDef &old) -> OpRef {
+            OpRef const ref_id = ref(rpx, old);
+            OpRef new_id = f(rpx, old);
+            rpx.do_WITH_MEMOS(ref_id.dereference(rpx), new_id.dereference(rpx));
+            return new_id;
+        });
+    }
+
     // this is basically a SHAPEFN_APPLY for a function with no other inputs.
     // We still want to bind it into a std::function.
 
@@ -1871,10 +1934,13 @@ class Replacement : public Constraint {
   public:
     OpDef const &curr_op() const { return *m_curr_op; }
 
-    API_EXPORT static OpRef gen_node(const hnnx::opname_tag_t str, std::vector<OpRef> const &inputs, const OpDef &old,
-                                     char const *package_name = THIS_PKG_NAME_STR, const OpDef *model = nullptr);
     API_EXPORT static OpRef gen_node(const hnnx::opname_tag_t str, size_t n_in, OpRef const *inputs, const OpDef &old,
                                      char const *package_name = THIS_PKG_NAME_STR, const OpDef *model = nullptr);
+    static inline OpRef gen_node(const hnnx::opname_tag_t str, std::vector<OpRef> const &inputs, const OpDef &old,
+                                 char const *package_name = THIS_PKG_NAME_STR, const OpDef *model = nullptr)
+    {
+        return gen_node(str, inputs.size(), inputs.data(), old, package_name, model);
+    }
     // allow {opref1, opref2} for 'inputs' (without becoming std::vector)
     static inline OpRef gen_node(const hnnx::opname_tag_t str, std::initializer_list<OpRef> inputs, const OpDef &old,
                                  char const *package_name = THIS_PKG_NAME_STR, const OpDef *model = nullptr)
@@ -1939,7 +2005,7 @@ class GraphOptContext : public Replacement {
   public:
     GraphOptContext(GraphPrepare &g) : Replacement(g) {}
     void set_rule(GraphOptInfo const *const Rule) { curr_rule_info = Rule; }
-    API_EXPORT bool attempt(GraphOptInfo const &, OpDef &oldop);
+    API_EXPORT OpId attempt(GraphOptInfo const &, OpDef &oldop);
 };
 
 class entire_defopt {
@@ -1983,6 +2049,8 @@ class GraphOptInfo {
     // should get a link error (at least on "add_package_opt").
     char const *debug_filename = nullptr;
     int debug_lineno = 0;
+
+    bool is(unsigned flag) const { return flags & flag; }
 
   protected:
     // this is done in populate_optimization_map, for all optims.
@@ -2369,6 +2437,9 @@ DECLARE_PACKAGE_OPTIMIZATION_DEF()
 // see docs/def_opt_migration.md to understand how DEF_OPT
 // rules were initially put into these ranges.
 
+// Anything that we need to do before we start optimizing things away
+#define PRE_OPTIMIZATION 50
+
 // Rewriting that needs to happen to clean up to prepare for translation
 #define CLEANUP_GRAPH 100
 
@@ -2418,6 +2489,10 @@ DECLARE_PACKAGE_OPTIMIZATION_DEF()
 // Graph rewriting for actual op implementations, specializations, and their requirements.
 // What was once LATE+0 through LATE+9 is often this kind of thing.
 #define HARD_OPS 20000
+
+// Move data to TCM and remove unnecessary data moves.
+// Perhaps, eventually accomplished by different infrastructure.
+#define BEFORE_TCM_MIGRATION 20800
 
 // Move data to TCM and remove unnecessary data moves.
 // Perhaps, eventually accomplished by different infrastructure.

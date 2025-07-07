@@ -290,6 +290,7 @@ class OpDef : public OpDefFlags {
     API_EXPORT inline hnnx::splithist_t get_splithist() const { return splithist; }
     API_EXPORT inline void set_splithist(hnnx::splithist_t val) { splithist = val; }
     API_EXPORT inline void set_splithist(OpDef const &other) { splithist = other.splithist; }
+    API_EXPORT inline void inherit_memos(AnyGraphContext, OpDef const &other);
     // with 0 or 1 output (output_def_in may be null)
     API_EXPORT OpDef(GraphPrepare &graph_in, OpId my_id_in, hnnx::opname_tag_parm_t opstr_in,
                      std::vector<OpRef> &&input_defs_in, OutputDef const *output_def_in, hnnx::splithist_t sl)

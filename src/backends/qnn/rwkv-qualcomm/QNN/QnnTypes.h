@@ -753,6 +753,14 @@ typedef struct {
 #define QNN_TENSOR_DATA_FORMAT_UBWC_NV12_UV 7
 
 /**
+ * @brief Tensor data formatted in native HMX weight format. This data format is desgined
+ *        specifically for HMX weights.
+ *        This format only supports the following datatype for now:
+ *        UFIXED_UINT_8 with offset=128.
+*/
+#define QNN_TENSOR_DATA_FORMAT_HMX_WEIGHT_LAYOUT 8
+
+/**
  * @brief Tensor data format identifier. The default format
  *        QNN_TENSOR_DATA_FORMAT_DENSE is supported by all backends. Backends may also support
  *        QNN_TENSOR_DATA_FORMAT_SPARSE or QNN_TENSOR_DATA_FORMAT_CODEBOOK.

@@ -1,6 +1,6 @@
 //==============================================================================
 //
-// Copyright (c) 2023-2024 Qualcomm Technologies, Inc.
+// Copyright (c) Qualcomm Technologies, Inc.
 // All Rights Reserved.
 // Confidential and Proprietary - Qualcomm Technologies, Inc.
 //
@@ -179,6 +179,12 @@ constexpr std::pair<unsigned, unsigned> OpExtraInfo_size_align = {24, 8};
 constexpr std::pair<unsigned, unsigned> slice_dispatch_op_size_align(unsigned const nslices, bool const exact = false)
 {
     return {tgt_sizet_bytes * ((op_has_graphp ? 5 : 4) + 3 * Executable::MAX_OP_SLICES), tgt_sizet_bytes};
+}
+
+// The size of a Predicated Op
+constexpr std::pair<unsigned, unsigned> pred_op_size_align()
+{
+    return {tgt_sizet_bytes * ((op_has_graphp ? 5 : 4) + 3), tgt_sizet_bytes};
 }
 
 // this is used in e.g.

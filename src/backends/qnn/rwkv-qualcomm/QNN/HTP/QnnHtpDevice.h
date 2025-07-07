@@ -1,6 +1,6 @@
 //=============================================================================
 //
-//  Copyright (c) 2022-2024 Qualcomm Technologies, Inc.
+//  Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 //  All Rights Reserved.
 //  Confidential and Proprietary - Qualcomm Technologies, Inc.
 //
@@ -18,7 +18,6 @@
 #include "QnnDevice.h"
 #include "QnnHtpPerfInfrastructure.h"
 #include "QnnTypes.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,8 +33,7 @@ typedef enum {
   QNN_HTP_DEVICE_ARCH_V73     = 73,
   QNN_HTP_DEVICE_ARCH_V75     = 75,
   QNN_HTP_DEVICE_ARCH_V79     = 79,
-  
-
+  QNN_HTP_DEVICE_ARCH_V81     = 81,
   QNN_HTP_DEVICE_ARCH_UNKNOWN = 0x7fffffff
 } QnnHtpDevice_Arch_t;
 
@@ -57,12 +55,22 @@ typedef struct {
 } QnnHtpDevice_UseSignedProcessDomain_t;
 
 /**
+ * data struture to configure a device to running in Secure/normal Domain.
+ * running in secure process domain is only supported in V81.
+ */
+typedef struct {
+  uint32_t deviceId;
+  bool useSecureProcessDomain;
+} QnnHtpDevice_UseSecureProcessDomain_t;
+
+/**
  * enum to list what custom configure is available.
  */
 typedef enum {
   QNN_HTP_DEVICE_CONFIG_OPTION_SOC      = 0,
   QNN_HTP_DEVICE_CONFIG_OPTION_ARCH     = 1,
   QNN_HTP_DEVICE_CONFIG_OPTION_SIGNEDPD = 2,
+  QNN_HTP_DEVICE_CONFIG_OPTION_SECUREPD = 3,
   QNN_HTP_DEVICE_CONFIG_OPTION_UNKNOWN  = 0x7fffffff
 } QnnHtpDevice_ConfigOption_t;
 
@@ -76,8 +84,10 @@ typedef struct {
     uint32_t socModel;
     // This field update the minimum HTP arch
     QnnHtpDevice_Minimum_Arch_t arch;
-    // This structure is used for enable/disable Signed/unsigned PD
+    // This structure is used for enabling/disabling Signed/unsigned PD
     QnnHtpDevice_UseSignedProcessDomain_t useSignedProcessDomain;
+    // This structure is used for enabling Secure PD
+    QnnHtpDevice_UseSecureProcessDomain_t useSecureProcessDomain;
   };
 } QnnHtpDevice_CustomConfig_t;
 
@@ -87,20 +97,20 @@ typedef enum {
   QNN_HTP_DEVICE_TYPE_UNKNOWN = 0x7fffffff
 } QnnHtpDevice_DeviceType_t;
 
-
 /**
  * @brief QNN HTP Device core type
  * This enumeration provides information about the core type inside the SOC.
  *
- * For online operation, the caller should retrieve this information from `QnnDevice_getPlatformInfo`.
- * For offline operation, the caller needs to create a `QnnDevice_CoreInfo_t` with the correct core type,
- * and then use it to create the `QnnDevice_PlatformInfo_t`.
+ * For online operation, the caller should retrieve this information from
+ * `QnnDevice_getPlatformInfo`. For offline operation, the caller needs to create a
+ * `QnnDevice_CoreInfo_t` with the correct core type, and then use it to create the
+ * `QnnDevice_PlatformInfo_t`.
  */
 typedef enum {
-  QNN_HTP_CORE_TYPE_NSP     = 0,
-  
+  QNN_HTP_CORE_TYPE_NSP   = 0,
+  QNN_HTP_CORE_TYPE_HPASS = 1,
 
-  //supported coreType are < QNN_CORE_TYPE_MAX
+  // supported coreType are < QNN_CORE_TYPE_MAX
   QNN_HTP_CORE_TYPE_MAX,
   QNN_HTP_CORE_TYPE_UNKNOWN = 0x7fffffff
 } QnnHtpDevice_CoreType_t;

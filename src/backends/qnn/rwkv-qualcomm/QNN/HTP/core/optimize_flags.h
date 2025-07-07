@@ -59,8 +59,54 @@ struct OptimFlags {
         // This is used to specify rules only used when centralized TCM is in use.
         tcm_migration_new_flag = flagbit<16>::val,
         cp_after_if = flagbit<17>::val, // trigger CP when the rule succeeds
-        prepare_aux_graph = flagbit<18>::val // is this an aux graph prepare?
+        prepare_aux_graph = flagbit<18>::val, // is this an aux graph prepare?
+        autothread_flag = flagbit<19>::val, // Always set the autothread flag
+        trace_rule = flagbit<20>::val, // extra diagnosic tracing on a rule.
     };
+
+    /*
+The trace_rule flag is used to enable extra debugging
+for a rule to debug predicates. It should only be used
+in development and not commited to the mainline branch.
+
+It requires WITH_OPT_DEBUG to be defined.
+Adding trace_rule to a rule such as
+
+DEF_OPTIM(SPATIAL_RESHAPE+100, trace_rule,
+	Op("ConvLayer","Activations","Weights","Stride","Bias","Scale","ConvCtrl","OutCtrl"),
+	AND(
+		OR( EQ(ZERO_OFFSET_OF("Weights"), 128), OPTION_BOOL("hmx_short_conv_flag")),
+		OR(IS_QUINT8("Activations"), IS_QUINT16("Activations")),
+		AND(
+			NOT( AND( EQ(DIM_HEIGHT("Stride"),1), EQ(DIM_WIDTH("Stride"),1)) ),
+			NOT( AND( EQ(DIM_HEIGHT("Stride"),2), EQ(DIM_WIDTH("Stride"),2)) ),
+			NOT( AND( EQ(DIM_HEIGHT("Stride"),4), EQ(DIM_WIDTH("Stride"),4), EQ( DIM_FILTHEIGHT("Weights"), 3), EQ( DIM_FILTWIDTH("Weights"), 3)))
+		)
+	),
+
+might generate this output:
+
+optimize.cc:101:conv.cc:1875 attempt 0x140d0000001d q::ConvLayer
+optimize.cc:115:0x140d0000001d predicate depth 2 or clause 1 result=1
+optimize.cc:115:0x140d0000001d predicate depth 2 or clause 0 result=1
+optimize.cc:115:0x140d0000001d predicate depth 3 and clause 1 result=1
+optimize.cc:115:0x140d0000001d predicate depth 2 and clause 0 result=0
+optimize.cc:115:0x140d0000001d predicate depth 1 and clause 2 result=0
+
+here the "depth" field indicate the position in the expression tree of 
+and AND or OR operator with the outermost such operation being a 1. 
+The clause term identifies the operator of that operator numbered left-to-right
+starting with 0. Result is the result of evaluating that cluase.
+
+Note that we stop evaluating an "AND" or "OR" once we determine its result.
+Thus, for an "AND" we generally will list only one clause and all preceding
+clauses are known to be "true". Similarly we list only one clause for an "OR"
+and preceding clauses are known to be "false"
+
+Happy hunting
+
+*/
+
     // :::<OPTIMFLAG_SYMBOLS
 
     // To clarify cse_set_triggerA etc:

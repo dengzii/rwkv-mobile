@@ -1,3 +1,4 @@
+
 //==============================================================================
 //
 // Copyright (c) Qualcomm Technologies, Inc.
@@ -191,14 +192,19 @@ template <unsigned FLAGS, typename T> struct tile_support_flags_for {
 //  (and any such types, hopefully all, can have 'fast' support).
 //
 // We support:
-//  - only with rank 4, and with unsupported storage_type
+//  - only with rank 4, and with supported storage_type
 //  - any flat;
-//  - no 'contiguous chunked' tensors;
+//  - no 'contiguous chunked' tensors; and no 'is_singular' tensors;
 //  - any 'normal' crouton (i.e. no 'wide' crouton)
 //
 template <typename Linfo> constexpr bool tile_support_test_for_linfo()
 {
     using storage_type = typename Linfo::storage_type;
+    // Note: this condition could be 'tensor_traits<LayoutTensor<Linfo>>::is_singular'
+    // but we can't instantiate LayoutTensor<Linfo> here, due to the way some gtests work.
+    if constexpr (std::is_same_v<typename Linfo::Tlayout, SingularMemoryLayout<Linfo::Rank>>) {
+        return false;
+    }
     if constexpr (Linfo::Rank != 4 ||
                   !(std::is_same_v<storage_type, uint8_t> || std::is_same_v<storage_type, uint16_t> ||
                     std::is_same_v<storage_type, NN_UINT32_T>)) {
@@ -665,7 +671,7 @@ template <DType DT> class TileStoreWindowTensor : public FakeTensor {
     using element_type = typename dtype_traits<DT>::element_type;
     static constexpr unsigned Rank = 4;
     TileStoreWindow<sizeof(element_type)> ts_window;
-    Interface const &intfc;
+    hnnx::InterfaceRef const intfc;
 
   public:
     struct traits {
@@ -703,15 +709,17 @@ template <DType DT> class TileStoreWindowTensor : public FakeTensor {
     }
 
   protected:
-    API_EXPORT virtual void *element_addr(size_t rank, SIdx const coords_in[]) const noexcept override
+    API_EXPORT virtual void *element_addr(size_t rank, SIdx const coords_in[],
+                                          hnnx::InterfaceRef *iref = nullptr) const noexcept override
     {
         assert(rank == Rank);
+        if (iref) *iref = intfc;
         return ts_window.element_addr(coords_in);
     }
 
   public:
     API_EXPORT virtual size_t rank() const noexcept override { return Rank; }
-    API_EXPORT virtual Interface const &interface() const noexcept override final { return intfc; }
+    API_EXPORT virtual hnnx::InterfaceRef interface() const noexcept override final { return intfc; }
     API_EXPORT virtual size_t dim(size_t index) const noexcept override { return ts_window.win_dim(index); }
     API_EXPORT virtual std::pair<size_t const *, size_t> get_dims() const noexcept override
     {
@@ -742,7 +750,11 @@ template <DType DT> class TileStoreWindowTensor : public FakeTensor {
     // AMINE TODO: update TileStoreWindowBase to handle valid dims correctly
     virtual inline DynamicStatus get_dynamic_state() const override { return DynamicStatus::ValidData; }
 
-    API_EXPORT virtual DTypeScaleOff get_dtype_intfc() const noexcept override { return DTypeScaleOff(DT, intfc); }
+    API_EXPORT virtual DTypeScaleOff get_dtype_intfc() const noexcept override
+    {
+        // @@FIXME - could be resolved at compile time by mapping DT->Interface_t
+        return DTypeScaleOff(DT, *intfc.get_qparms());
+    }
 
     API_EXPORT virtual void write_tile(unsigned flags, void const *buffer, size_t b, int h, int w, int d) override final
     {

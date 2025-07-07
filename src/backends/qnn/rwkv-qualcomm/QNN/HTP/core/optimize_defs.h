@@ -277,7 +277,8 @@
            SMART_EARLY_WIDTH_S2(ACT_STR, WEIGHT_STR, OUT_STR, TCMSIZE, 8),                                             \
            SMART_EARLY_WIDTH_S2(ACT_STR, WEIGHT_STR, OUT_STR, TCMSIZE, 16))
 
-#define FLAT_TENSOR_SIZE(T) MUL(ELEMENTSIZE_OF(T), DIM_BATCHES(T), DIM_HEIGHT(T), DIM_WIDTH(T), DIM_DEPTH(T))
+#define FLAT_TENSOR_SIZE(T)                                                                                            \
+    ROUNDUP(MUL(ELEMENTSIZE_OF(T), DIM_BATCHES(T), DIM_HEIGHT(T), DIM_WIDTH(T), DIM_DEPTH(T)), 2048)
 
 // Tile the width based on the input and output size
 // for channel_shuffle op.
@@ -430,6 +431,9 @@
 #define SHOULD_TILE(...) OR(OPTION_BOOL("central_tiler"), AND(__VA_ARGS__))
 
 // if u8, w>8 && w%8 == 0
+// if u16, h == 1 && (w == 8 || w == 16), reshape into h_new = w/4, w_new = 4, in order to utilize
+// the low power implementation of convolution
+// else
 // if u16, w>4 && w%4 == 0, not fully utilizing the crouton, but still much better performance
 // TODO: Will remove the second rule once the space rearrange is fully implemented to reshape
 // the entire model from Input toward the output
@@ -439,8 +443,11 @@
 
 #define HEIGHTX_SHAPE(OPSTR)                                                                                           \
     SELECT(EQ(REM(DIM_WIDTH(OPSTR), TILE_HEIGHT), 0),                                                                  \
-           gen_Shape(DIM_BATCHES(OPSTR), MUL(DIM_HEIGHT(OPSTR), TILE_HEIGHT), DIV(DIM_WIDTH(OPSTR), TILE_HEIGHT),      \
-                     DIM_DEPTH(OPSTR)),                                                                                \
+           SELECT(AND(EQ(DIM_HEIGHT(OPSTR), 1), LE(DIM_WIDTH(OPSTR), 16), IS_QUINT16(OPSTR),                           \
+                      NOT(OPTION_BOOL("dynamic_graph_input"))),                                                        \
+                  gen_Shape(DIM_BATCHES(OPSTR), DIV(DIM_WIDTH(OPSTR), 4), 4, DIM_DEPTH(OPSTR)),                        \
+                  gen_Shape(DIM_BATCHES(OPSTR), MUL(DIM_HEIGHT(OPSTR), TILE_HEIGHT),                                   \
+                            DIV(DIM_WIDTH(OPSTR), TILE_HEIGHT), DIM_DEPTH(OPSTR))),                                    \
            SELECT(EQ(REM(DIM_WIDTH(OPSTR), 4), 0),                                                                     \
                   gen_Shape(DIM_BATCHES(OPSTR), MUL(DIM_HEIGHT(OPSTR), 4), DIV(DIM_WIDTH(OPSTR), 4),                   \
                             DIM_DEPTH(OPSTR)),                                                                         \
@@ -448,7 +455,10 @@
 
 #define HEIGHT84_SHAPE(OPSTR)                                                                                          \
     SELECT(EQ(REM(DIM_WIDTH(OPSTR), TILE_HEIGHT), 0),                                                                  \
-           gen_Shape(DIM_BATCHES(OPSTR), TILE_HEIGHT, DIV(DIM_WIDTH(OPSTR), TILE_HEIGHT), DIM_DEPTH(OPSTR)),           \
+           SELECT(AND(EQ(DIM_HEIGHT(OPSTR), 1), LE(DIM_WIDTH(OPSTR), 16), IS_QUINT16(OPSTR),                           \
+                      NOT(OPTION_BOOL("dynamic_graph_input"))),                                                        \
+                  gen_Shape(DIM_BATCHES(OPSTR), DIV(DIM_WIDTH(OPSTR), 4), 4, DIM_DEPTH(OPSTR)),                        \
+                  gen_Shape(DIM_BATCHES(OPSTR), TILE_HEIGHT, DIV(DIM_WIDTH(OPSTR), TILE_HEIGHT), DIM_DEPTH(OPSTR))),   \
            gen_Shape(DIM_BATCHES(OPSTR), 4, DIV(DIM_WIDTH(OPSTR), 4), DIM_DEPTH(OPSTR)))
 
 // Only perform reshape from height to width when the height is huge

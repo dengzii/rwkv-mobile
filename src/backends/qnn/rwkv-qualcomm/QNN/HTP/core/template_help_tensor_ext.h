@@ -1,6 +1,6 @@
 //==============================================================================
 //
-// Copyright (c) 2021, 2023 Qualcomm Technologies, Inc.
+// Copyright (c) Qualcomm Technologies, Inc.
 // All Rights Reserved.
 // Confidential and Proprietary - Qualcomm Technologies, Inc.
 //
@@ -29,8 +29,8 @@ template <> inline constexpr uint8_t tensor_idx<PlainFloatTensor> = 2;
 template <> inline constexpr uint8_t tensor_idx<PlainFloatTensor_TCM> = 3;
 template <> inline constexpr uint8_t tensor_idx<PlainFloat16Tensor> = 4;
 template <> inline constexpr uint8_t tensor_idx<PlainFloat16Tensor_TCM> = 5;
-template <> inline constexpr uint8_t tensor_idx<D32FloatTensor> = 6;
-template <> inline constexpr uint8_t tensor_idx<D32PaddedFloatTensor> = 7;
+// REMOVED template <> inline constexpr uint8_t tensor_idx<D32FloatTensor> = 6;
+// REMOVED template <> inline constexpr uint8_t tensor_idx<D32PaddedFloatTensor> = 7;
 template <> inline constexpr uint8_t tensor_idx<Int32Tensor> = 8;
 template <> inline constexpr uint8_t tensor_idx<Int32Tensor_TCM> = 9;
 template <> inline constexpr uint8_t tensor_idx<Int32CroutonTensor> = 10;
@@ -68,10 +68,15 @@ template <> inline constexpr uint8_t tensor_idx<TensorShape<4>> = 40;
 
 template <> inline constexpr uint8_t tensor_idx<F16CroutonTensor> = 41;
 template <> inline constexpr uint8_t tensor_idx<F16CroutonTensor_TCM> = 42;
+
+template <> inline constexpr uint8_t tensor_idx<PredicateTensor> = 43;
+
 // all tensor types supported in op package ops
+// clang-format off
 using AllTensors =
         std::tuple<Tensor, Tensor, PlainFloatTensor, PlainFloatTensor_TCM, PlainFloat16Tensor, PlainFloat16Tensor_TCM,
-                   D32FloatTensor, D32PaddedFloatTensor, Int32Tensor, Int32Tensor_TCM, Int32CroutonTensor,
+                   Tensor, Tensor, // REMOVED: D32FloatTensor, D32PaddedFloatTensor,
+                   Int32Tensor, Int32Tensor_TCM, Int32CroutonTensor,
                    Int32CroutonTensor_TCM, QuantUint8Tensor, QuantUint8Tensor_TCM, QuantInt8Tensor, QuantInt8Tensor_TCM,
                    QuantUint16Tensor, QuantUint16Tensor_TCM, QuantInt16Tensor, QuantInt16Tensor_TCM, QuantInt32Tensor,
                    QuantInt32Tensor_TCM, QUint8CroutonTensor, QUint8CroutonTensor_TCM, QInt8CroutonTensor,
@@ -79,7 +84,10 @@ using AllTensors =
                    QUint8Crouton2x2Tensor_TCM, QUint8WideCroutonTensor, QUint8WideCroutonTensor_TCM,
                    QUint8WideCrouton2x2Tensor, QUint8WideCrouton2x2Tensor_TCM, QUint16CroutonTensor,
                    QUint16CroutonTensor_TCM, QInt32CroutonTensor, QInt32CroutonTensor_TCM, QInt32WideCroutonTensor,
-                   QInt32WideCroutonTensor_TCM, TensorShape<4>, F16CroutonTensor, F16CroutonTensor_TCM>;
+                   QInt32WideCroutonTensor_TCM, TensorShape<4>, F16CroutonTensor, F16CroutonTensor_TCM
+                   , PredicateTensor
+                   >;
+// clang-format on
 
 struct tensor_info {
     std::type_info const *tid;

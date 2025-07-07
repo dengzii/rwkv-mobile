@@ -121,6 +121,9 @@ dynamicloadutil::StatusCode dynamicloadutil::getQnnFunctionPointers(
     }
   } else {
     rwkvmobile::LOGI("Model wasn't loaded from a shared library.");
+    if (nullptr != modelHandleRtn) {
+      *modelHandleRtn = nullptr;
+    }
   }
   return StatusCode::SUCCESS;
 }

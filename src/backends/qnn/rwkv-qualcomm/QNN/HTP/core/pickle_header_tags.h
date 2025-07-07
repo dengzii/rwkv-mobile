@@ -8,6 +8,7 @@
 
 #ifndef PICKLE_HEADER_TAGS_H_
 #define PICKLE_HEADER_TAGS_H_
+#include <algorithm> // std::min(...)
 
 enum HTP_header_const {
     Hdr_MAGIC = 0x7309F72B,
@@ -29,12 +30,17 @@ enum HTP_header_const {
     HdrTag_PATCH_METADATA = 0x2AFF5A2B,
     HdrTag_CONSTPOOL = 'C' + 256 * 'p',
     HdrTag_QUANT_PARAM_UPDATE = 'Q' + 256 * 'u',
+    HdrTag_QUANT_PARAM_UPDATE_MC = 'Q' + 256 * 'm', // Quant param for multicore
     HdrTag_ENDHDR = 'Z' + 256 * 'z',
 
     // size of field, in bytes, specifying the names within the Sw tag
     CBNAME_LEN = 45,
     // size of field, in bytes, including final NULL, specifying the names within the Sw tag
     LEN_SHARED_BUFFER_NAME = CBNAME_LEN + 1,
+
+    POOLDESC_IS_REPLACEABLE = 8, // const pool constructed as 'replaceable'
+    POOLDESC_IS_DEHYDRATED = 64, // pool requires const graph rehydration
+    POOLDESC_MC_CONST = 15, // represent Const data
 };
 
 #ifdef __cplusplus

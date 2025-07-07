@@ -1,7 +1,7 @@
 //=============================================================================
 //
-//  Copyright (c) 2019-2024 Qualcomm Technologies, Inc.
-//  All Rights Reserved.
+//  Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+//  All rights reserved.
 //  Confidential and Proprietary - Qualcomm Technologies, Inc.
 //
 //=============================================================================
@@ -101,6 +101,8 @@ typedef void (*QnnLog_Callback_t)(const char* fmt,
  * @brief Create a handle to a logger object. This function can be
  *        called before QnnBackend_create().
  *
+ * @warning With different logging level enabled, the inference time may vary.
+ *
  * @param[in] callback Callback to handle backend-generated logging messages. NULL indicates
  *                     backend may direct log messages to the default log stream on the target
  *                     platform when possible (e.g. to logcat in case of Android).
@@ -127,6 +129,8 @@ Qnn_ErrorHandle_t QnnLog_create(QnnLog_Callback_t callback,
 
 /**
  * @brief A function to change the log level for the supplied log handle.
+ *
+ * @warning With different logging level enabled, the inference time may vary.
  *
  * @param[in] logger A log handle.
  *

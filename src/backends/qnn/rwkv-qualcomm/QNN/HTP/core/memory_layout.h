@@ -1,6 +1,6 @@
 //==============================================================================
 //
-// Copyright (c) 2020 Qualcomm Technologies, Inc.
+// Copyright (c) Qualcomm Technologies, Inc.
 // All Rights Reserved.
 // Confidential and Proprietary - Qualcomm Technologies, Inc.
 //
@@ -18,7 +18,7 @@
  * Rewrite memory layout
  *
  * Use more recursion for less complexity at each level
- * 
+ *
  * Separate Offset and Index for use by non-contiguous tensor representations
  */
 
@@ -36,6 +36,7 @@ static inline constexpr bool is_power_of_two(unsigned long in)
  * member functions are not constexpr, which is true if you have pre-c++17 header
  * files...
  */
+// LCOV_EXCL_START [SAFTYSWCCB-1736] constexprs resolved during compile time
 template <typename T, size_t Rank, size_t... I>
 static inline constexpr std::array<T, Rank> make_stdarray_helper(const T val, std::index_sequence<I...>)
 {
@@ -47,16 +48,17 @@ template <typename T, size_t Rank> static inline constexpr std::array<T, Rank> m
 {
     return make_stdarray_helper<T, Rank>(val, std::make_index_sequence<Rank>{});
 }
+// LCOV_EXCL_STOP
 
 } // namespace hnnx
 
-/* 
+/*
  * We use std::get in a lot of places below because operator[] is not constexpr
  * if you have pre-C++17 system header files
  */
 
 /*
- * The base template... do not use 
+ * The base template... do not use
  */
 template <size_t... Stuff> struct ChunkedMemoryLayout {
     //static_assert(false,"Oops: matched generic base. Please use specialized templates.");
@@ -70,6 +72,8 @@ template <size_t RankVal> struct ChunkedMemoryLayout<RankVal> {
     static constexpr std::array<size_t, Rank> ChunkSizes = hnnx::make_stdarray<size_t, Rank>(1);
     static constexpr size_t chunk_total = 1;
     static constexpr bool is_valid_chunk = true;
+    static constexpr unsigned inner_dim = 99; // invalid value
+
     static inline constexpr size_t chunk_offset(const std::array<size_t, Rank> &padded_coords,
                                                 const std::array<size_t, Rank> &dims_total)
     {
@@ -103,6 +107,8 @@ struct ChunkedMemoryLayout<RankVal, Dim, ChunkSize, Rest...> {
     static_assert((ChunkSize == 0) || hnnx::is_power_of_two(ChunkSize));
     static_assert((ChunkSize == 0) || Smaller::is_valid_chunk);
     static constexpr bool is_valid_chunk = ((ChunkSize > 0) && (Smaller::is_valid_chunk));
+    // inner_dim is the fastest_moving 'outer dim' - i.e. the last one to appear with a 0 chunksize.
+    static constexpr unsigned inner_dim = ((ChunkSize == 0) && Smaller::is_valid_chunk) ? Dim : Smaller::inner_dim;
     static constexpr std::array<size_t, Rank> embiggen_chunksize(const std::array<size_t, Rank> smaller_chunksize)
     {
         std::array<size_t, Rank> out = smaller_chunksize;
@@ -113,7 +119,7 @@ struct ChunkedMemoryLayout<RankVal, Dim, ChunkSize, Rest...> {
     static constexpr size_t chunk_total = ChunkSize ? Smaller::chunk_total * ChunkSize : Smaller::chunk_total;
     /* Where in the chunk is this element? */
     /*
-	 *  FIXME sooner than later: recommendation to return std::pair or similar of chunk_index and chunk_offset 
+	 *  FIXME sooner than later: recommendation to return std::pair or similar of chunk_index and chunk_offset
 	 * Can keep compatibility easily enough with a single wrapper.
 	 */
     static inline constexpr size_t chunk_offset(const std::array<size_t, Rank> &padded_coords,
@@ -186,12 +192,13 @@ struct ChunkedMemoryLayout<RankVal, Dim, ChunkSize, Rest...> {
 
 // Simplified case,
 // E.g. FlatMemoryLayout<4>
-//  equiv to ChunkedMemoryLayout<4, 0,0, 0,1, 0,2, 0,3>
+//  equiv to ChunkedMemoryLayout<4, 0,0, 1,0, 2,0, 3,0>
 
 template <size_t RankVal> struct FlatMemoryLayout {
     static constexpr size_t Rank = RankVal;
     static constexpr std::array<size_t, Rank> ChunkSizes = hnnx::make_stdarray<size_t, Rank>(1);
     static constexpr size_t chunk_total = 1;
+    static constexpr unsigned inner_dim = Rank - 1;
     static inline constexpr size_t chunk_offset(const std::array<size_t, Rank> &padded_coords,
                                                 const std::array<size_t, Rank> &dims_total)
     {
@@ -222,12 +229,43 @@ template <size_t RankVal> struct FlatMemoryLayout {
         return blocks;
     }
 };
-class R4FlatMemoryLayout : public FlatMemoryLayout<4> {
-}; //NHWC
-class R5FlatMemoryLayout : public FlatMemoryLayout<5> {
-}; //NHWDC
-class R6FlatMemoryLayout : public FlatMemoryLayout<6> {
+using R4FlatMemoryLayout = FlatMemoryLayout<4>; //NHWC
+using R5FlatMemoryLayout = FlatMemoryLayout<5>; //NHWDC
+using R6FlatMemoryLayout = FlatMemoryLayout<6>;
+
+/////////////
+// SingularMemoryLayout is a layout of given rank which contains
+// a single value (the dimensions are ignored).
+
+template <size_t RankVal> struct SingularMemoryLayout {
+    static constexpr size_t Rank = RankVal;
+    static constexpr std::array<size_t, Rank> ChunkSizes = hnnx::make_stdarray<size_t, Rank>(1);
+    static constexpr size_t chunk_total = 1;
+    static constexpr unsigned inner_dim = Rank - 1;
+    static inline constexpr size_t chunk_offset(const std::array<size_t, Rank> &padded_coords,
+                                                const std::array<size_t, Rank> &dims_total)
+    {
+        return 0;
+    }
+    static inline constexpr size_t chunk_index(const std::array<size_t, Rank> &padded_coords,
+                                               const std::array<size_t, Rank> &dims_total)
+    {
+        return 0;
+    }
+    static inline constexpr size_t linear_offset(const std::array<size_t, Rank> &padded_coords,
+                                                 const std::array<size_t, Rank> &dims_total)
+    {
+        return 0;
+    }
+    static inline constexpr std::array<size_t, Rank> pad(const std::array<size_t, Rank> dims_in) { return dims_in; }
+    static inline constexpr size_t num_blocks(const std::array<size_t, Rank> max_dims) { return 1; }
 };
+using R4SingularMemoryLayout = SingularMemoryLayout<4>;
+
+// Note : I think we could use typedefs instead of subclass for all of these;
+// a long time ago, when the layout information was mangled into tensor types,
+// we changed from typedefs to trivial subclassing to shorten those names, but
+// that's no longer an issue.
 
 class R4NCHWMemoryLayout : public ChunkedMemoryLayout<4, 0, 0, 3, 0, 2, 0, 1, 0> {
 }; // NCHW
@@ -269,7 +307,6 @@ class R4Weights8x4Layout : public ChunkedMemoryLayout<4, 0, 0, 1, 0, 3, 0, 2, 0,
 class R5CroutonLayout : public ChunkedMemoryLayout<5, 0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 2, 8, 3, 8, 4, 32> {
 };
 
-//typedef FlatMemoryLayout<4> R4FlatMemoryLayout; // NHWC
 //typedef ChunkedMemoryLayout<4, 0,0, 3,0, 2,0, 1,0> R4NCHWMemoryLayout; // NCHW
 //typedef ChunkedMemoryLayout<4, 0,0, 1,0, 3,0, 2,0, 2,4, 3,32> R4Depth32MemoryLayout;
 //typedef ChunkedMemoryLayout<4, 0,0, 1,0, 2,0, 3,0, 1,8, 2,8, 3,32> R4CroutonLayout;		// Croutons for HMX, 8x8x32 chunks

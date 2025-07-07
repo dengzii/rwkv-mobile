@@ -16,47 +16,9 @@
 #include "forward_classes.h"
 #include "serialize_defs.h"
 #include "pickle_header_tags.h"
+#include "const_extent_shared.h"
 
 namespace hnnx {
-
-// definitions pertaining to the 'const extent descriptor'.
-
-constexpr unsigned CONST_EXTENT_DESC_MAGIC = 0x71c43c9b;
-// if a const extent descriptor has a 'cbname' in it, the last 32-bit slot
-// is this value. The 0x3e, 0x00 is the ">\0" at the end of the cbname
-constexpr unsigned CONST_EXTENT_CBNAME_TAG = 0xebbe003e;
-
-// This must be a power of 2, and >= 64.
-// This is effectively a 'quiet' minimum on options.serialize_const_alignment, which sets
-// the actual alignment.
-// It is not necessary for the decoder to know what value of alignment was used in the encoder.
-constexpr unsigned CONST_EXTENT_MIN_ALIGN = 256;
-//
-// this is a (non-quiet) maximum on options.serialize_const_alignment
-constexpr unsigned CONST_EXTENT_MAX_ALIGN = 1024 * 1024;
-
-// This function is used by deserializer to help it extract the extent-desc table (as a vector<uint32_t>) from some
-// arbitrary point down the pickle. Parameter is a pointer to the first 4 words; the return value is
-//  0 if the first two words do not look like CEDesc header;
-//  n otherwise (where 'n' is the number of 32-bit words to extract).
-//
-inline unsigned const_extent_hdr_check(uint32_t const *const hdrp)
-{
-    if (hdrp[0] != CONST_EXTENT_DESC_MAGIC) return 0;
-    const unsigned word0 = hdrp[1];
-    const unsigned hdr_len16 = word0 >> 24u; // units of 16 bytes
-    const unsigned desc_len64 = word0 & 0xFFFFFFu; // units of 64 bytes
-    const unsigned n_extent = hdrp[2] & 0xFFFFFFu;
-    const unsigned n_mempool = hdrp[3] & 0xFFFFFFu;
-    // no. of words actually needed
-    const unsigned desc_words = 4 * (hdr_len16 + n_extent + n_mempool);
-
-    // note, n_extent == n_mempool == 0 is allowed.
-    if (hdr_len16 == 0 || desc_len64 == 0 || n_extent > n_mempool || desc_words > desc_len64 * 16) {
-        return -1;
-    }
-    return desc_words;
-}
 
 // This class is used, on both encoder and decoder, to contain a 'const extent descriptor' in its raw form, (just an array of uint32)
 // and provide higher-level access to the contents.
@@ -75,6 +37,21 @@ class ConstExtentDesc {
     bool scan_table(); // sanity check, and unpacks the above; returns true if OK.
 
   public:
+    static uint8_t constexpr EXTENT_FLAGS_BITFIELD_LSB = 8;
+    static uint8_t constexpr EXTENT_FLAGS_BITFIELD_WIDTH = 8;
+
+    ///
+    /// @brief Values for 8b flags in extent record
+    ///
+    static uint8_t constexpr EXTENT_FLAG_RESERVED_0 = (1 << 0);
+    static uint8_t constexpr EXTENT_FLAG_RESERVED_1 = (1 << 1);
+    static uint8_t constexpr EXTENT_FLAG_RESERVED_2 = (1 << 2);
+    static uint8_t constexpr EXTENT_FLAG_RESERVED_3 = (1 << 3);
+    static uint8_t constexpr EXTENT_FLAG_IS_FAR_HINT = (1 << 4); ///< Contents maybe far
+    static uint8_t constexpr EXTENT_FLAG_RESERVED_5 = (1 << 5);
+    static uint8_t constexpr EXTENT_FLAG_RESERVED_6 = (1 << 6);
+    static uint8_t constexpr EXTENT_FLAG_RESERVED_7 = (1 << 7);
+
     // Return from 'extent_info'.
     struct extab_entry {
         uint32_t extent_flags;
@@ -128,6 +105,89 @@ class ConstExtentDesc {
     //      extent_info(i).offset >= extent_info(i+1).offset + extent_info(i+1).length
     //      mempool_info(i,true).offset >= mempool_info(1-1,true).offset + mempool_info(1-1).length
     //
+
+#if !defined(PREPARE_DISABLED)
+    ///
+    /// @brief Memory pool record iterator
+    /// @details Use to iterator over records in memory pool table in constant
+    /// extent descriptor
+    ///
+    class mempool_iterator {
+      public:
+        using iterator_category = std::input_iterator_tag;
+        using value_type = ConstExtentDesc::mempool_entry;
+        using difference_type = std::ptrdiff_t;
+        using pointer = value_type *;
+        using reference = value_type &;
+
+        ///
+        /// @brief Constructor
+        /// @param [in] cedesc A valid constant extent descriptor instance
+        /// @param [in] index Record index (zero-based!)
+        ///
+        explicit mempool_iterator(ConstExtentDesc const &cedesc, uint32_t index) : _cedesc(cedesc), _index(index) {}
+
+        ///
+        /// @brief Increment record
+        /// @return Iterator
+        ///
+        mempool_iterator &operator++()
+        {
+            // Increment IFF valid constant extent descriptor and mempool record
+            // index within range
+            _index += (_cedesc.is_valid() && (_index < _cedesc.mptab_n)) ? 1 : 0;
+            return *this;
+        }
+
+        ///
+        /// @brief Equality operator
+        /// @return true if iterators are equal
+        ///
+        bool operator==(mempool_iterator const &other) const { return _index == other._index; }
+
+        ///
+        /// @brief Inequality operator
+        /// @return true if iterators are not equal
+        ///
+        bool operator!=(mempool_iterator const &other) const { return !(*this == other); }
+
+        ///
+        /// @brief Dereference iterator
+        ///
+        reference operator*();
+
+      private:
+        ///
+        /// @brief Reference to a constant extent descriptor instance
+        /// @details It contains the blob representing constant extent segment
+        ///
+        ConstExtentDesc const &_cedesc;
+
+        ///
+        /// @brief Current index
+        ///
+        uint32_t _index;
+
+        ///
+        /// @brief Mempool record entry
+        /// @details It is assigned when on iterator dereference
+        ///
+        value_type _entry;
+    };
+
+    ///
+    /// @brief Return mempool iterator initialized to the first record
+    /// @return Mempool iterator
+    ///
+    mempool_iterator begin() { return mempool_iterator(*this, 0); }
+
+    ///
+    /// @brief Return mempool iterator beyond the last record
+    /// @warning Intended to be used as a sentinel
+    /// @return Mempool iterator
+    ///
+    mempool_iterator end() { return mempool_iterator(*this, mptab_n); }
+#endif
 };
 #ifndef PREPARE_DISABLED
 // Called at the end of serializing a graph, if 'const extent' mode is enabled.

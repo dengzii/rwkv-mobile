@@ -17,6 +17,7 @@ template <auto, int> struct ModifiedDerivedType;
 } //namespace fold
 
 /** @brief IMPL_APPEND_REG_OP_ELEM_NO_TCM_FOLDING (used by REGISTER_OP, REGISTER_OP_HVX, etc.) */
+// LCOV_EXCL_START [SAFTYSWCCB-1736] constexprs resolved during compile time
 #define IMPL_APPEND_REG_OP_ELEM_NO_TCM_FOLDING(I, FP, OP, TAG, IS_SIMPLE)                                              \
     /** @brief Increment the Op count for this file @return 1 */                                                       \
     template <> constexpr int32_t NC<(I)>::inc_op() noexcept { return 1; }                                             \
@@ -215,6 +216,8 @@ template <auto, int> struct ModifiedDerivedType;
     template <> template <> constexpr ba_str<0> op_name_strtab_container::chain<UniqTy<0>, 0, 0> = {};                 \
     template <> template <> constexpr ba_str<0> type_tag_strtab_container::chain<UniqTy<0>, 0, 0> = {};
 
+// LCOV_EXCL_STOP
+
 #define INITIALIZE_TABLES() IMPL_INITIALIZE_TABLES(__COUNTER__)
 
 #define OPS_REG_TABLE(NAME)      CTRICKS_PASTER(NAME, _inner_ops_regist_table)
@@ -226,7 +229,7 @@ template <auto, int> struct ModifiedDerivedType;
 #define EXT_OPTS_REG_TABLE(NAME) CTRICKS_PASTER(NAME, _opts_table)
 
 /**
- * @brief IMPL_FINALIZE_TABLES defines the registration tables for both 
+ * @brief IMPL_FINALIZE_TABLES defines the registration tables for both
  * the ops and opts defined in the Op source file
  */
 #define IMPL_FINALIZE_TABLES(COUNT, NAME)                                                                                                                              \
@@ -265,7 +268,7 @@ template <auto, int> struct ModifiedDerivedType;
 
 /**
  * @brief FINALIZE_TABLES is a thunk to IMPL_FINALIZE_TABLES
- * 
+ *
  */
 #define FINALIZE_TABLES(NAME) IMPL_FINALIZE_TABLES(__COUNTER__, NAME)
 
@@ -316,8 +319,8 @@ template <auto, int> struct ModifiedDerivedType;
 #endif
 
 /**
- * @brief As part of loading the HTP core, register all of the Ops and Optimization rules.                              
- * This will be called at static-initialization time.                                                                   
+ * @brief As part of loading the HTP core, register all of the Ops and Optimization rules.
+ * This will be called at static-initialization time.
 */
 #define OP_OPT_PROCESSOR(PREFIX)                                                                                       \
     namespace hnnx {                                                                                                   \
@@ -342,12 +345,14 @@ template <auto, int> struct ModifiedDerivedType;
             reg_opt_table const *const opt_tab = ::PREFIX##_op_package_opts_list[i]();                                 \
             reg_optim_node const *const entries = opt_tab->get_entries();                                              \
             std::string_view const fname = opt_tab->get_file_name();                                                   \
+            /* LCOV_EXCL_START [SAFTYSWCCB-1542] */                                                                    \
             for (uint32_t j = 0U; j < opt_tab->get_num_entries(); j++) {                                               \
                 const reg_optim_node reg_opt = entries[j];                                                             \
                 reg_opt.PREFIX##_process(fname);                                                                       \
                 /* Silences AUTOSAR checker when PREPARE_DISABLED is set */                                            \
                 (void)reg_opt;                                                                                         \
             }                                                                                                          \
+            /* LCOV_EXCL_STOP */                                                                                       \
         }                                                                                                              \
     }                                                                                                                  \
     static void PREFIX##_ops_opts_registration()                                                                       \

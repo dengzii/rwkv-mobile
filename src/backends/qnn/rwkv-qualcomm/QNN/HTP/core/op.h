@@ -127,7 +127,7 @@ class Op : public hnnx::Executable {
     API_EXPORT inline size_t num_inputs() const { return num_inputs_outputs().first; }
     API_EXPORT const char *true_name() const;
     API_EXPORT virtual Flags_word get_flag_word() const { return hnnx::flags_for<Op>(); }
-    virtual const char *get_docs() const { return hnnx::docs_for<Op>(); }
+    virtual const char *get_docs() const { return hnnx::docs_for<Op>(); } //LCOV_EXCL_LINE [SAFTYSWCCB-1542]
 
     /// @brief
     ///     Gets the typeid mangled name of the kernel implementing this operator
@@ -136,10 +136,12 @@ class Op : public hnnx::Executable {
     // get type, allowing for SimpleOpWrapper to get forwarded type.
     API_EXPORT std::type_info const *get_type_extended() const;
     API_EXPORT bool get_flag(Flags flag) const { return hnnx::test_flag_for(get_flag_word(), flag); }
+    //LCOV_EXCL_START [SAFTYSWCCB-1542]
     API_EXPORT bool get_flag_and(Flags flag0, Flags flag1) const
     {
         return hnnx::test_flag_and(get_flag_word(), flag0, flag1);
     }
+    //LCOV_EXCL_STOP
     API_EXPORT inline hnnx::blockid_set_t input_blocks(int mc_sel = -1) const
     {
         return input_output_blocks(true, mc_sel);
@@ -271,12 +273,6 @@ class Op : public hnnx::Executable {
 
     API_EXPORT void serialize_internal(hnnx::Serializer &sctx, ChkptStoreType st) const;
     API_EXPORT uint32_t get_serialize_flags(const Graph &, ChkptStoreType st) const;
-
-    hnnx::OpExtraInfo &get_extra_info(Graph &graph_in);
-    hnnx::OpExtraInfo const &get_extra_info(const Graph &graph_in) const
-    {
-        return const_cast<Op &>(*this).get_extra_info(const_cast<Graph &>(graph_in));
-    }
 };
 
 /**
@@ -358,11 +354,13 @@ class ConstWrapperOp : public Op {
     {
         return hnnx::Executable::null_item();
     }
+    //LCOV_EXCL_START [SAFTYSWCCB-1542]
     API_EXPORT virtual GraphStatus prepare(hnnx::OpIoPtrs const &, bool tcm_available) override
     {
         return GraphStatus::Success;
     }
     API_EXPORT virtual GraphStatus allocate(Graph &graph_in) override { return GraphStatus::Success; }
+    //LCOV_EXCL_STOP
     API_EXPORT virtual std::pair<size_t, size_t> num_inputs_outputs() const override { return {0, 1}; }
     API_EXPORT virtual bool is_valid() const noexcept override { return true; }
 
@@ -390,11 +388,13 @@ class ShapeWrapperOp : public Op {
     {
         return hnnx::Executable::null_item();
     }
+    //LCOV_EXCL_START [SAFTYSWCCB-1542]
     API_EXPORT virtual GraphStatus prepare(hnnx::OpIoPtrs const &, bool tcm_available) override
     {
         return GraphStatus::Success;
     }
     API_EXPORT virtual GraphStatus allocate(Graph &graph_in) override { return GraphStatus::Success; }
+    //LCOV_EXCL_STOP
     API_EXPORT virtual std::pair<size_t, size_t> num_inputs_outputs() const override { return {0, 1}; }
     API_EXPORT virtual bool is_valid() const noexcept override { return true; }
 
@@ -432,6 +432,7 @@ class MetaOpBase : public Op {
 // that are queried during GraphDeps stage of preparation.
 // This is intended for things like SuperTileOp which want to add these discovery methods.
 //
+// LCOV_EXCL_START [SAFTYSWCCB-1542]
 
 class SpecialPrepOpBase : public MetaOpBase {
   public:
@@ -451,6 +452,7 @@ class SpecialPrepOpBase : public MetaOpBase {
     // make a CostBasedFeatureDesc. If 'false' is returned, it should be obtained 'in the usual manner'.
     API_EXPORT virtual bool get_costbased_feature(OpId opid, CostBasedFeatureDesc &result) const { return false; }
 };
+// LCOV_EXCL_STOP
 
 // this is a base class for adding hooks on construction of Ops.
 // May not have data members or dtor - so it's just a vtable pointer, and is constexpr constructable
