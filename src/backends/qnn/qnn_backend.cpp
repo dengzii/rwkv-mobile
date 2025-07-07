@@ -1148,11 +1148,19 @@ int qnn_backend::eval_with_embeddings(const float *embeddings, int n_tokens, flo
         for (; i + embdPrefillSequenceLength <= n_tokens; i += embdPrefillSequenceLength) {
             if (QNN_TENSOR_GET_DATA_TYPE(tokenInputTensorEmbdPrefill) == QNN_DATATYPE_FLOAT_32) {
                 memcpy(embedding_input_prefill, (float*)(embeddings + i * hidden_size), embdPrefillSequenceLength * hidden_size * sizeof(float));
-            } else {
+            } else if (QNN_TENSOR_GET_DATA_TYPE(tokenInputTensorEmbdPrefill) == QNN_DATATYPE_FLOAT_16) {
+                half_float::half *ptr = (half_float::half*)embedding_input_prefill;
+                for (int j = 0; j < embdPrefillSequenceLength * hidden_size; j++) {
+                    ptr[j] = (half_float::half)(embeddings[i * hidden_size + j]);
+                }
+            } else if (QNN_TENSOR_GET_DATA_TYPE(tokenInputTensorEmbdPrefill) == QNN_DATATYPE_UFIXED_POINT_16) {
                 datautil::floatToTfN<uint16_t>(reinterpret_cast<uint16_t*>(embedding_input_prefill), (float*)(embeddings + i * hidden_size),
                         QNN_TENSOR_GET_QUANT_PARAMS(tokenInputTensorEmbdPrefill).scaleOffsetEncoding.offset,
                         QNN_TENSOR_GET_QUANT_PARAMS(tokenInputTensorEmbdPrefill).scaleOffsetEncoding.scale,
                         embdPrefillSequenceLength * hidden_size);
+            } else {
+                LOGE("Unsupported data type");
+                return RWKV_ERROR_IO;
             }
 
             auto graphInfo = (*qnnEmbdPrefillGraphsInfo)[0];
@@ -1174,11 +1182,19 @@ int qnn_backend::eval_with_embeddings(const float *embeddings, int n_tokens, flo
         void *embedding_input = qnnIOTensorUtils->getBuffer(tokenInputTensorEmbd);
         if (QNN_TENSOR_GET_DATA_TYPE(tokenInputTensorEmbd) == QNN_DATATYPE_FLOAT_32) {
             memcpy(embedding_input, (float*)(embeddings + i * hidden_size), hidden_size * sizeof(float));
-        } else {
+        } else if (QNN_TENSOR_GET_DATA_TYPE(tokenInputTensorEmbd) == QNN_DATATYPE_FLOAT_16) {
+            half_float::half *ptr = (half_float::half*)embedding_input;
+            for (int j = 0; j < hidden_size; j++) {
+                ptr[j] = (half_float::half)(embeddings[i * hidden_size + j]);
+            }
+        } else if (QNN_TENSOR_GET_DATA_TYPE(tokenInputTensorEmbd) == QNN_DATATYPE_UFIXED_POINT_16) {
             datautil::floatToTfN<uint16_t>(reinterpret_cast<uint16_t*>(embedding_input), (float*)(embeddings + i * hidden_size),
                     QNN_TENSOR_GET_QUANT_PARAMS(tokenInputTensorEmbd).scaleOffsetEncoding.offset,
                     QNN_TENSOR_GET_QUANT_PARAMS(tokenInputTensorEmbd).scaleOffsetEncoding.scale,
                     hidden_size);
+        } else {
+            LOGE("Unsupported data type");
+            return RWKV_ERROR_IO;
         }
 
         auto graphInfo = (*qnnEmbdGraphsInfo)[0];
