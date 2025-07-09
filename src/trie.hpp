@@ -194,22 +194,6 @@ private:
     std::unordered_map<int, size_t> idx_to_data_idx;
     std::unordered_map<std::vector<uint8_t>, int, VectorHash, VectorEqual> data_to_idx;
 
-    struct VectorEqual {
-        bool operator()(const std::vector<uint8_t>& a, const std::vector<uint8_t>& b) const noexcept {
-            return a == b; 
-        }
-    };
-
-    struct VectorHash {
-        size_t operator()(const std::vector<uint8_t>& vec) const noexcept {
-            size_t hash = 0;
-            for (uint8_t byte : vec) {
-                hash = hash * 31 + byte;
-            }
-            return hash;
-        }
-    };
-
 public:
     void add_token(int token_id, const std::vector<uint8_t>& data) {
         auto it = data_to_idx.find(data);
