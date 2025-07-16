@@ -14,6 +14,7 @@
 #include "soc_detect.h"
 
 #include "logger.h"
+#include "embedding/rwkv_embedding.h"
 
 #ifdef ENABLE_VISION
 #include "clip.h"
@@ -247,6 +248,33 @@ public:
     double get_avg_prefill_speed();
     double get_prefill_progress() { return _prefill_progress; }
 
+    int init_embedding(std::string model_path) {
+        if (_embedding == nullptr) {
+            _embedding = std::make_unique<rwkv_embedding>();
+        }
+        _embedding->load_model(model_path);
+        return 0;
+    }
+
+    std::vector<float> embed(std::string text) {
+        if (_embedding == nullptr) {
+            return {};
+        }
+        try {
+            return _embedding->embed(text);
+        } catch (const std::exception& e) {
+            LOGE("Embedding error: %s", e.what());
+            return {};
+        }
+    }
+
+    float similarity(std::vector<float> emb1, std::vector<float> emb2) {
+        if (_embedding == nullptr) {
+            return 0.0f;
+        }
+        return rwkv_embedding::similarity(emb1, emb2);
+    }
+
     // platform info
     const char * get_platform_name() {
         auto platform_name = _soc_detect.get_platform_name();
@@ -313,6 +341,7 @@ private:
     std::unique_ptr<execution_provider, std::function<void(execution_provider*)>> _backend;
     std::unique_ptr<tokenizer_base, std::function<void(tokenizer_base*)>> _tokenizer;
     std::unique_ptr<sampler> _sampler;
+    std::unique_ptr<rwkv_embedding> _embedding;
 
     double _prefill_speed = -1;
     double _decode_speed = -1;

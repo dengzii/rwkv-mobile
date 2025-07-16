@@ -720,5 +720,31 @@ void rwkvmobile_set_cache_dir(rwkvmobile_runtime_t runtime, const char * cache_d
     rt->set_cache_dir(std::string(cache_dir));
 }
 
+int rwkvmobile_init_embedding(rwkvmobile_runtime_t runtime, const char *model_path) {
+    if (runtime == nullptr || model_path == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->init_embedding(model_path);
+}
+
+int rwkvmobile_embed(rwkvmobile_runtime_t runtime, const char *text, float *embedding) {
+    if (runtime == nullptr || text == nullptr || embedding == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    auto ebd = rt->embed(std::string(text));
+    memcpy(embedding, ebd.data(), ebd.size() * sizeof(float));
+    return 0;
+}
+
+float rwkvmobile_similarity(rwkvmobile_runtime_t runtime, const float *emb1, const float *emb2) {
+    if (runtime == nullptr || emb1 == nullptr || emb2 == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->similarity(std::vector<float>(emb1, emb1), std::vector<float>(emb2, emb2));
+}
+
 } // extern "C"
 } // namespace rwkvmobile

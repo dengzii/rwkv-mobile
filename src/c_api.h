@@ -134,6 +134,12 @@ float rwkvmobile_runtime_tts_get_generation_progress(rwkvmobile_runtime_t runtim
 
 float rwkvmobile_runtime_get_prefill_progress(rwkvmobile_runtime_t runtime);
 
+int rwkvmobile_init_embedding(rwkvmobile_runtime_t runtime, const char * model_path);
+
+int rwkvmobile_embed(rwkvmobile_runtime_t runtime, const char * text, float * embedding);
+
+float rwkvmobile_similarity(rwkvmobile_runtime_t runtime, float * emb1, float * emb2);
+
 // platform info
 const char * rwkvmobile_get_platform_name();
 
