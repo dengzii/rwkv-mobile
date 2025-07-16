@@ -640,7 +640,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             }
             if (tmp.size() >= stop_code.size() &&
                 tmp.compare(tmp.size() - stop_code.size(), stop_code.size(), stop_code) == 0) {
-                LOGI("stop code found: %s\n", stop_code.c_str());
+                LOGD("stop code found: %s\n", stop_code.c_str());
                 _response_buffer_eos_found = true;
                 break;
             }
@@ -653,6 +653,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
         }
 
         if (_response_buffer_eos_found || _stop_signal) {
+            LOGD("stopping generation, eos_found: %d, stop_signal: %d\n", _response_buffer_eos_found, _stop_signal);
             break;
         }
 
