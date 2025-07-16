@@ -481,6 +481,7 @@ struct response_buffer rwkvmobile_runtime_get_response_buffer_content(rwkvmobile
     struct response_buffer buffer;
     buffer.content = nullptr;
     buffer.length = 0;
+    buffer.eos_found = false;
     if (runtime == nullptr) {
         return buffer;
     }
@@ -493,6 +494,7 @@ struct response_buffer rwkvmobile_runtime_get_response_buffer_content(rwkvmobile
     }
     memset(buffer.content, 0, buffer.length);
     strncpy(buffer.content, content.c_str(), buffer.length);
+    buffer.eos_found = rt->get_response_buffer_eos_found();
     return buffer;
 }
 

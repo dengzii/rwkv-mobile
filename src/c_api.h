@@ -23,6 +23,7 @@ struct token_ids {
 struct response_buffer {
     char * content;
     int length;
+    int eos_found;
 };
 
 #ifdef __cplusplus

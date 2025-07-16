@@ -69,6 +69,7 @@ public:
     std::string get_response_buffer_content() { return _response_buffer; }
     const std::vector<int32_t> get_response_buffer_ids() { return _response_buffer_ids; }
     void clear_response_buffer() { _response_buffer = ""; _response_buffer_ids.clear(); }
+    bool get_response_buffer_eos_found() { return _response_buffer_eos_found; }
 #ifdef ENABLE_VISION
     int set_image_prompt(std::string path);
 #endif
@@ -366,6 +367,7 @@ private:
 
     std::string _response_buffer;
     std::vector<int32_t> _response_buffer_ids;
+    bool _response_buffer_eos_found = false;
 
     void apply_logits_penalties(float * logits, int vocab_size, float presence_penalty, float frequency_penalty, float penalty_decay);
 

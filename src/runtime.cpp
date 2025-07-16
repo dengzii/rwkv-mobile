@@ -401,6 +401,7 @@ int runtime::chat(std::string input, const int max_length, void (*callback)(cons
 
     _response_buffer = "";
     _response_buffer_ids.clear();
+    _response_buffer_eos_found = false;
     _prefill_progress_start(ids.size());
     int ret = eval_logits(ids, logits);
     if (ret) {
@@ -425,18 +426,17 @@ int runtime::chat(std::string input, const int max_length, void (*callback)(cons
             callback(_response_buffer.c_str(), idx, next.c_str());
         }
 
-        bool stopping = false;
         for (auto &stop_code : _stop_codes) {
             if (_response_buffer.size() >= stop_code.size() &&
                 _response_buffer.compare(_response_buffer.size() - stop_code.size(), stop_code.size(), stop_code) == 0) {
-                stopping = true;
+                _response_buffer_eos_found = true;
                 break;
             }
         }
 
         ret = eval_logits(idx, logits);
         if (ret) return ret;
-        if (stopping) break;
+        if (_response_buffer_eos_found) break;
         if (_stop_signal) break;
     }
 
@@ -545,6 +545,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     _stop_signal = false;
     _response_buffer.clear();
     _response_buffer_ids.clear();
+    _response_buffer_eos_found = false;
 
     if (_prefilling_thread.joinable() && _prefilling_thread.get_id() != std::this_thread::get_id()) {
         LOGD("Found prefilling thread, joining\n");
@@ -633,7 +634,6 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
 
         std::string decoded = _tokenizer->decode(decoded_idx);
         std::string tmp = _response_buffer + decoded;
-        bool stopping = false;
         for (auto &stop_code : _stop_codes) {
             if (enable_reasoning && !thinking_end_tag_found && stop_code == "\n\n") {
                 continue;
@@ -641,7 +641,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             if (tmp.size() >= stop_code.size() &&
                 tmp.compare(tmp.size() - stop_code.size(), stop_code.size(), stop_code) == 0) {
                 LOGI("stop code found: %s\n", stop_code.c_str());
-                stopping = true;
+                _response_buffer_eos_found = true;
                 break;
             }
         }
@@ -652,7 +652,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
             }
         }
 
-        if (stopping || _stop_signal) {
+        if (_response_buffer_eos_found || _stop_signal) {
             break;
         }
 
@@ -1166,6 +1166,7 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
     }
     _response_buffer = "";
     _response_buffer_ids.clear();
+    _response_buffer_eos_found = false;
     set_is_generating(true);
     _stop_signal = false;
 
@@ -1191,7 +1192,7 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
 
         idx = _sampler->sample(logits, _vocab_size, _temperature, _top_k, _top_p);
         _backend->free_logits_if_allocated(logits);
-        bool stopping = (idx == stop_code);
+        _response_buffer_eos_found = (idx == stop_code);
 
         std::string next = _tokenizer->decode(idx);
         _response_buffer += next;
@@ -1201,7 +1202,7 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
             callback(_response_buffer.c_str(), idx, next.c_str());
         }
 
-        if (stopping || _stop_signal) {
+        if (_response_buffer_eos_found || _stop_signal) {
             break;
         }
 
