@@ -5,41 +5,6 @@
 #include <cstring>
 #include "logger.h"
 #include "audio.h"
-#include <iostream>
-
-static void debug_print_mean_std(std::vector<float> feat, std::string name) {
-    std::cout << name << " size: " << feat.size() << std::endl;
-    float mean = 0.0f;
-    float std = 0.0f;
-    for (int i = 0; i < feat.size(); i++) {
-        mean += feat[i];
-    }
-    mean /= feat.size();
-    for (int i = 0; i < feat.size(); i++) {
-        std += (feat[i] - mean) * (feat[i] - mean);
-    }
-    std = std::sqrt(std / (feat.size()));
-    std::cout << name << " Mean: " << mean << ", Std: " << std << std::endl;
-}
-
-static void debug_print_mean_std_2d(std::vector<std::vector<float>> feat, std::string name) {
-    std::cout << name << " size: " << feat.size() << "x" << feat[0].size() << std::endl;
-    float mean = 0.0f;
-    float std = 0.0f;
-    for (int i = 0; i < feat.size(); i++) {
-        for (int j = 0; j < feat[i].size(); j++) {
-            mean += feat[i][j];
-        }
-    }
-    mean /= feat.size() * feat[0].size();
-    for (int i = 0; i < feat.size(); i++) {
-        for (int j = 0; j < feat[i].size(); j++) {
-            std += (feat[i][j] - mean) * (feat[i][j] - mean);
-        }
-    }
-    std = std::sqrt(std / (feat.size() * feat[0].size()));
-    std::cout << name << " Mean: " << mean << ", Std: " << std << std::endl;
-}
 
 namespace rwkvmobile {
 
@@ -103,8 +68,16 @@ bool sparktts::load_models(std::string wav2vec2_model_path, std::string bicodec_
             LOGE("[TTS] Wav2Vec2 model file not found: %s", wav2vec2_model_path.c_str());
             return false;
         }
-        wav2vec2_mnn_interpretor = MNN::Interpreter::createFromFile(wav2vec2_model_path.c_str());
+
         MNN::ScheduleConfig conf;
+        conf.type = MNN_FORWARD_CPU;
+        conf.numThread = 2;
+        MNN::BackendConfig backendConfig;
+        backendConfig.memory = MNN::BackendConfig::Memory_Low;
+        backendConfig.power = MNN::BackendConfig::Power_High;
+        backendConfig.precision = MNN::BackendConfig::Precision_Low;
+        conf.backendConfig = &backendConfig;
+        wav2vec2_mnn_interpretor = MNN::Interpreter::createFromFile(wav2vec2_model_path.c_str());
         wav2vec2_mnn_session = wav2vec2_mnn_interpretor->createSession(conf, mnn_runtime);
 
         if (!std::filesystem::exists(bicodec_tokenizer_path)) {
@@ -148,13 +121,20 @@ bool sparktts::tokenize_audio(std::vector<float> audio, std::vector<int> &global
         return false;
     }
 
+    auto start = std::chrono::high_resolution_clock::now();
     std::vector<float> wav2vec2_features = extract_wav2vec2_features(audio);
     std::vector<float> ref_wav_samples = get_ref_clip(audio);
-    std::vector<std::vector<float>> ref_wav_mel = melSpectrogram(ref_wav_samples, 16000, 1024, 320, 128, 10, 8000, 1.0f, true, false);
-    // debug_print_mean_std(wav2vec2_features, "wav2vec2_features");
-    // debug_print_mean_std_2d(ref_wav_mel, "ref_wav_mel");
-    // debug_print_mean_std(ref_wav_samples, "ref_wav_samples");
+    auto end = std::chrono::high_resolution_clock::now();
+    double duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    LOGI("[TTS] Extract wav2vec2 features time: %f ms", duration);
 
+    start = std::chrono::high_resolution_clock::now();
+    std::vector<std::vector<float>> ref_wav_mel = melSpectrogram(ref_wav_samples, 16000, 1024, 320, 128, 10, 8000, 1.0f, true, false);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    LOGI("[TTS] Mel spectrogram time: %f ms", duration);
+
+    start = std::chrono::high_resolution_clock::now();
     auto input_tensors = bicodec_tokenizer_mnn_interpretor->getSessionInputAll(bicodec_tokenizer_mnn_session);
     std::vector<int> input_shape_feat = {1, static_cast<int>(wav2vec2_features.size() / 1024), 1024};
     bicodec_tokenizer_mnn_interpretor->resizeTensor(input_tensors["feat"], input_shape_feat);
@@ -185,16 +165,9 @@ bool sparktts::tokenize_audio(std::vector<float> audio, std::vector<int> &global
     global_tokens = std::vector<int>((int*)output_ptr_global_tokens, (int*)output_ptr_global_tokens + output_size_global_tokens);
     output_tensors["global_tokens"]->unmap(MNN::Tensor::MAP_TENSOR_READ, output_tensors["global_tokens"]->getDimensionType(), output_ptr_global_tokens);
 
-    // std::cout << "semantic_tokens size: " << semantic_tokens.size() << std::endl;
-    // for (int i = 0; i < semantic_tokens.size(); i++) {
-    //     std::cout << semantic_tokens[i] << " ";
-    // }
-    // std::cout << std::endl;
-    std::cout << "global_tokens size: " << global_tokens.size() << std::endl;
-    for (int i = 0; i < global_tokens.size(); i++) {
-        std::cout << global_tokens[i] << " ";
-    }
-    std::cout << std::endl;
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    LOGI("[TTS] Tokenize audio time: %f ms", duration);
     return true;
 }
 
@@ -225,7 +198,7 @@ std::vector<float> sparktts::detokenize_audio(std::vector<int> global_tokens, st
 
         auto end = std::chrono::high_resolution_clock::now();
         double duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-        LOGD("[TTS] Resize tensors time: %f ms", duration);
+        LOGI("[TTS] Resize tensors time: %f ms", duration);
 
         start = std::chrono::high_resolution_clock::now();
 
@@ -241,7 +214,7 @@ std::vector<float> sparktts::detokenize_audio(std::vector<int> global_tokens, st
 
         end = std::chrono::high_resolution_clock::now();
         duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-        LOGD("[TTS] Prepare tensors time: %f ms", duration);
+        LOGI("[TTS] Prepare tensors time: %f ms", duration);
 
         start = std::chrono::high_resolution_clock::now();
     bicodec_detokenizer_mnn_interpretor->runSession(bicodec_detokenizer_mnn_session);
@@ -254,7 +227,7 @@ std::vector<float> sparktts::detokenize_audio(std::vector<int> global_tokens, st
 
     end = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    LOGD("[TTS] Detokenize audio time: %f ms", duration);
+    LOGI("[TTS] Detokenize audio time: %f ms", duration);
     return output_values;
 }
 

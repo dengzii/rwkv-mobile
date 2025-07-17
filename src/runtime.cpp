@@ -1191,6 +1191,7 @@ int runtime::run_spark_tts(std::string tts_text, std::string prompt_audio_text, 
     wav.load(prompt_audio_path);
     wav.resample(16000);
 
+    auto total_start = std::chrono::high_resolution_clock::now();
     std::vector<int> global_tokens;
     std::vector<int> semantic_tokens;
     _sparktts->tokenize_audio(wav.samples, global_tokens, semantic_tokens);
@@ -1225,6 +1226,9 @@ int runtime::run_spark_tts(std::string tts_text, std::string prompt_audio_text, 
     static const float tts_top_p = 0.95;
     static const float tts_temperature = 1.0;
     static const int tts_eos_token = 8192;
+
+    auto start = std::chrono::high_resolution_clock::now();
+
     clear_state();
     float *logits = nullptr;
     int ret = eval_logits(input_tokens, logits);
@@ -1248,8 +1252,21 @@ int runtime::run_spark_tts(std::string tts_text, std::string prompt_audio_text, 
         }
     }
 
+    auto end = std::chrono::high_resolution_clock::now();
+    double duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    LOGI("[TTS] LLM inference time: %lf ms", duration);
+    LOGI("[TTS] LLM output tokens: %d", output_tokens.size());
+    LOGI("[TTS] LLM prefill speed: %f tokens/s", get_avg_prefill_speed());
+    LOGI("[TTS] LLM decode speed: %f tokens/s", get_avg_decode_speed());
+
     std::vector<float> output_samples = _sparktts->detokenize_audio(global_tokens, output_tokens);
     save_samples_to_wav(output_samples, output_wav_path, 16000);
+
+    auto total_end = std::chrono::high_resolution_clock::now();
+    double total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(total_end - total_start).count();
+    LOGI("[TTS] Total time: %lf ms", total_duration);
+    LOGI("[TTS] Output audio length: %lf s", output_samples.size() / 16000.0);
+    LOGI("[TTS] RTF: %lf", total_duration / 1e3f * 16000.0 / output_samples.size());
 
     set_is_generating(false);
     return RWKV_SUCCESS;

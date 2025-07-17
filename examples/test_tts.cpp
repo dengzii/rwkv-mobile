@@ -22,9 +22,9 @@ int main(int argc, char **argv) {
     runtime.load_tokenizer(argv[3]);
 
     runtime.sparktts_load_models(
-        "/home/molly/rwkv-mobile/wav2vec2-large-xlsr-53.mnn",
-        "/home/molly/rwkv-mobile/BiCodecTokenize.mnn",
-        "/home/molly/rwkv-mobile/BiCodecDetokenize.mnn"
+        "wav2vec2-large-xlsr-53.mnn",
+        "BiCodecTokenize.mnn",
+        "BiCodecDetokenize.mnn"
     );
 
     // rwkvmobile::wav_file wav_file;
@@ -35,10 +35,9 @@ int main(int argc, char **argv) {
     // std::vector<int> semantic_tokens;
     // sparktts.tokenize_audio(wav_file.samples, global_tokens, semantic_tokens);
 
-    auto start = std::chrono::high_resolution_clock::now();
-    runtime.run_spark_tts("为了点燃青少年对科技的热情，培养他们的创新思维与动手能力，杏花岭区巨轮街道社区教育学校携手中车社区教育分校，与太原市科学技术协会联手，于暑期精心策划了一场别开生面的青少年数智技术服务港探索之旅，吸引了众多社区青少年的积极参与。", "", argv[4], "/home/molly/rwkv-mobile/output.wav");
-    auto end = std::chrono::high_resolution_clock::now();
-    std::cout << "Total time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+    runtime.run_spark_tts("本指南详细介绍了 M4N-Dock 开发板的两种系统烧录方法：通过 TFCard 启动和烧录 eMMC，以及通过 AXDL 工具烧录。请根据您的需求选择合适的方法。", "", argv[4], "output.wav");
+
+    runtime.release();
 
     return 0;
 }
