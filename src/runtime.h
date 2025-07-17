@@ -25,6 +25,7 @@
 
 #ifdef ENABLE_TTS
 #include "cosyvoice.h"
+#include "sparktts.h"
 #include "kaldifst/csrc/text-normalizer.h"
 #endif
 
@@ -89,6 +90,17 @@ public:
     );
 
     int cosyvoice_release_models();
+
+    int sparktts_load_models(
+        std::string wav2vec2_path,
+        std::string bicodec_tokenizer_path,
+        std::string bicodec_detokenizer_path
+    );
+
+    int sparktts_release_models();
+
+    int run_spark_tts(std::string tts_text, std::string prompt_audio_text, std::string prompt_audio_path, std::string output_wav_path);
+
     int run_tts_internal(std::string tts_text, std::string instruction_text,
         const std::string prompt_wav_path, const std::string prompt_speech_text,
         std::vector<float> &output_samples);
@@ -381,7 +393,9 @@ private:
 
 #ifdef ENABLE_TTS
     std::unique_ptr<cosyvoice> _cosyvoice;
+    std::unique_ptr<sparktts> _sparktts;
     std::vector<std::unique_ptr<kaldifst::TextNormalizer>> _tn_list;
+
     std::vector<std::string> _tts_last_output_files;
     std::string _tts_last_output_files_str = "";
 

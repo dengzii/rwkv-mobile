@@ -9,6 +9,7 @@
 #include <string>
 #include <unordered_set>
 #include <sstream>
+#include <cstdint>
 
 std::string processVocabFormat(const std::string &input) {
     std::string final;

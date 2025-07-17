@@ -140,6 +140,7 @@ static Matrixf melfilter(int sr, int n_fft, int n_mels, int fmin, int fmax){
   Matrixf upper = ramps.bottomRows(n_mels).array()/fdiff.segment(1, n_mels).transpose().replicate(1, n_f).array();
   Matrixf weights = (lower.array()<upper.array()).select(lower, upper).cwiseMax(0);
 
+  // norm = "slaney"
   auto enorm = (2.0/(mel_f.segment(2, n_mels)-mel_f.segment(0, n_mels)).array()).transpose().replicate(1, n_f);
   weights = weights.array()*enorm;
 

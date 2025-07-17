@@ -209,6 +209,7 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     if (ENABLE_TTS)
         set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS}
             src/multimodal/tts/cosyvoice.cpp
+            src/multimodal/tts/sparktts.cpp
             src/multimodal/tts/frontend_utils.cpp
         )
 
