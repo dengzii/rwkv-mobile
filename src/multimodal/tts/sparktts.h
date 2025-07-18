@@ -7,6 +7,9 @@
 #include "MNN/Interpreter.hpp"
 #include <MNN/expr/Module.hpp>
 
+// #include "net.h"
+// #include "mat.h"
+
 namespace rwkvmobile {
 
 class sparktts {
@@ -55,6 +58,8 @@ private:
     MNN::Session *bicodec_detokenizer_mnn_session = nullptr;
 
     MNN::RuntimeInfo mnn_runtime;
+
+    // ncnn::Net bicodec_detokenizer_ncnn_net;
 };
 
 }

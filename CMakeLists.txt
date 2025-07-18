@@ -107,6 +107,7 @@ if (ENABLE_NCNN_BACKEND)
     option(NCNN_BUILD_TESTS "" OFF)
     option(NCNN_BUILD_BENCHMARK "" OFF)
     option(NCNN_DISABLE_EXCEPTION "" OFF)
+    option(NCNN_VULKAN "" ON)
     FetchContent_MakeAvailable(ncnn)
 endif()
 
@@ -116,7 +117,7 @@ if (ENABLE_MNN_BACKEND)
     FetchContent_Declare(
         mnn
         GIT_REPOSITORY https://github.com/alibaba/MNN
-        GIT_TAG 3.1.2
+        GIT_TAG 3.2.1
     )
 
     if (ANDROID)
@@ -128,12 +129,14 @@ if (ENABLE_MNN_BACKEND)
 
     if (ANDROID)
         option(MNN_SUPPORT_BF16 "" ON)
-        option(MNN_OPENCL "" ON)
     endif()
 
     if (APPLE)
         option(MNN_METAL "" ON)
         option(MNN_COREML "" ON)
+    else()
+        option(MNN_OPENCL "" ON)
+        option(MNN_VULKAN "" ON)
     endif()
 
     option(MNN_LOW_MEMORY "" ON)
@@ -141,6 +144,7 @@ if (ENABLE_MNN_BACKEND)
     option(MNN_BUILD_TOOLS "" OFF)
     option(MNN_BUILD_SHARED_LIBS "" OFF)
     option(MNN_SEP_BUILD "" OFF)
+    option(MNN_USE_SYSTEM_LIB "" ON)
     option(MNN_BUILD_TOOLS "" OFF)
     FetchContent_MakeAvailable(mnn)
 endif()

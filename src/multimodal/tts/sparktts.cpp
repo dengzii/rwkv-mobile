@@ -72,6 +72,7 @@ bool sparktts::load_models(std::string wav2vec2_model_path, std::string bicodec_
         MNN::ScheduleConfig conf;
         conf.type = MNN_FORWARD_CPU;
         conf.numThread = 2;
+        // conf.mode = 1;
         MNN::BackendConfig backendConfig;
         backendConfig.memory = MNN::BackendConfig::Memory_Low;
         backendConfig.power = MNN::BackendConfig::Power_High;
@@ -93,6 +94,30 @@ bool sparktts::load_models(std::string wav2vec2_model_path, std::string bicodec_
         }
         bicodec_detokenizer_mnn_interpretor = MNN::Interpreter::createFromFile(bicodec_detokenizer_path.c_str());
         bicodec_detokenizer_mnn_session = bicodec_detokenizer_mnn_interpretor->createSession(conf, mnn_runtime);
+
+        // auto remove_extension = [](std::string path) {
+        //     size_t lastindex = path.find_last_of(".");
+        //     return path.substr(0, lastindex);
+        // };
+        // ncnn::set_cpu_powersave(2);
+        // std::string param_path = remove_extension(bicodec_detokenizer_path) + ".param";
+        // std::string bin_path = remove_extension(bicodec_detokenizer_path) + ".bin";
+        // bicodec_detokenizer_ncnn_net.opt.use_vulkan_compute = 1;
+        // bicodec_detokenizer_ncnn_net.opt.use_fp16_packed = false;
+        // bicodec_detokenizer_ncnn_net.opt.use_fp16_storage = false;
+        // bicodec_detokenizer_ncnn_net.opt.use_fp16_arithmetic = false;
+
+        // int ret = 0;
+        // ret = bicodec_detokenizer_ncnn_net.load_param(param_path.c_str());
+        // if (ret == -1) {
+        //     LOGE("[TTS] Error loading Bicoder Detokenizer param: %s", param_path.c_str());
+        //     return false;
+        // }
+        // ret = bicodec_detokenizer_ncnn_net.load_model(bin_path.c_str());
+        // if (ret == -1) {
+        //     LOGE("[TTS] Error loading Bicoder Detokenizer model: %s", bin_path.c_str());
+        //     return false;
+        // }
     } catch (const std::exception &e) {
         LOGE("[TTS] Error loading models: %s", e.what());
         return false;
@@ -224,6 +249,15 @@ std::vector<float> sparktts::detokenize_audio(std::vector<int> global_tokens, st
     int output_size_audio = output_tensors["wav_rec"]->elementSize();
     std::vector<float> output_values((float*)output_ptr_audio, (float*)output_ptr_audio + output_size_audio);
     output_tensors["wav_rec"]->unmap(MNN::Tensor::MAP_TENSOR_READ, output_tensors["wav_rec"]->getDimensionType(), output_ptr_audio);
+
+    // ncnn::Extractor ex = bicodec_detokenizer_ncnn_net.create_extractor();
+    // ncnn::Mat semantic_tokens_mat(semantic_tokens.size(), (void*)semantic_tokens.data());
+    // ncnn::Mat global_tokens_mat(global_tokens.size(), (void*)global_tokens.data());
+    // ncnn::Mat output_mat;
+    // ex.input("in0", semantic_tokens_mat);
+    // ex.input("in1", global_tokens_mat);
+    // ex.extract("out0", output_mat);
+    // std::vector<float> output_values((float*)output_mat.data, (float*)output_mat.data + output_mat.total());
 
     end = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
