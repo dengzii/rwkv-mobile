@@ -100,6 +100,7 @@ public:
     int sparktts_release_models();
 
     int run_spark_tts(std::string tts_text, std::string prompt_audio_text, std::string prompt_audio_path, std::string output_wav_path);
+    int run_spark_tts_streaming(std::string tts_text, std::string prompt_audio_text, std::string prompt_audio_path, std::string output_wav_path);
 
     int run_tts_internal(std::string tts_text, std::string instruction_text,
         const std::string prompt_wav_path, const std::string prompt_speech_text,
@@ -143,6 +144,10 @@ public:
 
     float tts_get_generation_progress() {
         return _tts_generation_progress;
+    }
+
+    std::vector<float>& tts_get_streaming_buffer() {
+        return _tts_output_samples_buffer;
     }
 #endif
 
@@ -398,6 +403,8 @@ private:
 
     std::vector<std::string> _tts_last_output_files;
     std::string _tts_last_output_files_str = "";
+
+    std::vector<float> _tts_output_samples_buffer;
 
     float _tts_generation_progress = 0.0;
     int _tts_total_num_output_wavs = 0;

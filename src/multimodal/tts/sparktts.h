@@ -57,6 +57,8 @@ private:
     MNN::Interpreter *bicodec_detokenizer_mnn_interpretor = nullptr;
     MNN::Session *bicodec_detokenizer_mnn_session = nullptr;
 
+    int current_semantic_tokens_size = 0;
+
     MNN::RuntimeInfo mnn_runtime;
 
     // ncnn::Net bicodec_detokenizer_ncnn_net;

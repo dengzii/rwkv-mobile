@@ -214,18 +214,15 @@ std::vector<float> sparktts::detokenize_audio(std::vector<int> global_tokens, st
 
     LOGD("[TTS] semantic_tokens size: %d", semantic_tokens.size());
 
-        auto start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
 
     auto input_tensors = bicodec_detokenizer_mnn_interpretor->getSessionInputAll(bicodec_detokenizer_mnn_session);
-    std::vector<int> input_shape_semantic_tokens = {1, static_cast<int>(semantic_tokens.size())};
-    bicodec_detokenizer_mnn_interpretor->resizeTensor(input_tensors["semantic_tokens"], input_shape_semantic_tokens);
-    bicodec_detokenizer_mnn_interpretor->resizeSession(bicodec_detokenizer_mnn_session);
-
-        auto end = std::chrono::high_resolution_clock::now();
-        double duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-        LOGI("[TTS] Resize tensors time: %f ms", duration);
-
-        start = std::chrono::high_resolution_clock::now();
+    if (semantic_tokens.size() != current_semantic_tokens_size) {
+        current_semantic_tokens_size = semantic_tokens.size();
+        std::vector<int> input_shape_semantic_tokens = {1, static_cast<int>(semantic_tokens.size())};
+        bicodec_detokenizer_mnn_interpretor->resizeTensor(input_tensors["semantic_tokens"], input_shape_semantic_tokens);
+        bicodec_detokenizer_mnn_interpretor->resizeSession(bicodec_detokenizer_mnn_session);
+    }
 
     auto nchw_tensor_semantic_tokens = new MNN::Tensor(input_tensors["semantic_tokens"], MNN::Tensor::CAFFE);
     memcpy(nchw_tensor_semantic_tokens->host<int>(), semantic_tokens.data(), semantic_tokens.size() * sizeof(int));
@@ -237,11 +234,6 @@ std::vector<float> sparktts::detokenize_audio(std::vector<int> global_tokens, st
     input_tensors["global_tokens"]->copyFromHostTensor(nchw_tensor_global_tokens);
     delete nchw_tensor_global_tokens;
 
-        end = std::chrono::high_resolution_clock::now();
-        duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-        LOGI("[TTS] Prepare tensors time: %f ms", duration);
-
-        start = std::chrono::high_resolution_clock::now();
     bicodec_detokenizer_mnn_interpretor->runSession(bicodec_detokenizer_mnn_session);
 
     auto output_tensors = bicodec_detokenizer_mnn_interpretor->getSessionOutputAll(bicodec_detokenizer_mnn_session);
@@ -259,8 +251,8 @@ std::vector<float> sparktts::detokenize_audio(std::vector<int> global_tokens, st
     // ex.extract("out0", output_mat);
     // std::vector<float> output_values((float*)output_mat.data, (float*)output_mat.data + output_mat.total());
 
-    end = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    auto end = std::chrono::high_resolution_clock::now();
+    double duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     LOGI("[TTS] Detokenize audio time: %f ms", duration);
     return output_values;
 }

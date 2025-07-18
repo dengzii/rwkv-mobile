@@ -35,7 +35,9 @@ int main(int argc, char **argv) {
     // std::vector<int> semantic_tokens;
     // sparktts.tokenize_audio(wav_file.samples, global_tokens, semantic_tokens);
 
-    runtime.run_spark_tts("本指南详细介绍了 M4N-Dock 开发板的两种系统烧录方法：通过 TFCard 启动和烧录 eMMC，以及通过 AXDL 工具烧录。请根据您的需求选择合适的方法。", "", argv[4], "output.wav");
+    runtime.run_spark_tts_streaming("他们小心翼翼地调整电路，确保每个部件都正确连接，红灯、绿灯、黄灯依次亮起，仿佛在讲述一个关于交通规则的故事。", "", argv[4], "output.wav");
+
+    runtime.run_spark_tts_streaming("他们小心翼翼地调整电路，确保每个部件都正确连接，红灯、绿灯、黄灯依次亮起，仿佛在讲述一个关于交通规则的故事。", "", argv[4], "output.wav");
 
     runtime.release();
 

@@ -614,6 +614,70 @@ int rwkvmobile_runtime_run_tts_async(rwkvmobile_runtime_t runtime, const char * 
 #endif
 }
 
+int rwkvmobile_runtime_sparktts_load_models(rwkvmobile_runtime_t runtime, const char * wav2vec2_path, const char * bicodec_tokenizer_path, const char * bicodec_detokenizer_path) {
+#if ENABLE_TTS
+    if (runtime == nullptr || wav2vec2_path == nullptr || bicodec_tokenizer_path == nullptr || bicodec_detokenizer_path == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->sparktts_load_models(wav2vec2_path, bicodec_tokenizer_path, bicodec_detokenizer_path);
+#else
+    return RWKV_ERROR_UNSUPPORTED;
+#endif
+}
+
+int rwkvmobile_runtime_sparktts_release_models(rwkvmobile_runtime_t runtime) {
+#if ENABLE_TTS
+    if (runtime == nullptr) {
+        return RWKV_SUCCESS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    return rt->sparktts_release_models();
+#else
+    return RWKV_SUCCESS;
+#endif
+}
+
+int rwkvmobile_runtime_run_spark_tts_streaming_async(rwkvmobile_runtime_t runtime, const char * tts_text, const char * prompt_audio_text, const char * prompt_audio_path, const char * output_wav_path) {
+#if ENABLE_TTS
+    if (runtime == nullptr || tts_text == nullptr || prompt_audio_path == nullptr || output_wav_path == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    rt->set_is_generating(true);
+    rt->set_stop_signal(false);
+    std::string prompt_audio_text_str;
+    if (prompt_audio_text == nullptr) {
+        prompt_audio_text_str = "";
+    } else {
+        prompt_audio_text_str = std::string(prompt_audio_text);
+    }
+    std::thread generation_thread([=]() {
+        int ret = rt->run_spark_tts_streaming(tts_text, prompt_audio_text_str, prompt_audio_path, output_wav_path);
+        return ret;
+    });
+
+    generation_thread.detach();
+    return RWKV_SUCCESS;
+#else
+    return RWKV_ERROR_UNSUPPORTED;
+#endif
+}
+
+struct tts_streaming_buffer rwkvmobile_runtime_get_tts_streaming_buffer(rwkvmobile_runtime_t runtime) {
+    struct tts_streaming_buffer ret;
+#if ENABLE_TTS
+    auto rt = static_cast<class runtime *>(runtime);
+    auto buffer = rt->tts_get_streaming_buffer();
+    ret.samples = buffer.data();
+    ret.length = buffer.size();
+#else
+    ret.samples = nullptr;
+    ret.length = 0;
+#endif
+    return ret;
+}
+
 int rwkvmobile_runtime_cosyvoice_set_cfm_steps(rwkvmobile_runtime_t runtime, int cfm_steps) {
 #if ENABLE_TTS
     if (runtime == nullptr) {
