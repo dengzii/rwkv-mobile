@@ -1282,14 +1282,15 @@ int runtime::run_spark_tts_streaming(std::string tts_text, std::string prompt_au
 
     _tts_output_samples_buffer.clear();
 
-    wav_file wav;
-    wav.load(prompt_audio_path);
-    wav.resample(16000);
+    wav_file *wav = new wav_file();
+    wav->load(prompt_audio_path);
+    wav->resample(16000);
 
     auto total_start = std::chrono::high_resolution_clock::now();
     std::vector<int> global_tokens;
     std::vector<int> semantic_tokens;
-    _sparktts->tokenize_audio(wav.samples, global_tokens, semantic_tokens);
+    _sparktts->tokenize_audio(wav->samples, global_tokens, semantic_tokens);
+    delete wav;
     if (prompt_audio_text.empty()) {
         semantic_tokens.clear();
     }
@@ -1320,7 +1321,7 @@ int runtime::run_spark_tts_streaming(std::string tts_text, std::string prompt_au
     static const float tts_temperature = 1.0;
     static const int tts_eos_token = 8192;
 
-    static const int buf_size = 20;
+    static const int buf_size = 10;
     int chunk_size = 15;
 
     auto start = std::chrono::high_resolution_clock::now();

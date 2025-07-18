@@ -7,8 +7,6 @@
 #include "c_api.h"
 #include "logger.h"
 
-#define ENSURE_SUCCESS_OR_LOG_EXIT(x, msg) if (x != rwkvmobile::RWKV_SUCCESS) { std::cout << msg << std::endl; return 1; }
-
 int main(int argc, char **argv) {
     // set stdout to be unbuffered
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -35,9 +33,9 @@ int main(int argc, char **argv) {
     // std::vector<int> semantic_tokens;
     // sparktts.tokenize_audio(wav_file.samples, global_tokens, semantic_tokens);
 
-    runtime.run_spark_tts_streaming("他们小心翼翼地调整电路，确保每个部件都正确连接，红灯、绿灯、黄灯依次亮起，仿佛在讲述一个关于交通规则的故事。", "", argv[4], "output.wav");
-
-    runtime.run_spark_tts_streaming("他们小心翼翼地调整电路，确保每个部件都正确连接，红灯、绿灯、黄灯依次亮起，仿佛在讲述一个关于交通规则的故事。", "", argv[4], "output.wav");
+    for (int i = 0; i < 2; i++) {
+        runtime.run_spark_tts_streaming("他们小心翼翼地调整电路，确保每个部件都正确连接，红灯、绿灯、黄灯依次亮起，仿佛在讲述一个关于交通规则的故事。", "", argv[4], "output.wav");
+    }
 
     runtime.release();
 
