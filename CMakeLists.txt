@@ -52,11 +52,6 @@ set(RWKV_MOBILE_SRCS
 )
 
 if (WIN32)
-    add_compile_options("$<$<C_COMPILER_ID:MSVC>:/source-charset:utf-8>")
-    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/source-charset:utf-8>")
-endif()
-
-if (WIN32)
     set(CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE "/WHOLEARCHIVE:<LIBRARY>")
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 else()
@@ -249,6 +244,11 @@ endif()
 
 if (ENABLE_COREML_BACKEND)
     set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/backends/coreml/coreml_rwkv_backend.cpp)
+endif()
+
+if (WIN32)
+    add_compile_options("$<$<C_COMPILER_ID:MSVC>:/source-charset:utf-8>")
+    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/source-charset:utf-8>")
 endif()
 
 add_library(rwkv_mobile_internal STATIC ${RWKV_MOBILE_SRCS})
