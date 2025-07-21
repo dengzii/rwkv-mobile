@@ -26,6 +26,7 @@
 
 #ifdef ENABLE_TTS
 #include "cosyvoice.h"
+#include "sparktts.h"
 #include "kaldifst/csrc/text-normalizer.h"
 #endif
 
@@ -70,6 +71,7 @@ public:
     std::string get_response_buffer_content() { return _response_buffer; }
     const std::vector<int32_t> get_response_buffer_ids() { return _response_buffer_ids; }
     void clear_response_buffer() { _response_buffer = ""; _response_buffer_ids.clear(); }
+    bool get_response_buffer_eos_found() { return _response_buffer_eos_found; }
 #ifdef ENABLE_VISION
     int set_image_prompt(std::string path);
 #endif
@@ -89,6 +91,18 @@ public:
     );
 
     int cosyvoice_release_models();
+
+    int sparktts_load_models(
+        std::string wav2vec2_path,
+        std::string bicodec_tokenizer_path,
+        std::string bicodec_detokenizer_path
+    );
+
+    int sparktts_release_models();
+
+    int run_spark_tts(std::string tts_text, std::string prompt_audio_text, std::string prompt_audio_path, std::string output_wav_path);
+    int run_spark_tts_streaming(std::string tts_text, std::string prompt_audio_text, std::string prompt_audio_path, std::string output_wav_path);
+
     int run_tts_internal(std::string tts_text, std::string instruction_text,
         const std::string prompt_wav_path, const std::string prompt_speech_text,
         std::vector<float> &output_samples);
@@ -131,6 +145,10 @@ public:
 
     float tts_get_generation_progress() {
         return _tts_generation_progress;
+    }
+
+    std::vector<float>& tts_get_streaming_buffer() {
+        return _tts_output_samples_buffer;
     }
 #endif
 
@@ -395,6 +413,7 @@ private:
 
     std::string _response_buffer;
     std::vector<int32_t> _response_buffer_ids;
+    bool _response_buffer_eos_found = false;
 
     void apply_logits_penalties(float * logits, int vocab_size, float presence_penalty, float frequency_penalty, float penalty_decay);
 
@@ -408,9 +427,13 @@ private:
 
 #ifdef ENABLE_TTS
     std::unique_ptr<cosyvoice> _cosyvoice;
+    std::unique_ptr<sparktts> _sparktts;
     std::vector<std::unique_ptr<kaldifst::TextNormalizer>> _tn_list;
+
     std::vector<std::string> _tts_last_output_files;
     std::string _tts_last_output_files_str = "";
+
+    std::vector<float> _tts_output_samples_buffer;
 
     float _tts_generation_progress = 0.0;
     int _tts_total_num_output_wavs = 0;

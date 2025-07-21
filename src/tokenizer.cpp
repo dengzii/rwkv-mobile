@@ -4,7 +4,7 @@
 namespace rwkvmobile {
 
 int trie_tokenizer::load(const std::string vocab_file) {
-    _tokenizer = new TRIE_TOKENIZER(vocab_file);
+    _tokenizer = new OptimizedTrieTokenizer(vocab_file);
     if (!_tokenizer->inited())
         return RWKV_ERROR_TOKENIZER;
     return RWKV_SUCCESS;

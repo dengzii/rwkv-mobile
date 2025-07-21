@@ -84,7 +84,7 @@ if (ENABLE_WEBRWKV_BACKEND)
     FetchContent_Declare(
         web_rwkv_ffi
         GIT_REPOSITORY https://github.com/MollySophia/web-rwkv-ffi
-        GIT_TAG 8dc3c2d406cf24671bba2097d9ad3eda1b3b5867
+        GIT_TAG test
     )
     FetchContent_MakeAvailable(web_rwkv_ffi)
 
@@ -116,7 +116,7 @@ if (ENABLE_MNN_BACKEND)
     FetchContent_Declare(
         mnn
         GIT_REPOSITORY https://github.com/alibaba/MNN
-        GIT_TAG 3.1.2
+        GIT_TAG 3.2.1
     )
 
     if (ANDROID)
@@ -129,6 +129,7 @@ if (ENABLE_MNN_BACKEND)
     if (ANDROID)
         option(MNN_SUPPORT_BF16 "" ON)
         option(MNN_OPENCL "" ON)
+        option(MNN_VULKAN "" ON)
     endif()
 
     if (APPLE)
@@ -141,6 +142,7 @@ if (ENABLE_MNN_BACKEND)
     option(MNN_BUILD_TOOLS "" OFF)
     option(MNN_BUILD_SHARED_LIBS "" OFF)
     option(MNN_SEP_BUILD "" OFF)
+    option(MNN_USE_SYSTEM_LIB "" ON)
     option(MNN_BUILD_TOOLS "" OFF)
     FetchContent_MakeAvailable(mnn)
 endif()
@@ -212,6 +214,7 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     if (ENABLE_TTS)
         set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS}
             src/multimodal/tts/cosyvoice.cpp
+            src/multimodal/tts/sparktts.cpp
             src/multimodal/tts/frontend_utils.cpp
         )
 

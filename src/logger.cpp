@@ -15,22 +15,57 @@ const char *level_str[] = {
 #include <android/log.h>
 #define LOG_TAG "RWKV-MOBILE"
 void Logger::log(const std::string &msg, const int level) {
-    _log(std::string(level_str[level]) + " " + msg);
-    if (level >= _level) {
-        switch (level) {
-            case RWKV_LOG_LEVEL_DEBUG:
-                __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "%s", msg.c_str());
-                break;
-            case RWKV_LOG_LEVEL_WARN:
-                __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "%s", msg.c_str());
-                break;
-            case RWKV_LOG_LEVEL_ERROR:
-                __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, "%s", msg.c_str());
-                break;
-            case RWKV_LOG_LEVEL_INFO:
-            default:
-                __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "%s", msg.c_str());
-                break;
+    auto log_msg = std::string(level_str[level]) + " " + msg;
+
+    auto split_log_msg = [](const std::string &msg, const int max_length) {
+        std::vector<std::string> splits;
+        for (size_t i = 0; i < msg.size(); i += max_length) {
+            splits.push_back(msg.substr(i, max_length));
+        }
+        return splits;
+    };
+
+    // split log_msg into splits if it's too long
+    if (log_msg.size() > 1024) {
+        auto splits = split_log_msg(log_msg, 1024);
+        for (auto &split : splits) {
+            _log(split);
+            if (level >= _level) {
+                switch (level) {
+                    case RWKV_LOG_LEVEL_DEBUG:
+                        __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "%s", split.c_str());
+                        break;
+                    case RWKV_LOG_LEVEL_WARN:
+                        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "%s", split.c_str());
+                        break;
+                    case RWKV_LOG_LEVEL_ERROR:
+                        __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, "%s", split.c_str());
+                        break;
+                    case RWKV_LOG_LEVEL_INFO:
+                    default:
+                        __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "%s", split.c_str());
+                        break;
+                }
+            }
+        }
+    } else {
+        _log(log_msg);
+        if (level >= _level) {
+            switch (level) {
+                case RWKV_LOG_LEVEL_DEBUG:
+                    __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "%s", msg.c_str());
+                    break;
+                case RWKV_LOG_LEVEL_WARN:
+                    __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "%s", msg.c_str());
+                    break;
+                case RWKV_LOG_LEVEL_ERROR:
+                    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, "%s", msg.c_str());
+                    break;
+                case RWKV_LOG_LEVEL_INFO:
+                default:
+                    __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "%s", msg.c_str());
+                    break;
+            }
         }
     }
 }

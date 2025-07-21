@@ -5,7 +5,7 @@
 #include <vector>
 #include "commondef.h"
 
-class TRIE_TOKENIZER;
+class OptimizedTrieTokenizer;
 
 namespace rwkvmobile {
 
@@ -33,7 +33,7 @@ public:
     std::string decode(const std::vector<int> &ids) const;
     std::string decode(int id) const;
 private:
-    TRIE_TOKENIZER * _tokenizer;
+    OptimizedTrieTokenizer * _tokenizer;
 };
 
 class abc_tokenizer : public tokenizer_base {

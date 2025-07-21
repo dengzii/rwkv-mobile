@@ -411,7 +411,13 @@ class Model:
         self.gguf_writer.add_token_list(tokens)
         self.gguf_writer.add_token_types(toktypes)
         special_vocab = gguf.SpecialVocab(self.model_path, load_merges=False)
-        special_vocab.chat_template = "rwkv-world"
+        template_path = Path(__file__).parent / "template" / "llama-cpp-rwkv-world.jinja"
+        if template_path.is_file():
+            with open(template_path, "r", encoding="utf-8") as f:
+                template = f.read()
+            special_vocab.chat_template = template
+        else:
+            special_vocab.chat_template = "rwkv-world"
         # hack: Add '\n\n' as the EOT token to make it chat normally
         special_vocab._set_special_token("eos", 0)
         special_vocab._set_special_token("bos", 0)

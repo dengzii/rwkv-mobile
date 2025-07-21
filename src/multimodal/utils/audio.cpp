@@ -217,4 +217,57 @@ void dynamic_range_compression(std::vector<std::vector<float>>& features) {
     }
 }
 
+void audio_volume_normalize(std::vector<float>& audio, float coeff) {
+    if (audio.empty()) {
+        return;
+    }
+
+    std::vector<float> abs_sorted_audio(audio);
+    std::sort(abs_sorted_audio.begin(), abs_sorted_audio.end(), [](float a, float b) {
+        return std::abs(a) < std::abs(b);
+    });
+    float abs_max_val = abs_sorted_audio[abs_sorted_audio.size() - 1];
+
+    if (abs_max_val < 0.1f) {
+        float scale = abs_max_val > 1e-3f ? abs_max_val : 1e-3f;
+        for (int i = 0; i < audio.size(); i++) {
+            audio[i] = audio[i] / scale * 0.1f;
+        }
+    }
+
+    std::vector<float> temp;
+    for (int i = 0; i < abs_sorted_audio.size(); i++) {
+        if (abs_sorted_audio[i] > 0.01f) {
+            temp.push_back(abs_sorted_audio[i]);
+        }
+    }
+
+    if (temp.size() <= 10) {
+        return;
+    }
+
+    float volume = 0.0f;
+    for (int i = (int)(temp.size() * 0.9f); i < (int)(temp.size() * 0.99f); i++) {
+        volume += temp[i];
+    }
+    volume /= ((int)(temp.size() * 0.99f) - (int)(temp.size() * 0.9f));
+
+    float scale = std::max(0.1f, std::min(10.0f, coeff / volume));
+    for (int i = 0; i < audio.size(); i++) {
+        audio[i] = audio[i] * scale;
+    }
+
+    abs_max_val = *std::max_element(audio.begin(), audio.end(), [](float a, float b) {
+        return std::abs(a) < std::abs(b);
+    });
+
+    if (abs_max_val > 1.0f) {
+        for (int i = 0; i < audio.size(); i++) {
+            audio[i] = audio[i] / abs_max_val;
+        }
+    }
+
+    return;
+}
+
 }

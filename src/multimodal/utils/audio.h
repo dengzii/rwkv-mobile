@@ -35,4 +35,6 @@ std::vector<std::vector<float>> logMelSpectrogram(std::vector<float>& audio, int
 
 void dynamic_range_compression(std::vector<std::vector<float>>& features);
 
+void audio_volume_normalize(std::vector<float>& audio, float coeff = 0.2f);
+
 }
