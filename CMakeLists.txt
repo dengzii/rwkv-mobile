@@ -247,8 +247,8 @@ if (ENABLE_COREML_BACKEND)
 endif()
 
 if (WIN32)
-    add_compile_options("$<$<C_COMPILER_ID:MSVC>:/source-charset:utf-8>")
-    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/source-charset:utf-8>")
+    add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
+    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 endif()
 
 add_library(rwkv_mobile_internal STATIC ${RWKV_MOBILE_SRCS})

@@ -25,17 +25,10 @@ int main(int argc, char **argv) {
         "BiCodecDetokenize.mnn"
     );
 
-    // rwkvmobile::wav_file wav_file;
-    // wav_file.load("/home/molly/rwkv-mobile/kafka.wav");
-    // wav_file.resample(16000);
-
-    // std::vector<int> global_tokens;
-    // std::vector<int> semantic_tokens;
-    // sparktts.tokenize_audio(wav_file.samples, global_tokens, semantic_tokens);
-
-    for (int i = 0; i < 2; i++) {
-        runtime.run_spark_tts_streaming("他们小心翼翼地调整电路，确保每个部件都正确连接，红灯、绿灯、黄灯依次亮起，仿佛在讲述一个关于交通规则的故事。", "", argv[4], "output.wav");
-    }
+    // for (int i = 0; i < 2; i++) {
+    //     runtime.run_spark_tts_streaming("他们小心翼翼地调整电路，确保每个部件都正确连接，红灯、绿灯、黄灯依次亮起，仿佛在讲述一个关于交通规则的故事。", "", argv[4], "output.wav");
+    // }
+    runtime.run_spark_tts("他们小心翼翼地调整电路，确保每个部件都正确连接，红灯、绿灯、黄灯依次亮起，仿佛在讲述一个关于交通规则的故事。", "", argv[4], "output.wav");
 
     runtime.release();
 
