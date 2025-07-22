@@ -54,6 +54,8 @@ set(RWKV_MOBILE_SRCS
 if (WIN32)
     set(CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE "/WHOLEARCHIVE:<LIBRARY>")
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    cmake_host_system_information(RESULT CPU_NUMBER_OF_LOGICAL_CORES QUERY NUMBER_OF_LOGICAL_CORES)
+    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/MP${CPU_NUMBER_OF_LOGICAL_CORES}>")
 else()
     set(CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE "LINKER:--whole-archive" "<LINK_ITEM>" "LINKER:--no-whole-archive")
 endif()
@@ -205,12 +207,12 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
 
     if (ENABLE_TTS)
         set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS}
-            src/multimodal/tts/cosyvoice.cpp
+            # src/multimodal/tts/cosyvoice.cpp
             src/multimodal/tts/sparktts.cpp
-            src/multimodal/tts/frontend_utils.cpp
+            # src/multimodal/tts/frontend_utils.cpp
         )
 
-        include(kaldifst)
+        # include(kaldifst)
     endif()
 
     message(CHECK_START "Fetching Eigen3")
@@ -239,8 +241,10 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     )
     option(KALDI_NATIVE_FBANK_BUILD_PYTHON "" OFF)
     option(KALDI_NATIVE_FBANK_BUILD_TESTS "" OFF)
+    set(BUILD_SHARED_LIBS_BACKUP ${BUILD_SHARED_LIBS})
     set(BUILD_SHARED_LIBS OFF)
     FetchContent_MakeAvailable(kaldi_native_fbank)
+    set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_BACKUP})
 endif()
 
 if (ENABLE_COREML_BACKEND)
@@ -263,24 +267,15 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_TTS)
     target_link_libraries(rwkv_mobile_internal PUBLIC Eigen3::Eigen)
     if (ENABLE_TTS)
-        if (WIN32)
-            target_link_libraries(rwkv_mobile_internal PUBLIC
-                $<LINK_LIBRARY:WHOLE_ARCHIVE,kaldi-native-fbank-core>
-                $<LINK_LIBRARY:WHOLE_ARCHIVE,kaldifst_core>
-                $<LINK_LIBRARY:WHOLE_ARCHIVE,fst>
-            )
-        else()
-            target_link_libraries(rwkv_mobile_internal PUBLIC
-                $<TARGET_OBJECTS:kaldi-native-fbank-core>
-                $<TARGET_OBJECTS:kaldifst_core>
-                $<TARGET_OBJECTS:fst>
-            )
-        endif()
+        target_link_libraries(rwkv_mobile_internal PUBLIC
+            $<TARGET_OBJECTS:kaldi-native-fbank-core>
+        )
 
         target_include_directories(rwkv_mobile_internal PUBLIC
             ${kaldi_native_fbank_SOURCE_DIR}
-            ${openfst_SOURCE_DIR}/src/include
-            ${kaldifst_SOURCE_DIR})
+            # ${openfst_SOURCE_DIR}/src/include
+            # ${kaldifst_SOURCE_DIR}
+        )
     endif()
     target_include_directories(rwkv_mobile_internal PUBLIC ${Eigen_SOURCE_DIR}
         src/multimodal/tts src/multimodal/utils)
@@ -439,8 +434,8 @@ if (BUILD_STATIC_LIB)
     if (ENABLE_WHISPER OR ENABLE_TTS)
         set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST}
             $<TARGET_FILE:kaldi-native-fbank-core>
-            $<TARGET_FILE:kaldifst_core>
-            $<TARGET_FILE:fst>
+            # $<TARGET_FILE:kaldifst_core>
+            # $<TARGET_FILE:fst>
         )
         if (IOS)
             set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST} $<TARGET_FILE:MNN>)

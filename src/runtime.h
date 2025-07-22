@@ -24,9 +24,8 @@
 #endif
 
 #ifdef ENABLE_TTS
-#include "cosyvoice.h"
 #include "sparktts.h"
-#include "kaldifst/csrc/text-normalizer.h"
+// #include "kaldifst/csrc/text-normalizer.h"
 #endif
 
 namespace rwkvmobile {
@@ -80,17 +79,6 @@ public:
 #endif
 
 #ifdef ENABLE_TTS
-    int cosyvoice_load_models(
-        std::string speech_tokenizer_path,
-        std::string campplus_path,
-        std::string flow_encoder_path,
-        std::string flow_decoder_estimator_path,
-        std::string hift_generator_path,
-        std::string tts_tokenizer_path
-    );
-
-    int cosyvoice_release_models();
-
     int sparktts_load_models(
         std::string wav2vec2_path,
         std::string bicodec_tokenizer_path,
@@ -102,52 +90,23 @@ public:
     int run_spark_tts(std::string tts_text, std::string prompt_audio_text, std::string prompt_audio_path, std::string output_wav_path);
     int run_spark_tts_streaming(std::string tts_text, std::string prompt_audio_text, std::string prompt_audio_path, std::string output_wav_path);
 
-    int run_tts_internal(std::string tts_text, std::string instruction_text,
-        const std::string prompt_wav_path, const std::string prompt_speech_text,
-        std::vector<float> &output_samples);
-    int run_tts(std::string tts_text, std::string instruction_text, std::string prompt_speech_text, std::string prompt_wav_path, std::string output_wav_path);
-
-    int cosyvoice_set_cfm_steps(int cfm_steps) {
-        if (_cosyvoice == nullptr) {
-            return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
-        }
-        _cosyvoice->set_cfm_steps(cfm_steps);
-        return RWKV_SUCCESS;
+    std::vector<float>& tts_get_streaming_buffer() {
+        return _tts_output_samples_buffer;
     }
 
     int tts_register_text_normalizer(std::string path) {
-        if (!std::ifstream(path).good()) {
-            LOGE("[TTS] Failed to load text normalizer file %s\n", path.c_str());
-            return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
-        }
-        _tn_list.push_back(std::make_unique<kaldifst::TextNormalizer>(path));
-        LOGI("[TTS] Loaded text normalizer file %s\n", path.c_str());
+        // if (!std::ifstream(path).good()) {
+        //     LOGE("[TTS] Failed to load text normalizer file %s\n", path.c_str());
+        //     return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+        // }
+        // _tn_list.push_back(std::make_unique<kaldifst::TextNormalizer>(path));
+        // LOGI("[TTS] Loaded text normalizer file %s\n", path.c_str());
         return RWKV_SUCCESS;
     }
 
     int tts_clear_text_normalizer() {
-        _tn_list.clear();
+        // _tn_list.clear();
         return RWKV_SUCCESS;
-    }
-
-    std::string& tts_get_current_output_files() {
-        _tts_last_output_files_str = "";
-        for (auto file : _tts_last_output_files) {
-            _tts_last_output_files_str += file + ",";
-        }
-        return _tts_last_output_files_str;
-    }
-
-    int tts_get_num_total_output_wavs() {
-        return _tts_total_num_output_wavs;
-    }
-
-    float tts_get_generation_progress() {
-        return _tts_generation_progress;
-    }
-
-    std::vector<float>& tts_get_streaming_buffer() {
-        return _tts_output_samples_buffer;
     }
 #endif
 
@@ -397,17 +356,10 @@ private:
 #endif
 
 #ifdef ENABLE_TTS
-    std::unique_ptr<cosyvoice> _cosyvoice;
     std::unique_ptr<sparktts> _sparktts;
-    std::vector<std::unique_ptr<kaldifst::TextNormalizer>> _tn_list;
-
-    std::vector<std::string> _tts_last_output_files;
-    std::string _tts_last_output_files_str = "";
+    // std::vector<std::unique_ptr<kaldifst::TextNormalizer>> _tn_list;
 
     std::vector<float> _tts_output_samples_buffer;
-
-    float _tts_generation_progress = 0.0;
-    int _tts_total_num_output_wavs = 0;
 #endif
 };
 
