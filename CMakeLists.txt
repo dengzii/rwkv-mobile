@@ -161,9 +161,8 @@ if (ENABLE_LLAMACPP_BACKEND)
 
     FetchContent_Declare(
         llama_cpp
-        GIT_REPOSITORY https://github.com/MollySophia/llama.cpp
-        # GIT_TAG rwkv7-lmhead-bias
-        GIT_TAG 03f006c4494d15aa5835f4ad68519932e6ede9e2
+        GIT_REPOSITORY https://github.com/ggml-org/llama.cpp
+        GIT_TAG c8ade30036139e32108fee53d8b7164dbfda4bee
     )
 
     option(LLAMA_STANDALONE "" OFF)
