@@ -263,11 +263,11 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     target_link_libraries(rwkv_mobile_internal PUBLIC Eigen3::Eigen)
     if (ENABLE_TTS)
         if (WIN32)
-        target_link_libraries(rwkv_mobile_internal PUBLIC
-            $<TARGET_OBJECTS:kaldi-native-fbank-core
-            kaldifst_core
-            fst
-        )
+            target_link_libraries(rwkv_mobile_internal PUBLIC
+                kaldi-native-fbank-core
+                kaldifst_core
+                fst
+            )
         else()
             target_link_libraries(rwkv_mobile_internal PUBLIC
                 $<TARGET_OBJECTS:kaldi-native-fbank-core>
