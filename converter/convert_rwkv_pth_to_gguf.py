@@ -411,13 +411,40 @@ class Model:
         self.gguf_writer.add_token_list(tokens)
         self.gguf_writer.add_token_types(toktypes)
         special_vocab = gguf.SpecialVocab(self.model_path, load_merges=False)
-        template_path = Path(__file__).parent / "template" / "llama-cpp-rwkv-world.jinja"
-        if template_path.is_file():
-            with open(template_path, "r", encoding="utf-8") as f:
-                template = f.read()
-            special_vocab.chat_template = template
-        else:
-            special_vocab.chat_template = "rwkv-world"
+        special_vocab.chat_template = """{%- if not add_generation_prompt is defined -%}
+    {%- set add_generation_prompt = true -%}
+{%- endif -%}
+{%- set ns = namespace(system_prompt='') -%}
+{%- for message in messages -%}
+    {%- if message['role'] == 'system' -%}
+        {%- set ns.system_prompt = message['content'] -%}
+    {%- endif -%}
+{%- endfor -%}
+{{bos_token}}
+{%- if ns.system_prompt != '' -%}
+{{- 'System: ' + ns.system_prompt + '\\n\\n' -}}
+{%- endif -%}
+{%- for message in messages -%}
+    {%- if message['role'] == 'user' -%}
+        {{- 'User: ' + message['content']|trim + '\\n\\n' -}}
+    {%- endif -%}
+    {%- if message['role'] == 'assistant' and message['content'] is  not none -%}
+        {%- set content = message['content'] -%}
+        {%- if '</think>' in content -%}
+            {%- set content = content.split('</think>')[-1] -%}
+        {%- endif -%}
+        {{- 'Assistant: ' + content|trim + '\\n\\n' -}}
+    {%- endif -%}
+{%- endfor -%}
+{%- if add_generation_prompt -%}
+    {{- 'Assistant:' -}}
+    {%- if enable_thinking is defined and enable_thinking is false %}
+        {{- ' <think>\\n</think>' }}
+    {%- endif %}
+    {%- if enable_thinking is defined and enable_thinking is true %}
+        {{- ' <think>' }}
+    {%- endif %}
+{%- endif -%}"""
         # hack: Add '\n\n' as the EOT token to make it chat normally
         special_vocab._set_special_token("eos", 0)
         special_vocab._set_special_token("bos", 0)
