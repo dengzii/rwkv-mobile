@@ -239,6 +239,7 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     )
     option(KALDI_NATIVE_FBANK_BUILD_PYTHON "" OFF)
     option(KALDI_NATIVE_FBANK_BUILD_TESTS "" OFF)
+    set(BUILD_SHARED_LIBS OFF)
     FetchContent_MakeAvailable(kaldi_native_fbank)
 endif()
 
@@ -264,9 +265,9 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     if (ENABLE_TTS)
         if (WIN32)
             target_link_libraries(rwkv_mobile_internal PUBLIC
-                kaldi-native-fbank-core
-                kaldifst_core
-                fst
+                $<LINK_LIBRARY:WHOLE_ARCHIVE,kaldi-native-fbank-core>
+                $<LINK_LIBRARY:WHOLE_ARCHIVE,kaldifst_core>
+                $<LINK_LIBRARY:WHOLE_ARCHIVE,fst>
             )
         else()
             target_link_libraries(rwkv_mobile_internal PUBLIC
