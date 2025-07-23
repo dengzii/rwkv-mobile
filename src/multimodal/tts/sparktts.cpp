@@ -71,7 +71,7 @@ bool sparktts::load_models(std::string wav2vec2_model_path, std::string bicodec_
 
         MNN::ScheduleConfig conf;
         conf.type = MNN_FORWARD_CPU;
-        conf.numThread = 2;
+        conf.numThread = 3;
         // conf.mode = 1;
         MNN::BackendConfig backendConfig;
         backendConfig.memory = MNN::BackendConfig::Memory_Low;
