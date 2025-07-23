@@ -4,6 +4,8 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <algorithm>
+#include <cstring>
 
 #ifdef __linux__
 #include <dirent.h>
