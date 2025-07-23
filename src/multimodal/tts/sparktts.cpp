@@ -5,6 +5,7 @@
 #include <cstring>
 #include "logger.h"
 #include "audio.h"
+#include "soc_detect.h"
 
 namespace rwkvmobile {
 
@@ -71,8 +72,14 @@ bool sparktts::load_models(std::string wav2vec2_model_path, std::string bicodec_
 
         MNN::ScheduleConfig conf;
         conf.type = MNN_FORWARD_CPU;
-        conf.numThread = 3;
-        // conf.mode = 1;
+#ifdef __ANDROID__
+        auto cpu_groups = get_cpu_groups();
+        // use second group
+        conf.numThread = cpu_groups[1].ids.size();
+#else
+        conf.numThread = 4;
+#endif
+        LOGI("[TTS] MNN numThread: %d", conf.numThread);
         MNN::BackendConfig backendConfig;
         backendConfig.memory = MNN::BackendConfig::Memory_Low;
         backendConfig.power = MNN::BackendConfig::Power_High;
@@ -95,6 +102,16 @@ bool sparktts::load_models(std::string wav2vec2_model_path, std::string bicodec_
         bicodec_detokenizer_mnn_interpretor = MNN::Interpreter::createFromFile(bicodec_detokenizer_path.c_str());
         bicodec_detokenizer_mnn_session = bicodec_detokenizer_mnn_interpretor->createSession(conf, mnn_runtime);
 
+#ifdef __ANDROID__
+        wav2vec2_mnn_interpretor->setSessionHint(MNN::Interpreter::HintMode::CPU_CORE_IDS, cpu_groups[1].ids.data(), cpu_groups[1].ids.size());
+        bicodec_tokenizer_mnn_interpretor->setSessionHint(MNN::Interpreter::HintMode::CPU_CORE_IDS, cpu_groups[1].ids.data(), cpu_groups[1].ids.size());
+        bicodec_detokenizer_mnn_interpretor->setSessionHint(MNN::Interpreter::HintMode::CPU_CORE_IDS, cpu_groups[1].ids.data(), cpu_groups[1].ids.size());
+        std::string msg = "[TTS]: binding mnn to cpu core ids: ";
+        for (int i = 0; i < cpu_groups[1].ids.size(); i++) {
+            msg += std::to_string(cpu_groups[1].ids[i]) + " ";
+        }
+        LOGI("%s", msg.c_str());
+#endif
         // auto remove_extension = [](std::string path) {
         //     size_t lastindex = path.find_last_of(".");
         //     return path.substr(0, lastindex);

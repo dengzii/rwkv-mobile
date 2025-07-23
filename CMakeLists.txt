@@ -113,7 +113,7 @@ if (ENABLE_MNN_BACKEND)
     FetchContent_Declare(
         mnn
         GIT_REPOSITORY https://github.com/alibaba/MNN
-        GIT_TAG 3.2.1
+        GIT_TAG a739ea5870a4a45680f0e36ba9662ca39f2f4eec
     )
 
     if (ANDROID)

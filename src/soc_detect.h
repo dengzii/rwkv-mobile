@@ -1,5 +1,8 @@
 #pragma once
 
+#include <vector>
+#include <cstdint>
+
 namespace rwkvmobile {
 
 enum platform_type {
@@ -33,5 +36,13 @@ class soc_detect {
         const char * m_soc_partname = "Unknown";
         const char * m_htp_arch = "Unknown";
 };
+
+struct CPUGroup {
+    uint32_t minFreq;
+    uint32_t maxFreq;
+    std::vector<int> ids;
+};
+
+const std::vector<CPUGroup> get_cpu_groups();
 
 } // namespace rwkvmobile
