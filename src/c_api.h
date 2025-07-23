@@ -153,7 +153,7 @@ int rwkvmobile_init_embedding(rwkvmobile_runtime_t runtime, const char * model_p
 
 int rwkvmobile_embed(rwkvmobile_runtime_t runtime, const char * text, float * embedding);
 
-float rwkvmobile_similarity(rwkvmobile_runtime_t runtime, float * emb1, float * emb2);
+float rwkvmobile_similarity(rwkvmobile_runtime_t runtime, const float * emb1, const float * emb2);
 
 // platform info
 const char * rwkvmobile_get_platform_name();

@@ -161,7 +161,7 @@ public:
     } * _state_head = nullptr;
 
     int clear_state() {
-        if (_backend == nullptr) {
+        if (_backend == nullptr || _state_head == nullptr) {
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
         }
         _occurences.clear();
@@ -270,8 +270,8 @@ public:
         if (_embedding == nullptr) {
             _embedding = std::make_unique<rwkv_embedding>();
         }
-        _embedding->load_model(model_path);
-        return 0;
+        LOGI("Loading embedding model from %s\n", model_path.c_str());
+        return _embedding->load_model(model_path);
     }
 
     std::vector<float> embed(std::string text) {
@@ -280,7 +280,7 @@ public:
         }
         try {
             return _embedding->embed(text);
-        } catch (const std::exception& e) {
+        } catch (const std::runtime_error& e) {
             LOGE("Embedding error: %s", e.what());
             return {};
         }
