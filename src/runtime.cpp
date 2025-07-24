@@ -1186,7 +1186,6 @@ int runtime::run_spark_tts_streaming(std::string tts_text, std::string prompt_au
     LOGI("[TTS] Output audio length: %lf s", _tts_output_samples_buffer.size() / 16000.0);
     LOGI("[TTS] RTF (%s): %lf", read_from_cache ? "prompt audio tokens cache hit" : "prompt audio tokens cache miss", total_duration / 1e3f * 16000.0 / _tts_output_samples_buffer.size());
     LOGI("[TTS] TTFA (%s): %lf ms", read_from_cache ? "prompt audio tokens cache hit" : "prompt audio tokens cache miss", ttfa);
-    LOGI("[TTS] TTFA with audio cache (%s): %lf ms", read_from_cache ? "prompt audio tokens cache hit" : "prompt audio tokens cache miss", ttfa_with_audio_cache);
     LOGI("\n\n");
 
     set_is_generating(false);
