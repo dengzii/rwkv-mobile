@@ -1106,7 +1106,7 @@ int runtime::run_spark_tts_streaming(std::string tts_text, std::string prompt_au
     static const int tts_eos_token = 8192;
 
     static const int buf_size = 10;
-    int chunk_size = 15;
+    int chunk_size = 80;
 
     auto start = std::chrono::high_resolution_clock::now();
 
