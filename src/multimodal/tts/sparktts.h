@@ -43,12 +43,18 @@ public:
 
     std::vector<float> detokenize_audio(std::vector<int> global_tokens, std::vector<int> semantic_tokens);
 
-private:
+    void resize_detokenizer_model(int semantic_tokens_size);
+
     // some configs
     const int sample_rate = 16000;
     const int ref_segment_duration = 6;
     const int latent_hop_length = 320;
 
+    const int overlap_size = 10;
+    const int chunk_size = 100;
+    const int initial_chunk_size = 110;
+
+private:
     MNN::Interpreter *wav2vec2_mnn_interpretor = nullptr;
     MNN::Session *wav2vec2_mnn_session = nullptr;
 

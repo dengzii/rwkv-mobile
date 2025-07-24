@@ -1105,9 +1105,6 @@ int runtime::run_spark_tts_streaming(std::string tts_text, std::string prompt_au
     static const float tts_temperature = 1.0;
     static const int tts_eos_token = 8192;
 
-    static const int buf_size = 10;
-    int chunk_size = 80;
-
     auto start = std::chrono::high_resolution_clock::now();
 
     clear_state();
@@ -1117,28 +1114,36 @@ int runtime::run_spark_tts_streaming(std::string tts_text, std::string prompt_au
         LOGE("[TTS] Error evaluating logits");
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
+    logits[tts_tag_token_offset] = -1e9;
+
+    auto end_prefill = std::chrono::high_resolution_clock::now();
+    double prefill_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_prefill - start).count();
+    LOGI("[TTS] LLM prefill time: %lf ms", prefill_duration);
+
+    int actual_chunk_size = _sparktts->initial_chunk_size;
 
     bool generation_finished = false;
     std::vector<int> output_tokens;
     std::vector<int> semantic_tokens_buf;
-    double ttfa = 0.0, ttfa_with_audio_cache = 0.0;
+    double ttfa = 0.0;
     std::thread detokenize_thread([&]() {
+        _sparktts->resize_detokenizer_model(actual_chunk_size);
         int semantic_token_pos = 0;
         while (!generation_finished) {
-            if (output_tokens.size() - semantic_token_pos >= chunk_size) {
-                std::vector<int> current_chunk_tokens(output_tokens.begin() + semantic_token_pos, output_tokens.begin() + semantic_token_pos + chunk_size);
-                semantic_token_pos += chunk_size;
+            if (output_tokens.size() - semantic_token_pos >= actual_chunk_size) {
+                std::vector<int> current_chunk_tokens(output_tokens.begin() + semantic_token_pos, output_tokens.begin() + semantic_token_pos + actual_chunk_size);
+                semantic_token_pos += actual_chunk_size;
                 int buffered_size = semantic_tokens_buf.size();
                 std::vector<int> current_semantic_tokens = semantic_tokens_buf;
                 current_semantic_tokens.insert(current_semantic_tokens.end(), current_chunk_tokens.begin(), current_chunk_tokens.end());
-                semantic_tokens_buf = std::vector<int>(current_semantic_tokens.begin() + (current_semantic_tokens.size() - buf_size), current_semantic_tokens.end());
+                semantic_tokens_buf = std::vector<int>(current_semantic_tokens.begin() + (current_semantic_tokens.size() - _sparktts->overlap_size), current_semantic_tokens.end());
                 auto new_samples = _sparktts->detokenize_audio(global_tokens, current_semantic_tokens);
                 if (_tts_output_samples_buffer.empty()) {
-                    ttfa_with_audio_cache = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start).count();
                     ttfa = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - total_start).count();
-                    chunk_size = 100;
+                    actual_chunk_size = _sparktts->chunk_size;
+                    _sparktts->resize_detokenizer_model(actual_chunk_size);
                 }
-                _tts_output_samples_buffer.insert(_tts_output_samples_buffer.end(), new_samples.begin() + (16000 * buffered_size / 50), new_samples.end());
+                _tts_output_samples_buffer.insert(_tts_output_samples_buffer.end(), new_samples.begin() + (16000 * buffered_size / 50), new_samples.end());   
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
@@ -1167,15 +1172,15 @@ int runtime::run_spark_tts_streaming(std::string tts_text, std::string prompt_au
         }
     }
     generation_finished = true;
-    detokenize_thread.join();
 
     auto end = std::chrono::high_resolution_clock::now();
     double duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    LOGI("\n\n[TTS] LLM inference time: %lf ms", duration);
+    LOGI("[TTS] LLM inference time: %lf ms", duration);
     LOGI("[TTS] LLM output tokens: %d", output_tokens.size());
     LOGI("[TTS] LLM prefill speed: %f tokens/s", get_avg_prefill_speed());
     LOGI("[TTS] LLM decode speed: %f tokens/s", get_avg_decode_speed());
 
+    detokenize_thread.join();
     if (!_tts_output_samples_buffer.empty()) {
         save_samples_to_wav(_tts_output_samples_buffer, output_wav_path, 16000);
     }

@@ -144,6 +144,8 @@ bool sparktts::load_models(std::string wav2vec2_model_path, std::string bicodec_
         return false;
     }
     LOGI("[TTS] SparkTTS models loaded successfully");
+
+    resize_detokenizer_model(initial_chunk_size);
     return true;
 }
 
@@ -213,6 +215,16 @@ bool sparktts::tokenize_audio(std::vector<float> audio, std::vector<int> &global
     return true;
 }
 
+void sparktts::resize_detokenizer_model(int semantic_tokens_size) {
+    if (semantic_tokens_size != current_semantic_tokens_size) {
+        auto input_tensors = bicodec_detokenizer_mnn_interpretor->getSessionInputAll(bicodec_detokenizer_mnn_session);
+        current_semantic_tokens_size = semantic_tokens_size;
+        std::vector<int> input_shape_semantic_tokens = {1, static_cast<int>(semantic_tokens_size)};
+        bicodec_detokenizer_mnn_interpretor->resizeTensor(input_tensors["semantic_tokens"], input_shape_semantic_tokens);
+        bicodec_detokenizer_mnn_interpretor->resizeSession(bicodec_detokenizer_mnn_session);
+    }
+}
+
 std::vector<float> sparktts::detokenize_audio(std::vector<int> global_tokens, std::vector<int> semantic_tokens) {
     if (global_tokens.size() == 0) {
         LOGE("[TTS] Global tokens are empty");
@@ -234,12 +246,7 @@ std::vector<float> sparktts::detokenize_audio(std::vector<int> global_tokens, st
     auto start = std::chrono::high_resolution_clock::now();
 
     auto input_tensors = bicodec_detokenizer_mnn_interpretor->getSessionInputAll(bicodec_detokenizer_mnn_session);
-    if (semantic_tokens.size() != current_semantic_tokens_size) {
-        current_semantic_tokens_size = semantic_tokens.size();
-        std::vector<int> input_shape_semantic_tokens = {1, static_cast<int>(semantic_tokens.size())};
-        bicodec_detokenizer_mnn_interpretor->resizeTensor(input_tensors["semantic_tokens"], input_shape_semantic_tokens);
-        bicodec_detokenizer_mnn_interpretor->resizeSession(bicodec_detokenizer_mnn_session);
-    }
+    resize_detokenizer_model(semantic_tokens.size());
 
     auto nchw_tensor_semantic_tokens = new MNN::Tensor(input_tensors["semantic_tokens"], MNN::Tensor::CAFFE);
     memcpy(nchw_tensor_semantic_tokens->host<int>(), semantic_tokens.data(), semantic_tokens.size() * sizeof(int));
