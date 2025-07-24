@@ -1114,7 +1114,7 @@ int runtime::run_spark_tts_streaming(std::string tts_text, std::string prompt_au
         LOGE("[TTS] Error evaluating logits");
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
-    logits[tts_tag_token_offset] = -1e9;
+    logits[tts_eos_token] = -1e9;
 
     auto end_prefill = std::chrono::high_resolution_clock::now();
     double prefill_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_prefill - start).count();
@@ -1161,6 +1161,7 @@ int runtime::run_spark_tts_streaming(std::string tts_text, std::string prompt_au
         int idx = _sampler->sample(logits, tts_tag_token_offset, tts_temperature, tts_top_k, tts_top_p);
         _backend->free_logits_if_allocated(logits);
         if (idx == tts_eos_token) {
+            LOGI("[TTS] EOS token found");
             break;
         }
 
