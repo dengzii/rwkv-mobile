@@ -3,6 +3,7 @@
 #include <cmath>
 #include <filesystem>
 #include <cstring>
+#include <fstream>
 #include "logger.h"
 #include "audio.h"
 #include "soc_detect.h"
@@ -281,4 +282,110 @@ std::vector<float> sparktts::detokenize_audio(std::vector<int> global_tokens, st
     return output_values;
 }
 
+bool sparktts::get_global_and_semantic_tokens(
+    std::string audio_path,
+    std::string cache_dir,
+    std::vector<int> &global_tokens,
+    std::vector<int> &semantic_tokens
+) {
+    bool read_from_cache = false;
+    static auto calc_checksum = [](const std::string &path) -> unsigned int {
+        std::ifstream file(path, std::ios::binary);
+        if (!file) {
+            LOGE("[TTS] Failed to open prompt wav file: %s", path.c_str());
+            return 0;
+        }
+
+        uint32_t checksum = 0;
+        char buffer[4096];
+        while (file.read(buffer, sizeof(buffer))) {
+            for (size_t i = 0; i < file.gcount(); i++) {
+                checksum = ((checksum << 5) + checksum) + buffer[i];
+            }
+        }
+        if (file.gcount() > 0) {
+            for (size_t i = 0; i < file.gcount(); i++) {
+                checksum = ((checksum << 5) + checksum) + buffer[i];
+            }
+        }
+        file.close();
+
+        return checksum;
+    };
+
+    if (!cache_dir.empty()) {
+        uint32_t checksum = calc_checksum(audio_path);
+        if (checksum == 0) {
+            LOGE("[TTS] Failed to calculate checksum of prompt wav file: %s", audio_path.c_str());
+            return false;
+        }
+
+        std::string local_cache_dir = cache_dir + "/tts_cache/";
+        if (!std::filesystem::exists(local_cache_dir)) {
+            std::filesystem::create_directory(local_cache_dir);
+        }
+
+        std::string cache_file = local_cache_dir + std::to_string(checksum) + ".cache";
+
+        if (std::filesystem::exists(cache_file)) {
+            std::ifstream cache(cache_file, std::ios::binary);
+            if (cache) {
+                LOGI("[TTS] Loading cached speech tokens");
+                
+                size_t global_tokens_size;
+                cache.read(reinterpret_cast<char*>(&global_tokens_size), sizeof(size_t));
+                global_tokens.resize(global_tokens_size);
+                cache.read(reinterpret_cast<char*>(global_tokens.data()), global_tokens_size * sizeof(int));
+
+                size_t semantic_tokens_size;
+                cache.read(reinterpret_cast<char*>(&semantic_tokens_size), sizeof(size_t));
+                semantic_tokens.resize(semantic_tokens_size);
+                cache.read(reinterpret_cast<char*>(semantic_tokens.data()), semantic_tokens_size * sizeof(int));
+
+                cache.close();
+                read_from_cache = true;
+                LOGI("[TTS] Loaded speech tokens from cache file: %s", cache_file.c_str());
+            }
+        }
+    }
+
+    if (!read_from_cache) {
+        wav_file *wav = new wav_file();
+        wav->load(audio_path);
+        wav->resample(16000);
+        tokenize_audio(wav->samples, global_tokens, semantic_tokens);
+        delete wav;
+
+        if (!cache_dir.empty()) {
+            uint32_t checksum = calc_checksum(audio_path);
+            if (checksum == 0) {
+                LOGE("[TTS] Failed to calculate checksum of prompt wav file: %s", audio_path.c_str());
+                return false;
+            }
+
+            std::string local_cache_dir = cache_dir + "/tts_cache/";
+            if (!std::filesystem::exists(local_cache_dir)) {
+                std::filesystem::create_directory(local_cache_dir);
+            }
+            std::string cache_file = local_cache_dir + std::to_string(checksum) + ".cache";
+
+            std::ofstream cache(cache_file, std::ios::binary);
+            if (cache) {
+                size_t global_tokens_size = global_tokens.size();
+                cache.write(reinterpret_cast<char*>(&global_tokens_size), sizeof(size_t));
+                cache.write(reinterpret_cast<char*>(global_tokens.data()), global_tokens_size * sizeof(int));
+
+                size_t semantic_tokens_size = semantic_tokens.size();
+                cache.write(reinterpret_cast<char*>(&semantic_tokens_size), sizeof(size_t));
+                cache.write(reinterpret_cast<char*>(semantic_tokens.data()), semantic_tokens_size * sizeof(int));
+
+                cache.close();
+                LOGI("[TTS] Saved speech tokens to cache file: %s", cache_file.c_str());
+            }
+        }
+    }
+
+    return read_from_cache;
 }
+
+} // namespace rwkvmobile

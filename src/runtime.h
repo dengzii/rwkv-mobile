@@ -25,7 +25,9 @@
 
 #ifdef ENABLE_TTS
 #include "sparktts.h"
-// #include "kaldifst/csrc/text-normalizer.h"
+#if !defined(_WIN32)
+#include "kaldifst/csrc/text-normalizer.h"
+#endif
 #endif
 
 namespace rwkvmobile {
@@ -95,17 +97,21 @@ public:
     }
 
     int tts_register_text_normalizer(std::string path) {
-        // if (!std::ifstream(path).good()) {
-        //     LOGE("[TTS] Failed to load text normalizer file %s\n", path.c_str());
-        //     return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
-        // }
-        // _tn_list.push_back(std::make_unique<kaldifst::TextNormalizer>(path));
-        // LOGI("[TTS] Loaded text normalizer file %s\n", path.c_str());
+#if !defined(_WIN32)
+        if (!std::ifstream(path).good()) {
+            LOGE("[TTS] Failed to load text normalizer file %s\n", path.c_str());
+            return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+        }
+        _tn_list.push_back(std::make_unique<kaldifst::TextNormalizer>(path));
+        LOGI("[TTS] Loaded text normalizer file %s\n", path.c_str());
+#endif
         return RWKV_SUCCESS;
     }
 
     int tts_clear_text_normalizer() {
-        // _tn_list.clear();
+#if !defined(_WIN32)
+        _tn_list.clear();
+#endif
         return RWKV_SUCCESS;
     }
 #endif
@@ -345,7 +351,7 @@ private:
     std::vector<int32_t> _response_buffer_ids;
     bool _response_buffer_eos_found = false;
 
-    void apply_logits_penalties(float * logits, int vocab_size, float presence_penalty, float frequency_penalty, float penalty_decay);
+    void apply_logits_penalties(float * logits, int vocab_size);
 
 #ifdef ENABLE_VISION
     std::unique_ptr<clip_ctx, std::function<void(clip_ctx*)>> _vision_encoder;
@@ -357,7 +363,9 @@ private:
 
 #ifdef ENABLE_TTS
     std::unique_ptr<sparktts> _sparktts;
-    // std::vector<std::unique_ptr<kaldifst::TextNormalizer>> _tn_list;
+#if !defined(_WIN32)
+    std::vector<std::unique_ptr<kaldifst::TextNormalizer>> _tn_list;
+#endif
 
     std::vector<float> _tts_output_samples_buffer;
 #endif

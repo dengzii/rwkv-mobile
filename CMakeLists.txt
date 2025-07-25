@@ -206,12 +206,13 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
 
     if (ENABLE_TTS)
         set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS}
-            # src/multimodal/tts/cosyvoice.cpp
             src/multimodal/tts/sparktts.cpp
-            # src/multimodal/tts/frontend_utils.cpp
+            src/multimodal/tts/frontend_utils.cpp
         )
 
-        # include(kaldifst)
+        if (NOT WIN32)
+            include(kaldifst)
+        endif()
     endif()
 
     message(CHECK_START "Fetching Eigen3")
@@ -266,15 +267,26 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_TTS)
     target_link_libraries(rwkv_mobile_internal PUBLIC Eigen3::Eigen)
     if (ENABLE_TTS)
-        target_link_libraries(rwkv_mobile_internal PUBLIC
-            $<TARGET_OBJECTS:kaldi-native-fbank-core>
-        )
+        if (NOT WIN32)
+            target_link_libraries(rwkv_mobile_internal PUBLIC
+                $<TARGET_OBJECTS:kaldi-native-fbank-core>
+                $<TARGET_OBJECTS:kaldifst_core>
+                $<TARGET_OBJECTS:fst>
+            )
 
-        target_include_directories(rwkv_mobile_internal PUBLIC
-            ${kaldi_native_fbank_SOURCE_DIR}
-            # ${openfst_SOURCE_DIR}/src/include
-            # ${kaldifst_SOURCE_DIR}
-        )
+            target_include_directories(rwkv_mobile_internal PUBLIC
+                ${kaldi_native_fbank_SOURCE_DIR}
+                ${openfst_SOURCE_DIR}/src/include
+                ${kaldifst_SOURCE_DIR}
+            )
+        else()
+            target_link_libraries(rwkv_mobile_internal PUBLIC
+                $<TARGET_OBJECTS:kaldi-native-fbank-core>
+            )
+            target_include_directories(rwkv_mobile_internal PUBLIC
+                ${kaldi_native_fbank_SOURCE_DIR}
+            )
+        endif()
     endif()
     target_include_directories(rwkv_mobile_internal PUBLIC ${Eigen_SOURCE_DIR}
         src/multimodal/tts src/multimodal/utils)
@@ -433,8 +445,8 @@ if (BUILD_STATIC_LIB)
     if (ENABLE_WHISPER OR ENABLE_TTS)
         set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST}
             $<TARGET_FILE:kaldi-native-fbank-core>
-            # $<TARGET_FILE:kaldifst_core>
-            # $<TARGET_FILE:fst>
+            $<TARGET_FILE:kaldifst_core>
+            $<TARGET_FILE:fst>
         )
         if (IOS)
             set (STATIC_LIBS_LIST ${STATIC_LIBS_LIST} $<TARGET_FILE:MNN>)

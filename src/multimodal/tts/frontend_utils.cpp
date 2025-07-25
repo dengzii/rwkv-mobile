@@ -214,7 +214,9 @@ std::vector<std::string> split_paragraph(
 std::vector<std::string> process_text(
     const std::string& text,
     const std::function<std::vector<int>(const std::string&)>& tokenize,
+#if !defined(_WIN32)
     std::vector<std::unique_ptr<kaldifst::TextNormalizer>> & tn_list_zh,
+#endif
     size_t token_max_n,
     size_t token_min_n,
     size_t merge_len,
@@ -237,11 +239,13 @@ std::vector<std::string> process_text(
         std::regex percentage_pattern("([0-9]+\\.?[0-9]*|π|e)%");
         processed_text = std::regex_replace(processed_text, percentage_pattern, "百分之$1");
 
+#if !defined(_WIN32)
         if (!tn_list_zh.empty()) {
             for (const auto& tn : tn_list_zh) {
                 processed_text = tn->Normalize(processed_text);
             }
         }
+#endif
 
         processed_text = replace_text(processed_text, "\n", "");
         processed_text = replace_blank(processed_text);
