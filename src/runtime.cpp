@@ -41,7 +41,7 @@
 #include "whisper.h"
 #endif
 
-#if defined(ENABLE_TTS) && !defined(_WIN32)
+#if defined(ENABLE_TTS)
 #include "frontend_utils.h"
 #endif
 
