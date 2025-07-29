@@ -13,27 +13,30 @@ class rwkv_embedding {
 public:
     explicit rwkv_embedding();
 
-    ~rwkv_embedding();
-
     int load_model(const std::string &model_path);
 
-    std::vector<float> embed(const std::string &text, int embd_norm = 2) const;
+    int load_rerank_model(const std::string &model_path);
+
+    std::vector<std::vector<float> > get_embeddings(const std::vector<std::string> &inputs) const;
+
+    std::vector<float> rerank(std::string query, const std::vector<std::string> &chunks) const;
+
+    void release();
 
     static float similarity(const std::vector<float> &emb1, const std::vector<float> &emb2);
 
 private:
     llama_model *model;
     llama_context *ctx;
+    int embd_normalize_type = 2;
 
-    static void embd_normalize(const float *inp, float *out, int n, int embd_norm = -1);
+    void embd_normalize(const float *inp, float *out, int n) const;
 
-    static void batch_add_seq(llama_batch &batch, const std::vector<int32_t> &tokens, llama_seq_id seq_id);
+    static int batch_add_seq(llama_batch &batch, const std::vector<int32_t> &tokens, llama_seq_id seq_id);
 
-    void batch_decode(const llama_batch &batch, float *output, int embd_norm) const;
+    int batch_decode(const llama_batch &batch, float *output, int n_embd) const;
 
     std::vector<int32_t> tokenize(const std::string &text) const;
-
-    void release();
 };
 
 #endif // LLAMA_CPP_EMBEDDING_H

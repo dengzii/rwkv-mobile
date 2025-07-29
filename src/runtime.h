@@ -266,31 +266,43 @@ public:
     double get_avg_prefill_speed();
     double get_prefill_progress() { return _prefill_progress; }
 
-    int init_embedding(std::string model_path) {
+    int load_embedding_model(std::string model_path) {
         if (_embedding == nullptr) {
             _embedding = std::make_unique<rwkv_embedding>();
         }
-        LOGI("Loading embedding model from %s\n", model_path.c_str());
         return _embedding->load_model(model_path);
     }
 
-    std::vector<float> embed(std::string text) {
+    int release_embedding_model() {
         if (_embedding == nullptr) {
-            return {};
+            return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
         }
-        try {
-            return _embedding->embed(text);
-        } catch (const std::runtime_error& e) {
-            LOGE("Embedding error: %s", e.what());
-            return {};
-        }
+        _embedding->release();
+        _embedding = nullptr;
+        return RWKV_SUCCESS;
     }
 
-    float similarity(std::vector<float> emb1, std::vector<float> emb2) {
+    int load_rerank_model(std::string model_path) {
         if (_embedding == nullptr) {
-            return 0.0f;
+            _embedding = std::make_unique<rwkv_embedding>();
         }
-        return rwkv_embedding::similarity(emb1, emb2);
+        return _embedding->load_rerank_model(model_path);
+    }
+
+    std::vector<std::vector<float>> get_embedding(std::vector<std::string> inputs)  {
+        if (_embedding == nullptr) {
+            LOGE("Embedding model not loaded\n");
+            return {};
+        }
+        return _embedding->get_embeddings(inputs);
+    }
+
+    std::vector<float> rerank(std::string query, const std::vector<std::string> &chunks)  {
+        if (_embedding == nullptr) {
+            LOGE("Embedding model not loaded\n");
+            return {};
+        }
+        return _embedding->rerank(query, chunks);
     }
 
     // platform info

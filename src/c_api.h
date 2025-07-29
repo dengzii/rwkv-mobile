@@ -149,11 +149,11 @@ struct tts_streaming_buffer rwkvmobile_runtime_get_tts_streaming_buffer(rwkvmobi
 
 float rwkvmobile_runtime_get_prefill_progress(rwkvmobile_runtime_t runtime);
 
-int rwkvmobile_init_embedding(rwkvmobile_runtime_t runtime, const char * model_path);
+int rwkvmobile_load_embedding_model(rwkvmobile_runtime_t runtime, const char *model_path);
 
-int rwkvmobile_embed(rwkvmobile_runtime_t runtime, const char * text, float * embedding);
+int rwkvmobile_load_rerank_model(rwkvmobile_runtime_t runtime, const char *model_path);
 
-float rwkvmobile_similarity(rwkvmobile_runtime_t runtime, const float * emb1, const float * emb2);
+int rwkvmobile_get_embedding(rwkvmobile_runtime_t runtime, const char **input, const int input_length,float **embedding);
 
 // platform info
 const char * rwkvmobile_get_platform_name();

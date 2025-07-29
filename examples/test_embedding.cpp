@@ -4,53 +4,61 @@
 #include "runtime.h"
 
 
+static float similarity(const std::vector<float> &emb1, const std::vector<float> &emb2) {
+    if (emb1.size() != emb2.size() || emb1.empty()) {
+        return 0.0f;
+    }
+    double sum = 0.0, sum1 = 0.0, sum2 = 0.0;
+    for (size_t i = 0; i < emb1.size(); i++) {
+        sum += emb1[i] * emb2[i];
+        sum1 += emb1[i] * emb1[i];
+        sum2 += emb2[i] * emb2[i];
+    }
+    if (sum1 == 0.0 || sum2 == 0.0) {
+        return (sum1 == 0.0 && sum2 == 0.0) ? 1.0f : 0.0f;
+    }
+    return static_cast<float>(sum / (std::sqrt(sum1) * std::sqrt(sum2)));
+}
+
+
 int main(int argc, char **argv) {
-    if (argc != 2) {
+    if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <model_path>" << std::endl;
         return 1;
     }
     rwkvmobile::runtime runtime;
 
     const auto model_path = std::string(argv[1]);
-    runtime.init_embedding(model_path);
 
-    const std::string text1 =
-            "Immanuel Kant[a] (born Emanuel Kant; 22 April 1724 – 12 February 1804) was a German philosopher and one of the central thinkers of the Enlightenment."
-            "Born in Königsberg, Kant's comprehensive and systematic works in epistemology, metaphysics, ethics, and aesthetics have made him one of the most influential and highly discussed figures in modern Western philosophy."
-            "In his doctrine of transcendental idealism, Kant argued that space and time are mere 'forms of intuition that structure all experience and that the objects of experience are mere 'appearances."
-            "The nature of things as they are in themselves is unknowable to us. "
-            "Nonetheless, in an attempt to counter the philosophical doctrine of skepticism, he wrote the Critique of Pure Reason (1781/1787), his best-known work. "
-            "Kant drew a parallel to the Copernican Revolution in his proposal to think of the objects of experience as conforming to people's spatial and temporal forms of intuition and the categories of their understanding so that they have a priori cognition of those objects."
-            "Kant believed that reason is the source of morality and that aesthetics arises from a faculty of disinterested judgment. "
-            "Kant's religious views were deeply connected to his moral theory. "
-            "Their exact nature remains in dispute."
-            "He hoped that perpetual peace could be secured through an international federation of republican states and international cooperation. "
-            "His cosmopolitan reputation is called into question by his promulgation of scientific racism for much of his career, although he altered his views on the subject in the last decade of his life.";
+    // runtime.load_rerank_model(model_path);
+    runtime.load_embedding_model(model_path);
 
-    const auto &t = text1;
+    const std::vector<std::string> texts = {
+        "an apple a day keeps the doctor away",
+        "cat and a dog are friends",
+        "banana has a high potassium content",
+        "i need medicine to cure a cold",
+        "do not eat too much salt",
+        "compute games make me happy",
+        "pets need vaccine shots",
+        "walking is good for health",
+        "tom like to talk with his friends",
+    };
+    const std::string query = "health";
 
-    std::vector<std::string> seg;
-    size_t start = 0;
-    size_t end = t.find('.');
+    const auto now = std::chrono::high_resolution_clock::now();
+    const auto embdQuery = runtime.get_embedding({query})[0];
+    const auto embeddings = runtime.get_embedding(texts);
+    const auto elapsed = std::chrono::high_resolution_clock::now() - now;
 
-    while (end != std::string::npos) {
-        seg.push_back(t.substr(start, end - start));
-        start = end + 1;
-        end = t.find(',', start);
+    std::cout << "embedding time: " << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() << " ms"
+            << std::endl;
+
+    for (size_t i = 0; i < embeddings.size(); i++) {
+        const auto &embdText = embeddings[i];
+        const auto similarityScore = similarity(embdQuery, embdText);
+        std::cout << similarityScore << " => " << texts[i] << std::endl;
     }
-    seg.push_back(t.substr(start));
-
-    std::cout << "seg size = " << seg.size() << std::endl;
-
-    auto now = std::chrono::high_resolution_clock::now();
-    for (const auto &part: seg) {
-        const auto embd = runtime.embed(part);
-        std::cout << '.';
-    }
-    std::cout << std::endl;
-    auto elapsed = std::chrono::high_resolution_clock::now() - now;
-    std::cout << "elapsed = " << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() << " ms" <<
-            std::endl;
 
     return 0;
 }
