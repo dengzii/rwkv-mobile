@@ -41,7 +41,7 @@
 #include "whisper.h"
 #endif
 
-#ifdef ENABLE_TTS
+#if defined(ENABLE_TTS)
 #include "frontend_utils.h"
 #endif
 
@@ -87,7 +87,7 @@ int backend_str_to_enum(std::string backend) {
     return -1;
 }
 
-void runtime::apply_logits_penalties(float * logits, int vocab_size, float presence_penalty, float frequency_penalty, float penalty_decay) {
+void runtime::apply_logits_penalties(float * logits, int vocab_size) {
     if (!logits) {
         return;
     }
@@ -410,7 +410,7 @@ int runtime::chat(std::string input, const int max_length, void (*callback)(cons
     _prefill_progress_finish();
 
     for (int i = 0; i < max_length; i++) {
-        apply_logits_penalties(logits, _vocab_size, _presence_penalty, _frequency_penalty, _penalty_decay);
+        apply_logits_penalties(logits, _vocab_size);
 
         int idx = _sampler->sample(logits, _vocab_size, _temperature, _top_k, _top_p);
         _backend->free_logits_if_allocated(logits);
@@ -617,7 +617,7 @@ int runtime::chat(std::vector<std::string> inputs, const int max_length, void (*
     bool thinking_end_tag_found = false;
     bool is_pseudo_thinking = enable_reasoning && _response_buffer.find("</think>") != std::string::npos;
     for (int i = 0; i < max_length; i++) {
-        apply_logits_penalties(logits, _vocab_size, _presence_penalty, _frequency_penalty, _penalty_decay);
+        apply_logits_penalties(logits, _vocab_size);
 
         if (is_pseudo_thinking && i == 0) {
             // token 61 is '<', 261 is '\n\n'
@@ -859,31 +859,6 @@ static void save_samples_to_wav(std::vector<float> samples, std::string path, in
     wav_file.save(path);
 }
 
-int runtime::cosyvoice_load_models(
-    std::string speech_tokenizer_path,
-    std::string campplus_path,
-    std::string flow_encoder_path,
-    std::string flow_decoder_estimator_path,
-    std::string hift_generator_path,
-    std::string tts_tokenizer_path
-) {
-    _cosyvoice = std::make_unique<cosyvoice>();
-    _cosyvoice->load_speech_tokenizer(speech_tokenizer_path);
-    _cosyvoice->load_campplus(campplus_path);
-    _cosyvoice->load_flow_encoder(flow_encoder_path);
-    _cosyvoice->load_flow_decoder_estimator(flow_decoder_estimator_path);
-    _cosyvoice->load_hift_generator(hift_generator_path);
-
-    _tokenizer = std::unique_ptr<tokenizer_base, std::function<void(tokenizer_base*)>>(new trie_tokenizer,
-        [](tokenizer_base *p) {
-            delete (trie_tokenizer*)p;
-        });
-    if (_tokenizer == nullptr) {
-        return RWKV_ERROR_TOKENIZER;
-    }
-    return _tokenizer->load(tts_tokenizer_path);
-}
-
 int runtime::sparktts_load_models(
     std::string wav2vec2_path,
     std::string bicodec_tokenizer_path,
@@ -901,281 +876,6 @@ int runtime::sparktts_release_models() {
     return RWKV_SUCCESS;
 }
 
-int runtime::cosyvoice_release_models() {
-    _cosyvoice = nullptr;
-    return RWKV_SUCCESS;
-}
-
-int runtime::run_tts_internal(std::string tts_text, std::string instruction_text,
-    const std::string prompt_wav_path, const std::string prompt_speech_text,
-    std::vector<float> &output_samples) {
-    if (_cosyvoice == nullptr) {
-        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
-    }
-
-    if (_cosyvoice == nullptr) {
-        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
-    }
-
-    _tts_generation_progress = 0.0;
-    auto start = std::chrono::high_resolution_clock::now();
-
-    // prepare input tokens for llm
-    std::vector<int> llm_tokens_without_tts, tts_tokens;
-    std::string input_text = "";
-    if (!prompt_speech_text.empty()) {
-        input_text = prompt_speech_text;
-    }
-    if (!instruction_text.empty()) {
-        input_text = instruction_text + "<|endofprompt|>" + input_text;
-    }
-
-    // input_text += tts_text;
-    llm_tokens_without_tts = _tokenizer->encode(input_text);
-    tts_tokens = _tokenizer->encode(tts_text);
-    LOGD("[TTS] pre-tts input text: %s", input_text.c_str());
-    LOGD("[TTS] tts text: %s", tts_text.c_str());
-
-    std::vector<int> llm_tokens = std::vector<int>(llm_tokens_without_tts);
-    for (auto token : tts_tokens) {
-        llm_tokens.push_back(token);
-    }
-    int content_length = llm_tokens.size();
-    auto it = std::find(llm_tokens.begin(), llm_tokens.end(), 65531);
-    if (it != llm_tokens.end()) {
-        content_length = std::distance(llm_tokens.begin(), it);
-    }
-
-    const float max_token_text_ratio = 20;
-    const float min_token_text_ratio = 2;
-    const int min_len = content_length * min_token_text_ratio;
-    const int max_len = content_length * max_token_text_ratio;
-    LOGI("[TTS] min_len: %d, max_len: %d", min_len, max_len);
-
-    const int sos_eos_token = 72110;
-    const int task_token = 72111;
-    const int speech_vocab_offset = 65548;
-    llm_tokens_without_tts.insert(llm_tokens_without_tts.begin(), sos_eos_token);
-    tts_tokens.push_back(task_token);
-
-    std::vector<int> speech_tokens;
-    std::vector<std::vector<float>> speech_features(80);
-    std::vector<float> speech_embedding;
-
-    static auto calc_checksum = [](const std::string &path) -> unsigned int {
-        std::ifstream file(path, std::ios::binary);
-        if (!file) {
-            LOGE("[TTS] Failed to open prompt wav file: %s", path.c_str());
-            return 0;
-        }
-
-        uint32_t checksum = 0;
-        char buffer[4096];
-        while (file.read(buffer, sizeof(buffer))) {
-            for (size_t i = 0; i < file.gcount(); i++) {
-                checksum = ((checksum << 5) + checksum) + buffer[i];
-            }
-        }
-        if (file.gcount() > 0) {
-            for (size_t i = 0; i < file.gcount(); i++) {
-                checksum = ((checksum << 5) + checksum) + buffer[i];
-            }
-        }
-        file.close();
-
-        return checksum;
-    };
-
-    bool read_from_cache = false;
-    if (!_cache_dir.empty() && !prompt_speech_text.empty()) {
-        uint32_t checksum = calc_checksum(prompt_wav_path);
-        if (checksum == 0) {
-            LOGE("[TTS] Failed to calculate checksum of prompt wav file: %s", prompt_wav_path.c_str());
-            return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
-        }
-
-        std::string cache_dir = _cache_dir + "/tts_cache/";
-        if (!std::filesystem::exists(cache_dir)) {
-            std::filesystem::create_directory(cache_dir);
-        }
-
-        std::string cache_file = cache_dir + std::to_string(checksum) + ".cache";
-
-        if (std::filesystem::exists(cache_file)) {
-            std::ifstream cache(cache_file, std::ios::binary);
-            if (cache) {
-                LOGI("[TTS] Loading cached speech tokens/features/embedding");
-                
-                size_t tokens_size;
-                cache.read(reinterpret_cast<char*>(&tokens_size), sizeof(size_t));
-                speech_tokens.resize(tokens_size);
-                cache.read(reinterpret_cast<char*>(speech_tokens.data()), tokens_size * sizeof(int));
-
-                size_t features_size;
-                cache.read(reinterpret_cast<char*>(&features_size), sizeof(size_t));
-                for (size_t i = 0; i < features_size; i++) {
-                    size_t feature_len;
-                    cache.read(reinterpret_cast<char*>(&feature_len), sizeof(size_t));
-                    speech_features[i].resize(feature_len);
-                    cache.read(reinterpret_cast<char*>(speech_features[i].data()), feature_len * sizeof(float));
-                }
-
-                size_t embedding_size; 
-                cache.read(reinterpret_cast<char*>(&embedding_size), sizeof(size_t));
-                speech_embedding.resize(embedding_size);
-                cache.read(reinterpret_cast<char*>(speech_embedding.data()), embedding_size * sizeof(float));
-
-                cache.close();
-                read_from_cache = true;
-                LOGI("[TTS] Loaded speech tokens/features/embedding from cache file: %s", cache_file.c_str());
-            }
-        }
-    }
-
-    if (!read_from_cache && !prompt_wav_path.empty()) {
-        if (_cosyvoice->process_zeroshot(prompt_wav_path, speech_tokens, speech_features, speech_embedding, 24000) != true) {
-            LOGE("[TTS] Failed to process prompt audio");
-            return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
-        }
-
-        // save to cache if the prompt wav has corresponding prompt speech text
-        if (!_cache_dir.empty() && !prompt_speech_text.empty()) {
-            uint32_t checksum = calc_checksum(prompt_wav_path);
-            if (checksum == 0) {
-                LOGE("[TTS] Failed to calculate checksum of prompt wav file: %s", prompt_wav_path.c_str());
-                return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
-            }
-
-            std::string cache_file = _cache_dir + "/tts_cache/" + std::to_string(checksum) + ".cache";
-            std::ofstream cache(cache_file, std::ios::binary);
-            if (cache) {
-                size_t tokens_size = speech_tokens.size();
-                cache.write(reinterpret_cast<const char*>(&tokens_size), sizeof(size_t));
-                cache.write(reinterpret_cast<const char*>(speech_tokens.data()), speech_tokens.size() * sizeof(int));
-
-                size_t features_size = speech_features.size();
-                cache.write(reinterpret_cast<const char*>(&features_size), sizeof(size_t));
-                for (size_t i = 0; i < features_size; i++) {
-                    size_t feature_len = speech_features[i].size();
-                    cache.write(reinterpret_cast<const char*>(&feature_len), sizeof(size_t));
-                    cache.write(reinterpret_cast<const char*>(speech_features[i].data()), feature_len * sizeof(float));
-                }
-
-                size_t embedding_size = speech_embedding.size();
-                cache.write(reinterpret_cast<const char*>(&embedding_size), sizeof(size_t));
-                cache.write(reinterpret_cast<const char*>(speech_embedding.data()), speech_embedding.size() * sizeof(float));
-                cache.close();
-                LOGI("[TTS] Saved speech tokens/features/embedding to cache file: %s", cache_file.c_str());
-            }
-        }
-    } else if (prompt_wav_path.empty()) {
-        LOGE("[TTS] No prompt wav path provided");
-        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
-    }
-
-    if (!prompt_speech_text.empty()) {
-        for (auto token : speech_tokens) {
-            tts_tokens.push_back(token + speech_vocab_offset);
-        }
-    }
-
-    _tts_generation_progress = 0.2;
-    // std::string debug_msg = "tokens: [";
-    // for (int i = 0; i < llm_tokens.size(); i++) {
-    //     debug_msg += std::to_string(llm_tokens[i]) + ", ";
-    // }
-    // LOGD("[TTS] %s]", debug_msg.c_str());
-
-    std::vector<int> decoded_tokens;
-    // bool is_llm_decoding = true;
-    // std::thread llm_thread([&]() {
-    {
-        auto start = std::chrono::high_resolution_clock::now();
-        // _backend->clear_state();
-        float *logits = nullptr;
-        // eval_logits(llm_tokens, logits);
-        std::vector<int> new_ids_to_prefill;
-        auto node = match_and_load_state(llm_tokens_without_tts, new_ids_to_prefill);
-        if (!new_ids_to_prefill.empty()) {
-            eval_logits(new_ids_to_prefill, logits);
-            register_state_checkpoint(node, new_ids_to_prefill, logits);
-        }
-        eval_logits(tts_tokens, logits);
-        register_state_checkpoint(node, tts_tokens, logits);
-
-        const int speech_vocab_size = 6562;
-        for (int i = 0; i < max_len; i++) {
-            int token_id = _cosyvoice->speech_token_sampler(logits, speech_vocab_size, decoded_tokens, (i < min_len));
-            free_logits_if_allocated(logits);
-            if (token_id == speech_vocab_size - 1) {
-                break;
-            }
-            decoded_tokens.push_back(token_id);
-            eval_logits(token_id + speech_vocab_offset, logits);
-            _tts_generation_progress = 0.2 + 0.3 * (float)i / max_len;
-        }
-        auto end = std::chrono::high_resolution_clock::now();
-        LOGI("[TTS] llm decode time: %f ms", std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000.0);
-        // is_llm_decoding = false;
-    }
-    // });
-    // llm_thread.detach();
-
-    // while (is_llm_decoding) {
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    // }
-
-    decoded_tokens.insert(decoded_tokens.begin(), speech_tokens.begin(), speech_tokens.end());
-    _tts_generation_progress = 0.5;
-
-    _cosyvoice->speech_token_to_wav(decoded_tokens, speech_features, speech_embedding, output_samples, 
-        [this](float progress) {
-            _tts_generation_progress = 0.5 + progress * 0.5;
-        }
-    );
-    auto end = std::chrono::high_resolution_clock::now();
-    LOGI("[TTS] total time: %f ms", std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000.0);
-    LOGI("[TTS] output samples length: %f", output_samples.size() / 24000.0);
-    LOGI("[TTS] rtf: %f", std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1e6f * 24000.0 / output_samples.size());
-    _tts_generation_progress = 1.0;
-    return RWKV_SUCCESS;
-}
-
-int runtime::run_tts(std::string tts_text, std::string instruction_text, std::string prompt_speech_text, std::string prompt_wav_path, std::string output_wav_path) {
-    if (_cosyvoice == nullptr) {
-        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
-    }
-
-    _tts_last_output_files.clear();
-
-    auto texts = tts_frontend_utils::process_text(tts_text,
-        [this](const std::string& text) -> std::vector<int> {
-            return tokenizer_encode(text);
-        },
-        _tn_list
-    );
-
-    _tts_total_num_output_wavs = texts.size();
-
-    if (output_wav_path.find(".wav") != std::string::npos) {
-        output_wav_path = output_wav_path.substr(0, output_wav_path.find(".wav"));
-    }
-
-    for (int i = 0; i < texts.size(); i++) {
-        LOGI("[TTS] Split text %i: %s\n", i, texts[i].c_str());
-        std::vector<float> output_samples;
-        run_tts_internal(texts[i], instruction_text, prompt_wav_path, prompt_speech_text, output_samples);
-
-        auto output_file = output_wav_path + "." + std::to_string(i) + ".wav";
-        save_samples_to_wav(output_samples, output_file);
-        LOGI("[TTS] Saved file %s\n", output_file.c_str());
-        _tts_last_output_files.push_back(output_file);
-    }
-
-    set_is_generating(false);
-    return RWKV_SUCCESS;
-}
-
 int runtime::run_spark_tts(std::string tts_text, std::string prompt_audio_text, std::string prompt_audio_path, std::string output_wav_path) {
     if (_sparktts == nullptr) {
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
@@ -1183,9 +883,6 @@ int runtime::run_spark_tts(std::string tts_text, std::string prompt_audio_text, 
 
     static const int tts_tag_token_offset = 8193;
     static const int global_token_offset = 8196;
-    // static const int text_token_offset = 12292;
-
-    _tts_last_output_files.clear();
 
     wav_file wav;
     wav.load(prompt_audio_path);
@@ -1277,84 +974,123 @@ int runtime::run_spark_tts_streaming(std::string tts_text, std::string prompt_au
         return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
     }
 
-    static const int tts_tag_token_offset = 8193;
-    static const int global_token_offset = 8196;
+#if !defined(_WIN32)
+    auto texts = tts_frontend_utils::process_text(tts_text,
+        [this](const std::string& text) -> std::vector<int> {
+            return tokenizer_encode(text);
+        },
+        _tn_list
+    );
+#else
+    auto texts = tts_frontend_utils::process_text(tts_text,
+        [this](const std::string& text) -> std::vector<int> {
+            return tokenizer_encode(text);
+        }
+    );
+#endif
 
     _tts_output_samples_buffer.clear();
-
-    wav_file *wav = new wav_file();
-    wav->load(prompt_audio_path);
-    wav->resample(16000);
-
     auto total_start = std::chrono::high_resolution_clock::now();
     std::vector<int> global_tokens;
     std::vector<int> semantic_tokens;
-    _sparktts->tokenize_audio(wav->samples, global_tokens, semantic_tokens);
-    delete wav;
+
+    bool read_from_cache = _sparktts->get_global_and_semantic_tokens(prompt_audio_path, _cache_dir, global_tokens, semantic_tokens);
+    if (semantic_tokens.empty() || global_tokens.empty()) {
+        LOGE("[TTS] Failed to get global and/or semantic tokens");
+        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+    }
+
     if (prompt_audio_text.empty()) {
         semantic_tokens.clear();
     }
 
-    std::string full_text = prompt_audio_text + tts_text;
-    auto text_tokens = tokenizer_encode(full_text);
-    if (text_tokens.empty()) {
-        LOGE("[TTS] Text tokenizer encode failed");
-        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
-    }
-
-    std::vector<int> input_tokens = {tts_tag_token_offset + 2}; // tag_2
-    for (int i = 0; i < text_tokens.size(); i++) {
-        input_tokens.push_back(text_tokens[i]);
-    }
-    input_tokens.push_back(tts_tag_token_offset + 0); // tag_0
-    for (int i = 0; i < global_tokens.size(); i++) {
-        input_tokens.push_back(global_tokens[i] + global_token_offset);
-    }
-    input_tokens.push_back(tts_tag_token_offset + 1); // tag_1
-    for (int i = 0; i < semantic_tokens.size(); i++) {
-        input_tokens.push_back(semantic_tokens[i]);
-    }
-
-    static const int tts_max_length = 3000;
-    static const int tts_top_k = 50;
-    static const float tts_top_p = 0.95;
-    static const float tts_temperature = 1.0;
-    static const int tts_eos_token = 8192;
-
-    static const int buf_size = 10;
-    int chunk_size = 15;
-
-    auto start = std::chrono::high_resolution_clock::now();
-
-    clear_state();
-    float *logits = nullptr;
-    int ret = eval_logits(input_tokens, logits);
-    if (ret || !logits) {
-        LOGE("[TTS] Error evaluating logits");
-        return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
-    }
-
+    // variables between threads
     bool generation_finished = false;
     std::vector<int> output_tokens;
-    std::vector<int> semantic_tokens_buf;
-    double ttfa = 0.0, ttfa_with_audio_cache = 0.0;
+
+    auto llm_inference_thread = std::thread([&]() {
+        static const int tts_tag_token_offset = 8193;
+        static const int global_token_offset = 8196;
+
+        static const int tts_max_length = 3000;
+        static const int tts_top_k = 50;
+        static const float tts_top_p = 0.95;
+        static const float tts_temperature = 1.0;
+        static const int tts_eos_token = 8192;
+        for (auto &text : texts) {
+            std::string full_text = prompt_audio_text + text;
+            LOGI("[TTS] LLM input text: %s", full_text.c_str());
+            auto text_tokens = tokenizer_encode(full_text);
+            if (text_tokens.empty()) {
+                LOGE("[TTS] Text tokenizer encode failed");
+                generation_finished = true;
+                return;
+            }
+
+            std::vector<int> input_tokens = {tts_tag_token_offset + 2}; // tag_2
+            for (int i = 0; i < text_tokens.size(); i++) {
+                input_tokens.push_back(text_tokens[i]);
+            }
+            input_tokens.push_back(tts_tag_token_offset + 0); // tag_0
+            for (int i = 0; i < global_tokens.size(); i++) {
+                input_tokens.push_back(global_tokens[i] + global_token_offset);
+            }
+            input_tokens.push_back(tts_tag_token_offset + 1); // tag_1
+            for (int i = 0; i < semantic_tokens.size(); i++) {
+                input_tokens.push_back(semantic_tokens[i]);
+            }
+
+            clear_state();
+            float *logits = nullptr;
+            int ret = eval_logits(input_tokens, logits);
+            if (ret || !logits) {
+                LOGE("[TTS] Error evaluating logits");
+                generation_finished = true;
+                return;
+            }
+            logits[tts_eos_token] = -1e9;
+
+            for (int i = 0; i < tts_max_length; i++) {
+                int idx = _sampler->sample(logits, tts_tag_token_offset, tts_temperature, tts_top_k, tts_top_p);
+                _backend->free_logits_if_allocated(logits);
+                if (idx == tts_eos_token) {
+                    LOGI("[TTS] EOS token found");
+                    break;
+                }
+
+                output_tokens.push_back(idx);
+                ret = eval_logits(idx, logits);
+                if (ret || !logits) {
+                    LOGE("[TTS] Error evaluating logits");
+                    generation_finished = true;
+                    return;
+                }
+            }
+        }
+        generation_finished = true;
+    });
+
+    double ttfa = 0.0;
     std::thread detokenize_thread([&]() {
+        int actual_chunk_size = _sparktts->initial_chunk_size;
+        std::vector<int> semantic_tokens_buf;
+        _sparktts->resize_detokenizer_model(actual_chunk_size);
         int semantic_token_pos = 0;
         while (!generation_finished) {
-            if (output_tokens.size() - semantic_token_pos >= chunk_size) {
-                std::vector<int> current_chunk_tokens(output_tokens.begin() + semantic_token_pos, output_tokens.begin() + semantic_token_pos + chunk_size);
-                semantic_token_pos += chunk_size;
+            if (output_tokens.size() - semantic_token_pos >= actual_chunk_size) {
+                std::vector<int> current_chunk_tokens(output_tokens.begin() + semantic_token_pos, output_tokens.begin() + semantic_token_pos + actual_chunk_size);
+                semantic_token_pos += actual_chunk_size;
                 int buffered_size = semantic_tokens_buf.size();
                 std::vector<int> current_semantic_tokens = semantic_tokens_buf;
                 current_semantic_tokens.insert(current_semantic_tokens.end(), current_chunk_tokens.begin(), current_chunk_tokens.end());
-                semantic_tokens_buf = std::vector<int>(current_semantic_tokens.begin() + (current_semantic_tokens.size() - buf_size), current_semantic_tokens.end());
+                semantic_tokens_buf = std::vector<int>(current_semantic_tokens.begin() + (current_semantic_tokens.size() - _sparktts->overlap_size), current_semantic_tokens.end());
                 auto new_samples = _sparktts->detokenize_audio(global_tokens, current_semantic_tokens);
                 if (_tts_output_samples_buffer.empty()) {
-                    ttfa_with_audio_cache = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start).count();
                     ttfa = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - total_start).count();
-                    chunk_size = 100;
+                    actual_chunk_size = _sparktts->chunk_size;
+                    _sparktts->resize_detokenizer_model(actual_chunk_size);
                 }
-                _tts_output_samples_buffer.insert(_tts_output_samples_buffer.end(), new_samples.begin() + (16000 * buffered_size / 50), new_samples.end());
+                _tts_output_samples_buffer.insert(_tts_output_samples_buffer.end(), new_samples.begin() + (16000 * buffered_size / 50), new_samples.end());   
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
@@ -1368,44 +1104,23 @@ int runtime::run_spark_tts_streaming(std::string tts_text, std::string prompt_au
         }
     });
 
-    for (int i = 0; i < tts_max_length; i++) {
-        int idx = _sampler->sample(logits, tts_tag_token_offset, tts_temperature, tts_top_k, tts_top_p);
-        _backend->free_logits_if_allocated(logits);
-        if (idx == tts_eos_token) {
-            break;
-        }
-
-        output_tokens.push_back(idx);
-        ret = eval_logits(idx, logits);
-        if (ret || !logits) {
-            LOGE("[TTS] Error evaluating logits");
-            return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
-        }
-    }
-    generation_finished = true;
-    detokenize_thread.join();
-
-    auto end = std::chrono::high_resolution_clock::now();
-    double duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    LOGI("\n\n[TTS] LLM inference time: %lf ms", duration);
     LOGI("[TTS] LLM output tokens: %d", output_tokens.size());
     LOGI("[TTS] LLM prefill speed: %f tokens/s", get_avg_prefill_speed());
     LOGI("[TTS] LLM decode speed: %f tokens/s", get_avg_decode_speed());
 
+    llm_inference_thread.join();
+    detokenize_thread.join();
     if (!_tts_output_samples_buffer.empty()) {
         save_samples_to_wav(_tts_output_samples_buffer, output_wav_path, 16000);
     }
 
     auto total_end = std::chrono::high_resolution_clock::now();
     double total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(total_end - total_start).count();
-    double total_duration_with_audio_cache = std::chrono::duration_cast<std::chrono::milliseconds>(total_end - start).count();
-    LOGI("[TTS] Total time: %lf ms", total_duration);
-    LOGI("[TTS] Total time with audio cache: %lf ms", total_duration_with_audio_cache);
+    LOGI("[TTS] Total time (%s): %lf ms", read_from_cache ? "prompt audio tokens cache hit" : "prompt audio tokens cache miss", total_duration);
     LOGI("[TTS] Output audio length: %lf s", _tts_output_samples_buffer.size() / 16000.0);
-    LOGI("[TTS] RTF: %lf", total_duration / 1e3f * 16000.0 / _tts_output_samples_buffer.size());
-    LOGI("[TTS] RTF with audio cache: %lf", total_duration_with_audio_cache / 1e3f * 16000.0 / _tts_output_samples_buffer.size());
-    LOGI("[TTS] TTFA: %lf ms", ttfa);
-    LOGI("[TTS] TTFA with audio cache: %lf ms\n\n", ttfa_with_audio_cache);
+    LOGI("[TTS] RTF (%s): %lf", read_from_cache ? "prompt audio tokens cache hit" : "prompt audio tokens cache miss", total_duration / 1e3f * 16000.0 / _tts_output_samples_buffer.size());
+    LOGI("[TTS] TTFA (%s): %lf ms", read_from_cache ? "prompt audio tokens cache hit" : "prompt audio tokens cache miss", ttfa);
+    LOGI("\n\n");
 
     set_is_generating(false);
     return RWKV_SUCCESS;
@@ -1439,7 +1154,7 @@ int runtime::gen_completion(std::string prompt, int max_length, int stop_code, v
     bool apply_penalties = _presence_penalty > 0.0f && _frequency_penalty > 0.0f && _penalty_decay > 0.0f;
     for (int i = 0; i < max_length; i++) {
         if (apply_penalties) {
-            apply_logits_penalties(logits, _vocab_size, _presence_penalty, _frequency_penalty, _penalty_decay);
+            apply_logits_penalties(logits, _vocab_size);
         }
 
         idx = _sampler->sample(logits, _vocab_size, _temperature, _top_k, _top_p);

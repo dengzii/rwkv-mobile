@@ -52,13 +52,10 @@ set(RWKV_MOBILE_SRCS
 )
 
 if (WIN32)
-    add_compile_options("$<$<C_COMPILER_ID:MSVC>:/source-charset:utf-8>")
-    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/source-charset:utf-8>")
-endif()
-
-if (WIN32)
     set(CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE "/WHOLEARCHIVE:<LIBRARY>")
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    cmake_host_system_information(RESULT CPU_NUMBER_OF_LOGICAL_CORES QUERY NUMBER_OF_LOGICAL_CORES)
+    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/MP${CPU_NUMBER_OF_LOGICAL_CORES}>")
 else()
     set(CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE "LINKER:--whole-archive" "<LINK_ITEM>" "LINKER:--no-whole-archive")
 endif()
@@ -116,7 +113,7 @@ if (ENABLE_MNN_BACKEND)
     FetchContent_Declare(
         mnn
         GIT_REPOSITORY https://github.com/alibaba/MNN
-        GIT_TAG 3.2.1
+        GIT_TAG a739ea5870a4a45680f0e36ba9662ca39f2f4eec
     )
 
     if (ANDROID)
@@ -167,9 +164,8 @@ if (ENABLE_LLAMACPP_BACKEND)
 
     FetchContent_Declare(
         llama_cpp
-        GIT_REPOSITORY https://github.com/MollySophia/llama.cpp
-        # GIT_TAG rwkv7-lmhead-bias
-        GIT_TAG 03f006c4494d15aa5835f4ad68519932e6ede9e2
+        GIT_REPOSITORY https://github.com/ggml-org/llama.cpp
+        GIT_TAG c8ade30036139e32108fee53d8b7164dbfda4bee
     )
 
     option(LLAMA_STANDALONE "" OFF)
@@ -213,12 +209,13 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
 
     if (ENABLE_TTS)
         set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS}
-            src/multimodal/tts/cosyvoice.cpp
             src/multimodal/tts/sparktts.cpp
             src/multimodal/tts/frontend_utils.cpp
         )
 
-        include(kaldifst)
+        if (NOT WIN32)
+            include(kaldifst)
+        endif()
     endif()
 
     message(CHECK_START "Fetching Eigen3")
@@ -247,11 +244,19 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     )
     option(KALDI_NATIVE_FBANK_BUILD_PYTHON "" OFF)
     option(KALDI_NATIVE_FBANK_BUILD_TESTS "" OFF)
+    set(BUILD_SHARED_LIBS_BACKUP ${BUILD_SHARED_LIBS})
+    set(BUILD_SHARED_LIBS OFF)
     FetchContent_MakeAvailable(kaldi_native_fbank)
+    set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_BACKUP})
 endif()
 
 if (ENABLE_COREML_BACKEND)
     set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/backends/coreml/coreml_rwkv_backend.cpp)
+endif()
+
+if (WIN32)
+    add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
+    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 endif()
 
 add_library(rwkv_mobile_internal STATIC ${RWKV_MOBILE_SRCS})
@@ -265,16 +270,26 @@ if (ENABLE_WHISPER OR ENABLE_TTS)
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_TTS)
     target_link_libraries(rwkv_mobile_internal PUBLIC Eigen3::Eigen)
     if (ENABLE_TTS)
-        target_link_libraries(rwkv_mobile_internal PUBLIC
-            $<TARGET_OBJECTS:kaldi-native-fbank-core>
-            $<TARGET_OBJECTS:kaldifst_core>
-            $<TARGET_OBJECTS:fst>
-        )
+        if (NOT WIN32)
+            target_link_libraries(rwkv_mobile_internal PUBLIC
+                $<TARGET_OBJECTS:kaldi-native-fbank-core>
+                $<TARGET_OBJECTS:kaldifst_core>
+                $<TARGET_OBJECTS:fst>
+            )
 
-        target_include_directories(rwkv_mobile_internal PUBLIC
-            ${kaldi_native_fbank_SOURCE_DIR}
-            ${openfst_SOURCE_DIR}/src/include
-            ${kaldifst_SOURCE_DIR})
+            target_include_directories(rwkv_mobile_internal PUBLIC
+                ${kaldi_native_fbank_SOURCE_DIR}
+                ${openfst_SOURCE_DIR}/src/include
+                ${kaldifst_SOURCE_DIR}
+            )
+        else()
+            target_link_libraries(rwkv_mobile_internal PUBLIC
+                $<TARGET_OBJECTS:kaldi-native-fbank-core>
+            )
+            target_include_directories(rwkv_mobile_internal PUBLIC
+                ${kaldi_native_fbank_SOURCE_DIR}
+            )
+        endif()
     endif()
     target_include_directories(rwkv_mobile_internal PUBLIC ${Eigen_SOURCE_DIR}
         src/multimodal/tts src/multimodal/utils)

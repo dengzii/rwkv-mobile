@@ -2,8 +2,15 @@
 #include "logger.h"
 #include "commondef.h"
 #include <fstream>
-
 #include <iostream>
+#include <sstream>
+#include <algorithm>
+#include <cstring>
+
+#ifdef __linux__
+#include <dirent.h>
+#include <vector>
+#endif
 
 namespace rwkvmobile {
 
@@ -104,6 +111,97 @@ const char * soc_detect::get_soc_partname() {
 
 const char * soc_detect::get_htp_arch() {
     return m_htp_arch;
+}
+
+// From MNN
+const std::vector<CPUGroup> get_cpu_groups() {
+    std::vector<CPUGroup> cpu_groups;
+#ifdef __linux__
+    auto read_number = [](std::string &buffer) -> std::vector<int> {
+        std::vector<int> numbers;
+        std::stringstream ss(buffer);
+        int number;
+        while (ss >> number) {
+            numbers.push_back(number);
+        }
+        return numbers;
+    };
+
+    do {
+        DIR* root;
+        std::string dir = "/sys/devices/system/cpu/cpufreq";
+        if ((root = opendir(dir.c_str())) == NULL) {
+            break;
+        }
+        CPUGroup group;
+        struct dirent* ent;
+        while ((ent = readdir(root)) != NULL) {
+            if (ent->d_name[0] != '.') {
+                std::string policyName = dir + "/" + ent->d_name;
+                std::string cpus = policyName + "/affected_cpus";
+                {
+                    std::string buffer;
+                    std::ifstream file(cpus, std::ios::binary);
+                    if (file.is_open()) {
+                        file.seekg(0, std::ios::end);
+                        size_t size = file.tellg();
+                        file.seekg(0, std::ios::beg);
+                        buffer.resize(size);
+                        file.read(reinterpret_cast<char*>(buffer.data()), size);
+                        file.close();
+                    }
+
+                    group.ids = read_number(buffer);
+                }
+                if (group.ids.empty()) {
+                    continue;
+                }
+                std::string minfreq = policyName + "/cpuinfo_min_freq";
+                {
+                    std::string buffer;
+                    std::ifstream file(minfreq, std::ios::binary);
+                    if (file.is_open()) {
+                        file.seekg(0, std::ios::end);
+                        size_t size = file.tellg();
+                        file.seekg(0, std::ios::beg);
+                        buffer.resize(size);
+                        file.read(reinterpret_cast<char*>(buffer.data()), size);
+                        file.close();
+                    }
+                    group.minFreq = read_number(buffer)[0];
+                }
+                std::string maxfreq = policyName + "/cpuinfo_max_freq";
+                {
+                    std::string buffer;
+                    std::ifstream file(maxfreq, std::ios::binary);
+                    if (file.is_open()) {
+                        file.seekg(0, std::ios::end);
+                        size_t size = file.tellg();
+                        file.seekg(0, std::ios::beg);
+                        buffer.resize(size);
+                        file.read(reinterpret_cast<char*>(buffer.data()), size);
+                        file.close();
+                    }
+                    group.maxFreq = read_number(buffer)[0];
+                }
+                cpu_groups.emplace_back(group);
+            }
+        }
+        closedir(root);
+        std::sort(cpu_groups.begin(), cpu_groups.end(), [](const CPUGroup& left, const CPUGroup& right) {
+            return left.maxFreq > right.maxFreq;
+        });
+        // for (auto& group : cpu_groups) {
+        //     std::string message = "CPU Group: [";
+        //     for (int v=0; v<group.ids.size(); ++v) {
+        //         message += " " + std::to_string(group.ids[v]) + " ";
+        //     }
+        //     message += "], " + std::to_string(group.minFreq) + " - " + std::to_string(group.maxFreq);
+        //     LOGI("%s\n", message.c_str());
+        // }
+    } while (false);
+#endif
+    return cpu_groups;
 }
 
 } // namespace rwkvmobile

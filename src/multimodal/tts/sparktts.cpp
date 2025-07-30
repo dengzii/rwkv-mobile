@@ -3,8 +3,10 @@
 #include <cmath>
 #include <filesystem>
 #include <cstring>
+#include <fstream>
 #include "logger.h"
 #include "audio.h"
+#include "soc_detect.h"
 
 namespace rwkvmobile {
 
@@ -71,8 +73,14 @@ bool sparktts::load_models(std::string wav2vec2_model_path, std::string bicodec_
 
         MNN::ScheduleConfig conf;
         conf.type = MNN_FORWARD_CPU;
-        conf.numThread = 2;
-        // conf.mode = 1;
+#ifdef __ANDROID__
+        auto cpu_groups = get_cpu_groups();
+        // use second group
+        conf.numThread = cpu_groups[1].ids.size();
+#else
+        conf.numThread = 4;
+#endif
+        LOGI("[TTS] MNN numThread: %d", conf.numThread);
         MNN::BackendConfig backendConfig;
         backendConfig.memory = MNN::BackendConfig::Memory_Low;
         backendConfig.power = MNN::BackendConfig::Power_High;
@@ -95,6 +103,16 @@ bool sparktts::load_models(std::string wav2vec2_model_path, std::string bicodec_
         bicodec_detokenizer_mnn_interpretor = MNN::Interpreter::createFromFile(bicodec_detokenizer_path.c_str());
         bicodec_detokenizer_mnn_session = bicodec_detokenizer_mnn_interpretor->createSession(conf, mnn_runtime);
 
+#ifdef __ANDROID__
+        wav2vec2_mnn_interpretor->setSessionHint(MNN::Interpreter::HintMode::CPU_CORE_IDS, cpu_groups[1].ids.data(), cpu_groups[1].ids.size());
+        bicodec_tokenizer_mnn_interpretor->setSessionHint(MNN::Interpreter::HintMode::CPU_CORE_IDS, cpu_groups[1].ids.data(), cpu_groups[1].ids.size());
+        bicodec_detokenizer_mnn_interpretor->setSessionHint(MNN::Interpreter::HintMode::CPU_CORE_IDS, cpu_groups[1].ids.data(), cpu_groups[1].ids.size());
+        std::string msg = "[TTS]: binding mnn to cpu core ids: ";
+        for (int i = 0; i < cpu_groups[1].ids.size(); i++) {
+            msg += std::to_string(cpu_groups[1].ids[i]) + " ";
+        }
+        LOGI("%s", msg.c_str());
+#endif
         // auto remove_extension = [](std::string path) {
         //     size_t lastindex = path.find_last_of(".");
         //     return path.substr(0, lastindex);
@@ -127,6 +145,8 @@ bool sparktts::load_models(std::string wav2vec2_model_path, std::string bicodec_
         return false;
     }
     LOGI("[TTS] SparkTTS models loaded successfully");
+
+    resize_detokenizer_model(initial_chunk_size);
     return true;
 }
 
@@ -196,6 +216,16 @@ bool sparktts::tokenize_audio(std::vector<float> audio, std::vector<int> &global
     return true;
 }
 
+void sparktts::resize_detokenizer_model(int semantic_tokens_size) {
+    if (semantic_tokens_size != current_semantic_tokens_size) {
+        auto input_tensors = bicodec_detokenizer_mnn_interpretor->getSessionInputAll(bicodec_detokenizer_mnn_session);
+        current_semantic_tokens_size = semantic_tokens_size;
+        std::vector<int> input_shape_semantic_tokens = {1, static_cast<int>(semantic_tokens_size)};
+        bicodec_detokenizer_mnn_interpretor->resizeTensor(input_tensors["semantic_tokens"], input_shape_semantic_tokens);
+        bicodec_detokenizer_mnn_interpretor->resizeSession(bicodec_detokenizer_mnn_session);
+    }
+}
+
 std::vector<float> sparktts::detokenize_audio(std::vector<int> global_tokens, std::vector<int> semantic_tokens) {
     if (global_tokens.size() == 0) {
         LOGE("[TTS] Global tokens are empty");
@@ -217,12 +247,7 @@ std::vector<float> sparktts::detokenize_audio(std::vector<int> global_tokens, st
     auto start = std::chrono::high_resolution_clock::now();
 
     auto input_tensors = bicodec_detokenizer_mnn_interpretor->getSessionInputAll(bicodec_detokenizer_mnn_session);
-    if (semantic_tokens.size() != current_semantic_tokens_size) {
-        current_semantic_tokens_size = semantic_tokens.size();
-        std::vector<int> input_shape_semantic_tokens = {1, static_cast<int>(semantic_tokens.size())};
-        bicodec_detokenizer_mnn_interpretor->resizeTensor(input_tensors["semantic_tokens"], input_shape_semantic_tokens);
-        bicodec_detokenizer_mnn_interpretor->resizeSession(bicodec_detokenizer_mnn_session);
-    }
+    resize_detokenizer_model(semantic_tokens.size());
 
     auto nchw_tensor_semantic_tokens = new MNN::Tensor(input_tensors["semantic_tokens"], MNN::Tensor::CAFFE);
     memcpy(nchw_tensor_semantic_tokens->host<int>(), semantic_tokens.data(), semantic_tokens.size() * sizeof(int));
@@ -257,4 +282,110 @@ std::vector<float> sparktts::detokenize_audio(std::vector<int> global_tokens, st
     return output_values;
 }
 
+bool sparktts::get_global_and_semantic_tokens(
+    std::string audio_path,
+    std::string cache_dir,
+    std::vector<int> &global_tokens,
+    std::vector<int> &semantic_tokens
+) {
+    bool read_from_cache = false;
+    static auto calc_checksum = [](const std::string &path) -> unsigned int {
+        std::ifstream file(path, std::ios::binary);
+        if (!file) {
+            LOGE("[TTS] Failed to open prompt wav file: %s", path.c_str());
+            return 0;
+        }
+
+        uint32_t checksum = 0;
+        char buffer[4096];
+        while (file.read(buffer, sizeof(buffer))) {
+            for (size_t i = 0; i < file.gcount(); i++) {
+                checksum = ((checksum << 5) + checksum) + buffer[i];
+            }
+        }
+        if (file.gcount() > 0) {
+            for (size_t i = 0; i < file.gcount(); i++) {
+                checksum = ((checksum << 5) + checksum) + buffer[i];
+            }
+        }
+        file.close();
+
+        return checksum;
+    };
+
+    if (!cache_dir.empty()) {
+        uint32_t checksum = calc_checksum(audio_path);
+        if (checksum == 0) {
+            LOGE("[TTS] Failed to calculate checksum of prompt wav file: %s", audio_path.c_str());
+            return false;
+        }
+
+        std::string local_cache_dir = cache_dir + "/tts_cache/";
+        if (!std::filesystem::exists(local_cache_dir)) {
+            std::filesystem::create_directory(local_cache_dir);
+        }
+
+        std::string cache_file = local_cache_dir + std::to_string(checksum) + ".cache";
+
+        if (std::filesystem::exists(cache_file)) {
+            std::ifstream cache(cache_file, std::ios::binary);
+            if (cache) {
+                LOGI("[TTS] Loading cached speech tokens");
+                
+                size_t global_tokens_size;
+                cache.read(reinterpret_cast<char*>(&global_tokens_size), sizeof(size_t));
+                global_tokens.resize(global_tokens_size);
+                cache.read(reinterpret_cast<char*>(global_tokens.data()), global_tokens_size * sizeof(int));
+
+                size_t semantic_tokens_size;
+                cache.read(reinterpret_cast<char*>(&semantic_tokens_size), sizeof(size_t));
+                semantic_tokens.resize(semantic_tokens_size);
+                cache.read(reinterpret_cast<char*>(semantic_tokens.data()), semantic_tokens_size * sizeof(int));
+
+                cache.close();
+                read_from_cache = true;
+                LOGI("[TTS] Loaded speech tokens from cache file: %s", cache_file.c_str());
+            }
+        }
+    }
+
+    if (!read_from_cache) {
+        wav_file *wav = new wav_file();
+        wav->load(audio_path);
+        wav->resample(16000);
+        tokenize_audio(wav->samples, global_tokens, semantic_tokens);
+        delete wav;
+
+        if (!cache_dir.empty()) {
+            uint32_t checksum = calc_checksum(audio_path);
+            if (checksum == 0) {
+                LOGE("[TTS] Failed to calculate checksum of prompt wav file: %s", audio_path.c_str());
+                return false;
+            }
+
+            std::string local_cache_dir = cache_dir + "/tts_cache/";
+            if (!std::filesystem::exists(local_cache_dir)) {
+                std::filesystem::create_directory(local_cache_dir);
+            }
+            std::string cache_file = local_cache_dir + std::to_string(checksum) + ".cache";
+
+            std::ofstream cache(cache_file, std::ios::binary);
+            if (cache) {
+                size_t global_tokens_size = global_tokens.size();
+                cache.write(reinterpret_cast<char*>(&global_tokens_size), sizeof(size_t));
+                cache.write(reinterpret_cast<char*>(global_tokens.data()), global_tokens_size * sizeof(int));
+
+                size_t semantic_tokens_size = semantic_tokens.size();
+                cache.write(reinterpret_cast<char*>(&semantic_tokens_size), sizeof(size_t));
+                cache.write(reinterpret_cast<char*>(semantic_tokens.data()), semantic_tokens_size * sizeof(int));
+
+                cache.close();
+                LOGI("[TTS] Saved speech tokens to cache file: %s", cache_file.c_str());
+            }
+        }
+    }
+
+    return read_from_cache;
 }
+
+} // namespace rwkvmobile
