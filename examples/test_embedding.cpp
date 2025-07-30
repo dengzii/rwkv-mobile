@@ -20,6 +20,30 @@ static float similarity(const std::vector<float> &emb1, const std::vector<float>
     return static_cast<float>(sum / (std::sqrt(sum1) * std::sqrt(sum2)));
 }
 
+static void rank(rwkvmobile::runtime &runtime, const std::string &query, const std::vector<std::string> &documents) {
+    const auto now = std::chrono::high_resolution_clock::now();
+    const auto embdQuery = runtime.get_embedding({query})[0];
+    const auto embeddings = runtime.get_embedding(documents);
+    const auto elapsed = std::chrono::high_resolution_clock::now() - now;
+
+    std::cout << "embedding time: " << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() << " ms"
+            << std::endl;
+
+    std::vector<std::pair<float, std::string> > results;
+
+    for (size_t i = 0; i < embeddings.size(); i++) {
+        const auto &embdText = embeddings[i];
+        const auto similarityScore = similarity(embdQuery, embdText);
+        results.emplace_back(similarityScore, documents[i]);
+    }
+
+    std::sort(results.begin(), results.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
+
+    std::cout << "query: " << query << std::endl;
+    for (const auto &[fst, snd]: results) {
+        std::cout << fst << " => " << snd << std::endl;
+    }
+}
 
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -30,7 +54,6 @@ int main(int argc, char **argv) {
 
     const auto model_path = std::string(argv[1]);
 
-    // runtime.load_rerank_model(model_path);
     runtime.load_embedding_model(model_path);
 
     const std::vector<std::string> texts = {
@@ -44,21 +67,9 @@ int main(int argc, char **argv) {
         "walking is good for health",
         "tom like to talk with his friends",
     };
-    const std::string query = "health";
+    const std::string query = "health is important";
 
-    const auto now = std::chrono::high_resolution_clock::now();
-    const auto embdQuery = runtime.get_embedding({query})[0];
-    const auto embeddings = runtime.get_embedding(texts);
-    const auto elapsed = std::chrono::high_resolution_clock::now() - now;
-
-    std::cout << "embedding time: " << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() << " ms"
-            << std::endl;
-
-    for (size_t i = 0; i < embeddings.size(); i++) {
-        const auto &embdText = embeddings[i];
-        const auto similarityScore = similarity(embdQuery, embdText);
-        std::cout << similarityScore << " => " << texts[i] << std::endl;
-    }
+    rank(runtime, query, texts);
 
     return 0;
 }

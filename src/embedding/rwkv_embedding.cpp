@@ -32,7 +32,8 @@ static auto batch_add(llama_batch &batch,
 }
 
 
-rwkv_embedding::rwkv_embedding(): model(nullptr), ctx(nullptr) {
+rwkv_embedding::rwkv_embedding(): model(nullptr), ctx(nullptr),
+                                  model_rerank(nullptr), ctx_rerank(nullptr) {
 }
 
 
@@ -63,8 +64,18 @@ int rwkv_embedding::load_model(const std::string &model_path) {
 
 
 int rwkv_embedding::load_rerank_model(const std::string &model_path) {
-    // TODO
-    return -1;
+    llama_model_params lparams = llama_model_default_params();
+    lparams.n_gpu_layers = 0;
+    model_rerank = llama_model_load_from_file(model_path.c_str(), lparams);
+    llama_context_params params = llama_context_default_params();
+    params.pooling_type = LLAMA_POOLING_TYPE_RANK;
+
+    ctx_rerank = llama_init_from_model(model_rerank, params);
+    if (!ctx_rerank) {
+        rwkvmobile::LOGI("Failed to initialize context");
+        return 1;
+    }
+    return 0;
 }
 
 void rwkv_embedding::release() {
@@ -80,21 +91,33 @@ void rwkv_embedding::release() {
 }
 
 
-std::vector<int32_t> rwkv_embedding::tokenize(const std::string &text) const {
+std::vector<int32_t> rwkv_embedding::tokenize(const llama_model *model,
+                                              const std::string &text,
+                                              const bool add_special,
+                                              const bool parse_special,
+                                              const bool add_eos,
+                                              const bool add_sep) {
     const auto *vocab = llama_model_get_vocab(model);
-    std::vector<llama_token> tokens = vocab->tokenize(text, true, false);
+    std::vector<llama_token> tokens = vocab->tokenize(text, add_special, parse_special);
 
-    // add eos if not present
-    if (llama_vocab_eos(vocab) >= 0 && (tokens.empty() || tokens.back() != llama_vocab_eos(vocab))) {
-        tokens.push_back(llama_vocab_eos(vocab));
+    if (add_eos) {
+        if (llama_vocab_eos(vocab) >= 0 && (tokens.empty() || tokens.back() != llama_vocab_eos(vocab))) {
+            tokens.push_back(llama_vocab_eos(vocab));
+        }
+    }
+
+    if (add_sep) {
+        if (llama_vocab_sep(vocab) >= 0 && (tokens.empty() || tokens.back() != llama_vocab_sep(vocab))) {
+            tokens.push_back(llama_vocab_sep(vocab));
+        }
     }
 
     return std::vector<int32_t>(tokens.begin(), tokens.end());
 }
 
-void rwkv_embedding::embd_normalize(const float *inp, float *out, const int n) const {
+void rwkv_embedding::embd_normalize(const float *inp, float *out, const int n, const int normalization) {
     double sum = 0.0;
-    switch (embd_normalize_type) {
+    switch (normalization) {
         case -1: // no normalisation
             sum = 1.0;
             break;
@@ -114,9 +137,9 @@ void rwkv_embedding::embd_normalize(const float *inp, float *out, const int n) c
             break;
         default: // p-norm (euclidean is p-norm p=2)
             for (int i = 0; i < n; i++) {
-                sum += std::pow(std::abs(inp[i]), embd_normalize_type);
+                sum += std::pow(std::abs(inp[i]), normalization);
             }
-            sum = std::pow(sum, 1.0 / embd_normalize_type);
+            sum = std::pow(sum, 1.0 / normalization);
             break;
     }
     const float norm = sum > 0.0 ? static_cast<float>(1.0 / sum) : 0.0f;
@@ -134,13 +157,10 @@ auto rwkv_embedding::batch_add_seq(llama_batch &batch, const std::vector<int32_t
     return 0;
 }
 
-int rwkv_embedding::batch_decode(const llama_batch &batch, float *output, const int n_embd) const {
-    const enum llama_pooling_type pooling_type = llama_pooling_type(ctx);
-    // clear previous kv_cache values (irrelevant for embeddings)
-    llama_memory_clear(llama_get_memory(ctx), true);
-
+int rwkv_embedding::batch_decode(llama_context *ctx, const llama_batch &batch, float *output, const int n_embd,
+                                 const int normalization) {
     if (llama_decode(ctx, batch) < 0) {
-        // throw std::runtime_error("failed to decode");
+        rwkvmobile::LOGE("failed to decode");
         return -1;
     }
     for (int i = 0; i < batch.n_tokens; i++) {
@@ -151,14 +171,14 @@ int rwkv_embedding::batch_decode(const llama_batch &batch, float *output, const 
         if (embd == nullptr) {
             embd = llama_get_embeddings_ith(ctx, i);
             if (embd == nullptr) {
-                // throw std::runtime_error("failed to get embeddings for token");
+                rwkvmobile::LOGE("failed to get embeddings");
                 return -1;
-                continue;
             }
         }
         float *out = output + batch.seq_id[i][0] * n_embd;
-        embd_normalize(embd, out, n_embd);
+        embd_normalize(embd, out, n_embd, normalization);
     }
+    llama_memory_clear(llama_get_memory(ctx), true);
     return 0;
 }
 
@@ -176,7 +196,7 @@ std::vector<std::vector<float> > rwkv_embedding::get_embeddings(const std::vecto
     const auto n_batch = static_cast<int>(llama_n_batch(ctx));
 
     for (auto &input: inputs) {
-        auto tokens = tokenize(input);
+        auto tokens = tokenize(model, input, true, false, true, false);
         if (n_batch < static_cast<int>(tokens.size())) {
             rwkvmobile::LOGE("input size exceeds max batch size");
             return {};
@@ -193,20 +213,17 @@ std::vector<std::vector<float> > rwkv_embedding::get_embeddings(const std::vecto
     std::vector<float> embeddings(input_size * n_embd, 0);
     float *emb = embeddings.data();
 
-
-    // break into batches
     int p = 0; // number of prompts processed already
     int s = 0; // number of prompts in current batch
     for (int k = 0; k < input_size; k++) {
         // clamp to n_batch tokens
         auto &inp = results[k].tokens;
-
         const uint64_t n_toks = inp.size();
 
         // encode if at capacity
         if (batch.n_tokens + n_toks > n_batch) {
             float *out = emb + p * n_embd;
-            if (const auto r = batch_decode(batch, out, n_embd); r < 0) {
+            if (const auto r = batch_decode(ctx, batch, out, n_embd, 2); r < 0) {
                 rwkvmobile::LOGE("failed to decode batch");
                 return {};
             }
@@ -214,38 +231,26 @@ std::vector<std::vector<float> > rwkv_embedding::get_embeddings(const std::vecto
             p += s;
             s = 0;
         }
-
         // add to batch
         batch_add_seq(batch, inp, s);
         s += 1;
     }
 
-    // final batch
     float *out = emb + p * n_embd;
-    if (const auto ret = batch_decode(batch, out, n_embd); ret < 0) {
+    if (const auto ret = batch_decode(ctx, batch, out, n_embd, 2); ret < 0) {
         rwkvmobile::LOGE("failed to decode batch");
         return {};
     }
 
     std::vector<std::vector<float> > result_embeddings;
-
-    // save embeddings to chunks
     for (int i = 0; i < input_size; i++) {
-        results[i].embedding = std::vector<float>(emb + i * n_embd, emb + (i + 1) * n_embd);
-        // clear tokens as they are no longer needed
+        results[i].embedding = std::vector(emb + i * n_embd, emb + (i + 1) * n_embd);
         results[i].tokens.clear();
         result_embeddings.push_back(results[i].embedding);
     }
-
     llama_batch_free(batch);
 
     return result_embeddings;
-}
-
-
-std::vector<float> rwkv_embedding::rerank(std::string query, const std::vector<std::string> &chunks) const {
-    // TODO
-    return {};
 }
 
 float rwkv_embedding::similarity(const std::vector<float> &emb1, const std::vector<float> &emb2) {
@@ -265,4 +270,19 @@ float rwkv_embedding::similarity(const std::vector<float> &emb1, const std::vect
     }
 
     return static_cast<float>(sum / (std::sqrt(sum1) * std::sqrt(sum2)));
+}
+
+
+float rwkv_embedding::rank_document(const std::string &query, const std::string &document) const {
+    // TODO
+    return 0;
+}
+
+
+std::vector<float> rwkv_embedding::rerank(const std::string &query, const std::vector<std::string> &documents) const {
+    std::vector<float> scores;
+    for (const std::string &doc: documents) {
+        scores.push_back(rank_document(query, doc));
+    }
+    return scores;
 }
