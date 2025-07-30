@@ -132,6 +132,12 @@ int rwkvmobile_runtime_tts_register_text_normalizer(rwkvmobile_runtime_t runtime
 
 float rwkvmobile_runtime_get_prefill_progress(rwkvmobile_runtime_t runtime);
 
+int rwkvmobile_load_embedding_model(rwkvmobile_runtime_t runtime, const char *model_path);
+
+int rwkvmobile_load_rerank_model(rwkvmobile_runtime_t runtime, const char *model_path);
+
+int rwkvmobile_get_embedding(rwkvmobile_runtime_t runtime, const char **input, const int input_length,float **embedding);
+
 // platform info
 const char * rwkvmobile_get_platform_name();
 

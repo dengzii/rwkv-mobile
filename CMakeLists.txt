@@ -145,7 +145,10 @@ if (ENABLE_MNN_BACKEND)
 endif()
 
 if (ENABLE_LLAMACPP_BACKEND)
-    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/backends/llama_cpp/llama_cpp_backend.cpp)
+    set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS}
+        src/backends/llama_cpp/llama_cpp_backend.cpp
+            src/embedding/rwkv_embedding.cpp
+    )
     if (ENABLE_VISION)
         set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS}
             src/multimodal/vision/clip.cpp

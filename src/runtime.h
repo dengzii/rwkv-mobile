@@ -14,6 +14,7 @@
 #include "soc_detect.h"
 
 #include "logger.h"
+#include "embedding/rwkv_embedding.h"
 
 #ifdef ENABLE_VISION
 #include "clip.h"
@@ -125,7 +126,7 @@ public:
     } * _state_head = nullptr;
 
     int clear_state() {
-        if (_backend == nullptr) {
+        if (_backend == nullptr || _state_head == nullptr) {
             return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
         }
         _occurences.clear();
@@ -230,6 +231,45 @@ public:
     double get_avg_prefill_speed();
     double get_prefill_progress() { return _prefill_progress; }
 
+    int load_embedding_model(std::string model_path) {
+        if (_embedding == nullptr) {
+            _embedding = std::make_unique<rwkv_embedding>();
+        }
+        return _embedding->load_model(model_path);
+    }
+
+    int release_embedding_model() {
+        if (_embedding == nullptr) {
+            return RWKV_ERROR_RUNTIME | RWKV_ERROR_INVALID_PARAMETERS;
+        }
+        _embedding->release();
+        _embedding = nullptr;
+        return RWKV_SUCCESS;
+    }
+
+    int load_rerank_model(std::string model_path) {
+        if (_embedding == nullptr) {
+            _embedding = std::make_unique<rwkv_embedding>();
+        }
+        return _embedding->load_rerank_model(model_path);
+    }
+
+    std::vector<std::vector<float>> get_embedding(std::vector<std::string> inputs)  {
+        if (_embedding == nullptr) {
+            LOGE("Embedding model not loaded\n");
+            return {};
+        }
+        return _embedding->get_embeddings(inputs);
+    }
+
+    std::vector<float> rerank(std::string query, const std::vector<std::string> &chunks)  {
+        if (_embedding == nullptr) {
+            LOGE("Embedding model not loaded\n");
+            return {};
+        }
+        return _embedding->rerank(query, chunks);
+    }
+
     // platform info
     const char * get_platform_name() {
         auto platform_name = _soc_detect.get_platform_name();
@@ -296,6 +336,7 @@ private:
     std::unique_ptr<execution_provider, std::function<void(execution_provider*)>> _backend;
     std::unique_ptr<tokenizer_base, std::function<void(tokenizer_base*)>> _tokenizer;
     std::unique_ptr<sampler> _sampler;
+    std::unique_ptr<rwkv_embedding> _embedding;
 
     double _prefill_speed = -1;
     double _decode_speed = -1;
