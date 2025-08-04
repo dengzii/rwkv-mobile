@@ -40,7 +40,7 @@ std::string pal::Path::combine(const std::string &s1, const std::string &s2) {
 //------------------------------------------------------------------------------
 std::string pal::Path::getDirectoryName(const std::string &path) {
   std::string rc = path;
-  int32_t index  = std::max(static_cast<int32_t>(path.find_last_of('\\')),
+  int32_t index  = max(static_cast<int32_t>(path.find_last_of('\\')),
                            static_cast<int32_t>(path.find_last_of('/')));
   if (index != static_cast<int32_t>(std::string::npos)) {
     rc = path.substr(0, index);
