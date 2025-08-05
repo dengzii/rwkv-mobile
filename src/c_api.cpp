@@ -672,7 +672,7 @@ int rwkvmobile_load_rerank_model(rwkvmobile_runtime_t runtime, const char *model
     return rt->load_rerank_model(model_path);
 }
 
-int rwkvmobile_get_embedding(rwkvmobile_runtime_t runtime, const char **input, const int input_length, float **embedding) {
+int rwkvmobile_get_embedding(rwkvmobile_runtime_t runtime, const char **input, const int input_length, float *embedding) {
     if (runtime == nullptr || input == nullptr || embedding == nullptr) {
         return RWKV_ERROR_INVALID_PARAMETERS;
     }
@@ -682,13 +682,35 @@ int rwkvmobile_get_embedding(rwkvmobile_runtime_t runtime, const char **input, c
         inputs.emplace_back(input[i]);
     }
 
-    auto ebd = rt->get_embedding(inputs);
+    const auto ebd = rt->get_embedding(inputs);
     if (ebd.empty()) {
         return RWKV_ERROR_EVAL;
     }
-    memcpy(embedding, ebd.data(), ebd[0].size() * ebd.size() * sizeof(float));
+    const auto dim = ebd[0].size();
+    for (int i = 0; i < ebd.size(); i++) {
+        memcpy(embedding + i * dim, ebd[i].data(), dim * sizeof(float));
+    }
     return 0;
 }
+
+int rerank(rwkvmobile_runtime_t runtime, const char *query, const char **candidates, const int candidates_length,
+           float *scores) {
+    if (runtime == nullptr || query == nullptr || candidates == nullptr || scores == nullptr) {
+        return RWKV_ERROR_INVALID_PARAMETERS;
+    }
+    auto rt = static_cast<class runtime *>(runtime);
+    std::vector<std::string> candidates_str;
+    for (int i = 0; i < candidates_length; i++) {
+        candidates_str.emplace_back(candidates[i]);
+    }
+    const auto scores_vec = rt->rerank(query, candidates_str);
+    if (scores_vec.empty()) {
+        return RWKV_ERROR_EVAL;
+    }
+    memcpy(scores, scores_vec.data(), scores_vec.size() * sizeof(float));
+    return 0;
+}
+
 
 } // extern "C"
 } // namespace rwkvmobile
