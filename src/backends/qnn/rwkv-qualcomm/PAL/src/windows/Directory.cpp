@@ -89,7 +89,7 @@ bool pal::Directory::makePath(const std::string &path) {
       rc = true;
     }
   } else {
-    size_t offset = min(path.find_last_of('/'), path.find_last_of('\\'));
+    size_t offset = fmin(path.find_last_of('/'), path.find_last_of('\\'));
     if (offset != std::string::npos) {
       std::string newPath = path.substr(0, offset);
       if (!makePath(newPath)) {

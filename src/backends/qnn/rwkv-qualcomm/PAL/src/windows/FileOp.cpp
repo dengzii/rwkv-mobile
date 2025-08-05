@@ -105,7 +105,7 @@ bool pal::FileOp::checkIsDir(const std::string &fileName) {
 bool pal::FileOp::getFileInfo(const std::string &filename,
                               pal::FileOp::FilenamePartsType_t &filenameParts) {
   std::string name;
-  int32_t lastPathSeparator = max(static_cast<int32_t>(filename.find_last_of('\\')),
+  int32_t lastPathSeparator = fmax(static_cast<int32_t>(filename.find_last_of('\\')),
                                        static_cast<int32_t>(filename.find_last_of('/')));
   if (lastPathSeparator == static_cast<int32_t>(std::string::npos)) {
     // No directory
@@ -217,7 +217,7 @@ std::string pal::FileOp::getAbsolutePath(const std::string &path) {
 //-------------------------------------------------------------------------------
 std::string pal::FileOp::getDirectory(const std::string &file) {
   std::string rc = file;
-  int32_t index  = max(static_cast<int32_t>(file.find_last_of('\\')),
+  int32_t index  = fmax(static_cast<int32_t>(file.find_last_of('\\')),
                            static_cast<int32_t>(file.find_last_of('/')));
   if (index != static_cast<int32_t>(std::string::npos)) {
     rc = file.substr(0, index);
@@ -231,7 +231,7 @@ std::string pal::FileOp::getDirectory(const std::string &file) {
 //-------------------------------------------------------------------------------
 std::string pal::FileOp::getFileName(const std::string &file) {
   std::string rc = file;
-  int32_t index  = max(static_cast<int32_t>(file.find_last_of('\\')),
+  int32_t index  = fmax(static_cast<int32_t>(file.find_last_of('\\')),
                            static_cast<int32_t>(file.find_last_of('/')));
   if (index != static_cast<int32_t>(std::string::npos)) {
     rc = file.substr(index + 1);  // +1 to skip path separator
