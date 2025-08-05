@@ -93,18 +93,26 @@ endif()
 if (ENABLE_NCNN_BACKEND)
     set(RWKV_MOBILE_SRCS ${RWKV_MOBILE_SRCS} src/backends/ncnn/ncnn_rwkv_backend.cpp)
 
-    FetchContent_Declare(
-        ncnn
-        GIT_REPOSITORY https://github.com/Tencent/ncnn
-        GIT_TAG master
-    )
-    # include(disable_unused_ncnn_layers)
-    option(NCNN_BUILD_TOOLS "" OFF)
-    option(NCNN_BUILD_EXAMPLES "" OFF)
-    option(NCNN_BUILD_TESTS "" OFF)
-    option(NCNN_BUILD_BENCHMARK "" OFF)
-    option(NCNN_DISABLE_EXCEPTION "" OFF)
-    FetchContent_MakeAvailable(ncnn)
+    if (WIN32)
+        FetchContent_Declare(
+            ncnn_prebuilt
+            URL https://github.com/Tencent/ncnn/releases/download/20250503/ncnn-20250503-windows-vs2022.zip
+        )
+        FetchContent_MakeAvailable(ncnn_prebuilt)
+    else()
+        FetchContent_Declare(
+            ncnn
+            GIT_REPOSITORY https://github.com/Tencent/ncnn
+            GIT_TAG master
+        )
+        # include(disable_unused_ncnn_layers)
+        option(NCNN_BUILD_TOOLS "" OFF)
+        option(NCNN_BUILD_EXAMPLES "" OFF)
+        option(NCNN_BUILD_TESTS "" OFF)
+        option(NCNN_BUILD_BENCHMARK "" OFF)
+        option(NCNN_DISABLE_EXCEPTION "" OFF)
+        FetchContent_MakeAvailable(ncnn)
+    endif()
 endif()
 
 if (ENABLE_MNN_BACKEND)
@@ -312,6 +320,17 @@ endif()
 if (ENABLE_NCNN_BACKEND)
     target_compile_definitions(rwkv_mobile_internal PUBLIC ENABLE_NCNN)
     target_include_directories(rwkv_mobile_internal PUBLIC src/backends/ncnn)
+    if (WIN32)
+        if (CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64")
+            set(NCNN_ARCH "arm64")
+        elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+            set(NCNN_ARCH "x64")
+        else()
+            set(NCNN_ARCH "x86")
+        endif()
+        set(ncnn_DIR ${ncnn_prebuilt_SOURCE_DIR}/${NCNN_ARCH}/lib/cmake/ncnn)
+        find_package(ncnn REQUIRED)
+    endif()
     target_link_libraries(rwkv_mobile_internal PUBLIC "$<LINK_LIBRARY:WHOLE_ARCHIVE,ncnn>")
 endif()
 
